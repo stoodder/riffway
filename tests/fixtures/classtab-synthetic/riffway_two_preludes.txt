@@ -1,0 +1,32 @@
+Two Little Preludes - Ada Fictional (1801-1870)
+*************************************************
+version 1 - first edition, 2 measures
+version 2 - second edition, 2 measures
+*************************************************
+synthetic fixture authored for the Riffway unit tests
+
+MIDI: http://www.classtab.org/riffway_two_preludes_01.mid
+tuning: E A D G B E    key: A minor    time: 2/4    tempo: Q=60
+
+e|-------0-|---------|
+B|-----1---|-----1---|
+G|---2-----|---2---2-|
+D|---------|---------|
+A|-0-------|-0-------|
+E|---------|---------|
+
+Notes
+~~~~~
+version 1 is played slowly.
+
+*************************************************
+Two Little Preludes (second edition) - Ada Fictional (1801-1870)
+MIDI: http://www.classtab.org/riffway_two_preludes_02.mid
+tuning: E A D G B E    key: E major    time: 2/4    tempo: Q=72
+
+e|-------0-|-------4-|
+B|-----0---|-----0---|
+G|---1-----|---1-----|
+D|---------|---------|
+A|---------|---------|
+E|-0-------|-0-------|
