@@ -92,6 +92,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-021 | Guide synth renderer + song worker | impl | done 3ddb919: 27 node + 20 browser; notes ±10 ms; 3-min song renders in 449 ms; DEC-21 resolved (MIDI from Song works) |
 | T-024 | Highway renderer (canvas) | impl | done 6734ee6: 23 node + 13 browser; 19.2k notes draw p95 ~0.6 ms |
 | T-103 | ClassTab rhythm recall, composer, failed files | impl | done 13762f1: playable 2353->2581; ruler-readable 2087 (~survey 2127); composer 3956/3976; failed files visible |
+| T-032 | Practice panel + mixer UI | impl | done eec3689: 57 tests; speed 40-100% (110% overspeed) per transport clamp; A/B strip, trainer ladder, mixer |
 
 ---
 
@@ -429,7 +430,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Tests: scripted events through a fake engine give the expected `RunSummary`; keyboard mapping.
 
 ### T-032 · Practice panel + mixer UI
-- **Status:** in-progress · **Deps:** T-014, T-016, T-020 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-014, T-016, T-020 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/panels/practice/`, `src/ui/panels/mixer/`, `tests/practice-ui/`
 - **Acceptance:** speed slider 40–100% (110% opt-in after mastery); A/B loop editor on a section/bar strip
   with snapping and "loop section" buttons; pre-roll rules; speed-trainer toggle with live messages
