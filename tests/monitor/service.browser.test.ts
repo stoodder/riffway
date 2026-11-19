@@ -74,6 +74,16 @@ class FakeInput implements InputService {
   devicesChanged(): void {
     for (const cb of this.deviceCbs) cb();
   }
+  /** Rebuild the "graph" on the engine's current context **without** announcing it (as the real service does). */
+  rewireSilently(): void {
+    const level = this.gain?.gain.value ?? 0;
+    this.osc?.stop();
+    const ctx = this.engine.ctx;
+    this.osc = new OscillatorNode(ctx, { frequency: 1800 });
+    this.gain = new GainNode(ctx, { gain: level });
+    this.osc.connect(this.gain);
+    this.osc.start();
+  }
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -224,6 +234,19 @@ describe('monitor service', () => {
     await input.open();
     input.gain!.gain.value = 0.1;
     await sleep(450);
+    expect(await busDb(engine)).toBeGreaterThan(-60);
+  });
+
+  it('re-reads getInputNode() when the input rewires on a new context after the chain is rebuilt', async () => {
+    const { engine, input, monitor } = await setup({}, [{ ...PHONES, deviceId: 'default' }]);
+    await monitor.setEnabled(true);
+    input.gain!.gain.value = 0.1;
+    await engine.setSampleRate(44100);
+    // The input's graph lands on the new context only after the monitor chain was rebuilt, unannounced.
+    await sleep(150);
+    input.rewireSilently();
+    await sleep(500);
+    expect(input.getInputNode()?.context).toBe(engine.ctx);
     expect(await busDb(engine)).toBeGreaterThan(-60);
   });
 });

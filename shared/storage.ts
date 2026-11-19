@@ -100,7 +100,11 @@ export interface SectionProgress {
   /** Next-day check due time (next local day 04:00). */
   nextCheckAt?: number;
   bestAccuracy: number;
-  /** Passes since `bestAccuracy` last improved (plateau nudge after 6). */
+  /**
+   * Passes without progress (plateau nudge after 6, `PLATEAU_PASSES`). A pass makes progress, and
+   * resets this to 0, when it sets a new `bestAccuracy`, is clean, or is played at a different speed
+   * bucket from the previous pass (docs/progress.md § Section mastery).
+   */
   passesSinceGain: number;
   /** Session of the latest run (absent before the first run with a session id). */
   session?: SectionSession;

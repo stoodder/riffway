@@ -162,6 +162,12 @@ Shifts also feed [difficulty.md](difficulty.md).
 ## Highway and technique glyphs
 Horizontal lanes, high e on top. x = `hitX + (note.time − heardSongTime) / speed × pxPerSec`
 (constant visual velocity in real time). Gems show the fret number; sustains draw a tail.
+Layout (`src/game/highway/layout.ts`, CSS px): a 30 px strip above the lanes (sections, bar numbers,
+cue labels, loop flags) and 26 px below (palm-mute brackets, chord note); six equal lanes in between,
+gem half-size `clamp(0.36 × laneH, 9, 24)`; hit line at `hitX = clamp(0.24 × width, 220, 340)` with the
+gutter (combo, outcome text, lane letters, fade-out) to its left; `pxPerSec = 320 × noteSpeed`
+(note speed 0.5–2), so a 1280 px canvas at note speed 1 shows ~3 real seconds of notes ahead of the
+hit line.
 | Technique | Glyph |
 |---|---|
 | Hammer-on / pull-off | `h` / `p` arc to next note |

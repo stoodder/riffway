@@ -13,7 +13,7 @@ import type { AppContext, PanelMount, PanelPropsMap } from '@shared/ui';
 import { processingWarningText } from '../../../audio/input/constraints';
 import { displayLabel, isAlias, labelsHidden } from '../../../audio/input/devices';
 import { badge, button, card, h, icon, meter, select, setBusy, type SelectOption } from '../../components';
-import { connectInput, describeOpenError, isGestureDismissed } from './connect';
+import { audioPanelServices, connectInput, describeOpenError, isGestureDismissed, unavailablePanel } from './connect';
 import { LevelModel, METER_HOT_DB, METER_MIN_DB, METER_WARN_DB, formatDb } from './level-model';
 import './input.css';
 
@@ -29,8 +29,9 @@ const CHANNEL_OPTIONS: SelectOption[] = [
 type Notice = { kind: 'warning' | 'danger' | 'info'; text: string; id: string };
 
 export const mount: PanelMount<PanelPropsMap['input']> = async (el, ctx) => {
-  const [engine, input] = await Promise.all([ctx.services.get('engine'), ctx.services.get('input')]);
-  const panel = new InputPanel(el, ctx, engine, input);
+  const services = await audioPanelServices(ctx);
+  if ('error' in services) return unavailablePanel(el, { title: 'Guitar input', eyebrow: 'Step 1', panel: 'input', message: services.error });
+  const panel = new InputPanel(el, ctx, services.engine, services.input);
   await panel.start();
   return { unmount: () => panel.destroy() };
 };

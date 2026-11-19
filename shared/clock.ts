@@ -32,8 +32,20 @@ export interface ClockAnchor {
 export interface SongClockMapping {
   /** Song time at a context time. */
   songTimeAt(ctxTime: number): number;
-  /** Context time at which `songTime` is (or was) reached in the current pass. */
+  /**
+   * Context time at which `songTime` is (or was) reached, nearest to now. Extrapolates at the
+   * requested speed while paused (renderer, backing); the judge prefers {@link ctxTimeInPass}.
+   */
   ctxTimeAt(songTime: number): number;
+  /**
+   * Pass-aware mapping (docs/timing.md § Passes): context time at which `songTime` is played **in
+   * pass `pass`** ({@link ClockChange.pass}). Finite when that pass played it or will play it as
+   * scheduled now; `-Infinity` when that pass never plays it (the pass is over, or the time lies
+   * before the pass's start or in a count-in); `NaN` while not known (paused or stopped before it,
+   * not started, or no longer retained). The engine's `SongClock` always implements it; a mapping
+   * without it (a single-pass test clock) only resolves the current pass via `ctxTimeAt`.
+   */
+  ctxTimeInPass?(songTime: number, pass: number): number;
 }
 
 /** Why the anchor changed. */
@@ -44,7 +56,13 @@ export interface ClockChange {
   reason: ClockChangeReason;
   anchor: Readonly<ClockAnchor>;
   state: TransportState;
-  /** Loop pass counter (0 = first pass); increments on every loop wrap. */
+  /**
+   * Pass number (0 = first pass of the run; docs/timing.md § Passes). A new pass starts on a loop
+   * wrap (announced once the wrap has begun), a `seek` (playing or paused) and a jump
+   * (`play({from})` while playing or paused); a fresh `play()` from `stopped` starts at 0. Pause/
+   * resume, speed and loop changes and `stop` keep the pass. Pass numbers never repeat within a run.
+   * The session calls `Judge.startPass({pass})` whenever this differs from the judge's pass.
+   */
   pass: number;
 }
 
@@ -132,7 +150,7 @@ export interface PlaybackSegment {
   /** Context time where this segment ends, if bounded. */
   ctxEnd?: number;
   speed: number;
-  /** Loop pass number of this segment. */
+  /** Pass number of this segment (see {@link ClockChange.pass}). */
   pass: number;
 }
 

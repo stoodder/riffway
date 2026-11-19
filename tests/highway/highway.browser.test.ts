@@ -256,6 +256,47 @@ describe('createHighway', () => {
   });
 });
 
+describe('hand-position cues', () => {
+  /** Two notes on string 4 with a supplied 1fr → 9fr shift whose raw `showAt` is only 0.1 s ahead. */
+  function cueSong(): { song: Song; positions: NonNullable<Parameters<typeof createHighway>[3]['positions']> } {
+    const song = { ...tinySong(), notes: [] as Note[] };
+    song.notes = [
+      { id: 0, time: 2, dur: 0.1, string: 4, fret: 1, midi: 51, bar: 0, tech: {} },
+      { id: 1, time: 4, dur: 0.1, string: 4, fret: 9, midi: 59, bar: 1, tech: {} },
+    ];
+    return {
+      song,
+      positions: {
+        positions: [
+          { lo: 1, hi: 4, start: 2, end: 2.1, firstNoteId: 0, lastNoteId: 0 },
+          { lo: 9, hi: 13, start: 4, end: 4.1, firstNoteId: 1, lastNoteId: 1 },
+        ],
+        cues: [{ showAt: 3.9, time: 4, fromLo: 1, lo: 9, hi: 13 }],
+      },
+    };
+  }
+  const isCueOrange = ([r, g, b]: number[]): boolean => r! > 180 && g! > 80 && g! < 180 && b! < 100;
+
+  it('shows a cue from cueShowAt: at least 0.75 real seconds ahead, also above 100% speed (R1-C-10)', () => {
+    const canvas = mountCanvas();
+    const { song, positions } = cueSong();
+    const { clock, state } = testClock({ now: 3.4, speed: 1.1 });
+    highway = createHighway(canvas, song, clock, { noteSpeed: 1, handCues: true, positions });
+    const L = computeLayout(W, H, canvas.width / W, 1);
+    const probe = (): [number, number, number] => {
+      const x = Math.round(timeToX(L, 4, state.now, state.speed) - L.gemR - 10);
+      return pixel(canvas, x, (L.laneY[3]! + L.laneY[4]!) / 2);
+    };
+    // Raw showAt (3.9) would hide it; cueShowAt = 4 − 0.75 × 1.1 = 3.175, so at 3.4 it is drawn.
+    highway.drawFrame(1000);
+    expect(isCueOrange(probe())).toBe(true);
+    // Before 3.175 it is not drawn yet.
+    state.now = 3.1;
+    highway.drawFrame(1016);
+    expect(isCueOrange(probe())).toBe(false);
+  });
+});
+
 describe('HighwayRenderer pools', () => {
   it('never grows the particle pool past its capacity', () => {
     const canvas = mountCanvas();

@@ -40,7 +40,8 @@ export function navScreens(): ScreenRegistration[] {
 
 /**
  * Match a hash path (`/song/local%3Aab?arr=0`, with or without the leading `#`) to a screen.
- * Path params are URL-decoded; query params are merged in (path params win).
+ * Path params are URL-decoded; query params are merged in (path params win). A path param with a
+ * malformed escape (`%`, `%E0%A4%A`) matches nothing (`null`), so the shell shows "Page not found".
  */
 export function matchRoute(hashPath: string): RouteMatch | null {
   const raw = hashPath.replace(/^#/, '') || '/';
@@ -55,8 +56,12 @@ export function matchRoute(hashPath: string): RouteMatch | null {
     for (let i = 0; i < pattern.length; i++) {
       const p = pattern[i] as string;
       const s = segs[i] as string;
-      if (p.startsWith(':')) params[p.slice(1)] = decodeURIComponent(s);
-      else if (p !== s) {
+      if (p.startsWith(':')) {
+        const value = decodeParam(s);
+        // A malformed escape (`#/song/%`) is an unknown path, not a crash (R1-P-11).
+        if (value === null) return null;
+        params[p.slice(1)] = value;
+      } else if (p !== s) {
         ok = false;
         break;
       }
@@ -64,6 +69,16 @@ export function matchRoute(hashPath: string): RouteMatch | null {
     if (ok) return { screen: reg.id, path: raw, params };
   }
   return null;
+}
+
+/** `decodeURIComponent`, or null for a malformed escape sequence. */
+function decodeParam(segment: string): string | null {
+  try {
+    return decodeURIComponent(segment);
+  } catch (err) {
+    if (err instanceof URIError) return null;
+    throw err;
+  }
 }
 
 /** Build a hash path for a screen: path params filled (encoded), the rest as query. No leading `#`. */

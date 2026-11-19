@@ -41,13 +41,6 @@ export interface LatencyInputs {
   calibration: Pick<CalibrationSettings, 'method' | 'inputOffsetMs'>;
 }
 
-/** {@link LatencyEstimate} with the amp's DSP delay and which parts were assumed. */
-export interface MonitorLatencyEstimate extends LatencyEstimate {
-  parts: LatencyEstimate['parts'] & { dspMs: number };
-  /** Parts the browser did not report (a 10 ms assumption was used). */
-  assumed: { input: boolean; output: boolean };
-}
-
 /** Grouped for display: input (device + driver), processing (one render quantum + amp DSP), output. */
 export interface LatencyBreakdown {
   totalMs: number;
@@ -72,7 +65,7 @@ const usable = (v: number | null | undefined): v is number => typeof v === 'numb
  * `calibratedOffsetMs` is the play-to-click `inputOffsetMs` (it also contains the player's own
  * timing habit, so the UI calls it "calibrated offset", not latency).
  */
-export function estimateMonitorLatency(i: LatencyInputs): MonitorLatencyEstimate {
+export function estimateMonitorLatency(i: LatencyInputs): LatencyEstimate {
   const inputSec = usable(i.inputLatencySec) ? i.inputLatencySec : ASSUMED_LATENCY_SEC;
   const outputSec = usable(i.outputLatencySec) ? i.outputLatencySec : ASSUMED_LATENCY_SEC;
   const baseSec = usable(i.baseLatencySec) ? i.baseLatencySec : 0;
@@ -94,18 +87,16 @@ export function estimateMonitorLatency(i: LatencyInputs): MonitorLatencyEstimate
 }
 
 /**
- * Group an estimate for display. Accepts any {@link LatencyEstimate}; the DSP part and the
- * "assumed" flags are read when present ({@link MonitorLatencyEstimate}).
+ * Group an estimate for display. An absent `parts.dspMs` reads as 0 and absent `assumed` flags as
+ * "reported" (estimates not made by {@link estimateMonitorLatency}, e.g. test fakes).
  */
 export function latencyBreakdown(est: LatencyEstimate): LatencyBreakdown {
-  const ext = est as Partial<MonitorLatencyEstimate>;
-  const dspMs = ext.parts?.dspMs ?? 0;
   return {
     totalMs: est.monitorMs,
     inputMs: est.parts.inputMs,
-    processingMs: est.parts.quantumMs + dspMs,
+    processingMs: est.parts.quantumMs + (est.parts.dspMs ?? 0),
     outputMs: est.parts.baseMs + est.parts.outputMs,
-    assumedInput: ext.assumed?.input ?? false,
-    assumedOutput: ext.assumed?.output ?? false,
+    assumedInput: est.assumed?.input ?? false,
+    assumedOutput: est.assumed?.output ?? false,
   };
 }

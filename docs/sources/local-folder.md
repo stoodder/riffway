@@ -31,26 +31,40 @@ Skip unknown files silently. Cap the file size (for example 20 MB) and never exe
   `.mid` or rhythm sidecar changed), entries that failed before, and everything after an app version bump.
   Startup and `POST /api/library/rescan` do a full rescan; `reindex(id)` re-parses one song (sidecar saved).
 - Files that are not songs (`ImportError` `unsupported`, or `empty` for `.txt`/`.tab`) are skipped silently.
-  Files that fail to import stay visible with an `error` message and are retried on the next scan.
+  Files that fail to import stay visible with an `error` message. Only **transient** failures (an
+  unexpected importer error, or a typed `ImportError` with code `internal`) are retried on every scan;
+  deterministic ones (syntax, no playable track, too large) stay cached by mtime + size until the file
+  changes. A playable song whose difficulty analysis failed is also re-analysed.
 - A `.txt`/`.tab` with a sibling `.mid` of the same basename (any case) gets it as its rhythm source.
 - Index changes are pushed to the frontend over SSE (`GET /api/events`: `library.changed` with reason
   `added`/`changed`/`removed`/`rescan`, and `index.progress`), so search updates live.
 
 ## Drag-and-drop import
 The browser posts dropped files to the companion server (`POST /api/library/import`, multipart field `files`,
-at most 100 files). Per file, the server:
+at most 100 files). The import runs in **two phases**, so a request over the file limit (413
+`too-many-files`) or one that fails mid-stream leaves nothing in the library:
+
+*Phase 1, stage every part:*
 1. Rejects names that carry a path (`/`, `\`, `..`) outright, so traversal attempts are reported, never
    silently trimmed. Only song extensions (see the table above) and `.mid` are accepted.
 2. Sanitises the name: Unicode NFC, control and reserved characters (`<>:"|?*`) replaced by `_`, whitespace
    collapsed, leading dots removed, extension lower-cased, at most 200 bytes.
-3. Streams it to a hidden temp file in the target folder (the library root, or the configured `importSubfolder`,
-   which must stay inside the library), capped at 20 MB; empty files are rejected.
-4. Reports `duplicate` when identical content (sha1) is already in the library or in the same request, adds
-   ` (2)`, ` (3)` … on a name collision with different content, then renames the file into place.
-5. Leaves indexing to the watcher, so imports and manual copies take the same path.
+3. Streams it to a hidden temp file (`.riffway-upload-<random>.part`) in the target folder (the library
+   root, or the configured `importSubfolder`, which must stay inside the library), hashing it on the way;
+   capped at 20 MB; empty files are rejected.
+
+*Phase 2, place the staged files (only once every part has been staged):*
+4. Reports `duplicate` when identical content (sha1) is already in the library or in the same request.
+   Otherwise claims the first free name among `name`, `name (2)`, `name (3)` … **exclusively** (a hard link,
+   or an exclusive copy where hard links are unsupported), so an existing file is never replaced and
+   concurrent imports never overwrite each other.
+5. Removes every temp file before replying, and leaves indexing to the watcher, so imports and manual
+   copies take the same path.
 
 ## Security
 The server binds to `127.0.0.1` only. Every request must carry a loopback `Host` (`localhost`, `127.0.0.1`,
-`[::1]`) and, when the browser sends one, a loopback `Origin`; this blocks DNS-rebinding reads and cross-site
-form posts. `GET /api/songs/:id/file` looks the id up in the index (request data never becomes a path) and
+`[::1]`). When the browser sends an `Origin`, it must be an http(s) loopback origin **on the same port as the
+`Host`** (default ports filled in from the scheme): the app itself, or Vite's dev proxy, which keeps the
+browser's `Host`. Any other local server is a different origin and gets 403, even on loopback. This blocks
+DNS-rebinding reads and cross-site or other-local-server form posts. `GET /api/songs/:id/file` looks the id up in the index (request data never becomes a path) and
 re-checks, after resolving symlinks, that a local file lies inside the library folder.

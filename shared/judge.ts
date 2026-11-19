@@ -91,7 +91,10 @@ export interface StrayEvent {
 
 /** Judge configuration. */
 export interface JudgeConfig {
-  /** ctx ↔ song mapping for the current pass (usually the engine's `SongClock`). */
+  /**
+   * ctx ↔ song mapping (usually the engine's `SongClock`). With `ctxTimeInPass` every pass resolves
+   * its own targets; without it only the current pass resolves (single-pass test clocks).
+   */
   clock: SongClockMapping;
   /** Defaults from `src/core/judge/constants.ts`. */
   windows?: TimingWindows;
@@ -136,7 +139,15 @@ export interface Judge {
   push(ev: InputEvent): JudgeOutput;
   advance(nowCtx: number): JudgeOutput;
   state(): JudgeState;
-  /** Start a new loop pass (or restart): re-opens the notes in `region`, keeps the run tally. */
+  /**
+   * Switch passes (docs/game-mechanics.md § Driving the judge). Call it synchronously in the
+   * transport's `onChange` handler whenever `ClockChange.pass` differs from the judge's pass (loop
+   * wrap, seek, jump): the new pass re-opens the notes in `region` (from `judgeFrom`), while the
+   * previous pass keeps opening and closing its own remaining notes on its own mapping. Combo and
+   * the run tally carry across passes. With the **same** pass number (a `setLoop` mid-pass) it only
+   * applies the new `judgeFrom` / `region` to the rest of the pass: notes already opened keep their
+   * judgement and notes whose window had already closed are not judged.
+   */
   startPass(opts: { pass: number; judgeFrom?: number; region?: { start: number; end: number } | null }): void;
   /** Finalise everything (song end / quit) and return the run summary. */
   finish(nowCtx: number): RunSummary;

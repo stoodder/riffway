@@ -4,6 +4,9 @@
  *   tsx and esbuild read the tsconfig directly).
  * - Dev server 127.0.0.1:5173, `/api` proxied to the companion server on 5174 (D7).
  * - Worklets: `import url from './x.worklet.ts?worker&url'` → `audioWorklet.addModule(url)`.
+ * - alphaTab is pre-bundled up front (`optimizeDeps.include`): it is reached through the song worker
+ *   (and browser tests), which the initial dependency scan misses, so the first load would trigger a
+ *   mid-session re-optimisation and page reload (dev server and Vitest browser mode).
  */
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
@@ -23,4 +26,5 @@ export default defineConfig({
   preview: { host: '127.0.0.1', port: 4173, proxy: apiProxy },
   build: { outDir: 'dist', emptyOutDir: true, target: 'es2023', sourcemap: true },
   worker: { format: 'es' },
+  optimizeDeps: { include: ['@coderline/alphatab'] },
 });

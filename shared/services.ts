@@ -120,7 +120,16 @@ export interface LatencyEstimate {
   band: 'great' | 'playable' | 'noticeable';
   /** Calibrated offset, when available ("calibrated offset" label). */
   calibratedOffsetMs: number | null;
-  parts: { inputMs: number; baseMs: number; outputMs: number; quantumMs: number };
+  /**
+   * The parts of `monitorMs`. `dspMs` is the amp DSP's group delay (0 in DI); the monitoring service
+   * always fills it, absent reads as 0.
+   */
+  parts: { inputMs: number; baseMs: number; outputMs: number; quantumMs: number; dspMs?: number };
+  /**
+   * Parts the browser did not report, so a 10 ms assumption was used (shown "assumed"). The
+   * monitoring service always fills it; absent reads as nothing assumed.
+   */
+  assumed?: { input: boolean; output: boolean };
 }
 
 /** Feedback/speaker guard notices. */

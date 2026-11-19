@@ -23,8 +23,9 @@ describe('latency estimate', () => {
     expect(e.parts.baseMs).toBeCloseTo(2.67, 9);
     expect(e.parts.outputMs).toBeCloseTo(12, 9);
     expect(e.parts.quantumMs).toBeCloseTo(2.6667, 3);
-    expect(e.parts.dspMs).toBeCloseTo((AMP_LATENCY_SAMPLES / 48000) * 1000, 9);
-    expect(e.monitorMs).toBeCloseTo(5 + 2.67 + 12 + 2.6667 + e.parts.dspMs, 3);
+    const dspMs = (AMP_LATENCY_SAMPLES / 48000) * 1000;
+    expect(e.parts.dspMs).toBeCloseTo(dspMs, 9);
+    expect(e.monitorMs).toBeCloseTo(5 + 2.67 + 12 + 2.6667 + dspMs, 3);
     expect(e.band).toBe('playable');
     expect(e.assumed).toEqual({ input: false, output: false });
     expect(e.calibratedOffsetMs).toBeNull();
@@ -58,7 +59,7 @@ describe('latency estimate', () => {
     const e = estimateMonitorLatency({ ...base, outputLatencySec: 0 });
     const b = latencyBreakdown(e);
     expect(b.inputMs).toBeCloseTo(5, 9);
-    expect(b.processingMs).toBeCloseTo(e.parts.quantumMs + e.parts.dspMs, 9);
+    expect(b.processingMs).toBeCloseTo(e.parts.quantumMs + (AMP_LATENCY_SAMPLES / 48000) * 1000, 9);
     expect(b.outputMs).toBeCloseTo(2.67 + 10, 9);
     expect(b.inputMs + b.processingMs + b.outputMs).toBeCloseTo(b.totalMs, 9);
     expect(b.assumedOutput).toBe(true);

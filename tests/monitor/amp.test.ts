@@ -258,10 +258,10 @@ describe('gain staging', () => {
     return db(rms(run(AMP_PRESETS[id].amp, x)));
   };
 
-  it('Clean and Overdrive stay within 4 dB of the dry (DI) level at typical guitar levels', () => {
+  it('Clean, Crunch and Overdrive stay within 4 dB of the dry (DI) level at typical guitar levels', () => {
     for (const inDb of [-12, -6]) {
       const dry = outRmsDb('di', inDb);
-      for (const id of ['clean', 'overdrive'] as const) expect(Math.abs(outRmsDb(id, inDb) - dry)).toBeLessThan(4);
+      for (const id of ['clean', 'crunch', 'overdrive'] as const) expect(Math.abs(outRmsDb(id, inDb) - dry)).toBeLessThan(4);
     }
   });
 
@@ -271,6 +271,41 @@ describe('gain staging', () => {
     expect(Math.abs(outRmsDb('clean', -12) - outRmsDb('clean', -24) - 12)).toBeLessThan(1);
   });
 
+  it('Crunch sits between Clean and Overdrive: some compression and moderate harmonics', () => {
+    const drop = (id: 'clean' | 'crunch' | 'overdrive'): number => outRmsDb(id, -12) - outRmsDb(id, -24);
+    expect(drop('crunch')).toBeLessThan(drop('clean') - 0.3);
+    expect(drop('crunch')).toBeGreaterThan(drop('overdrive') + 0.3);
+    // Distortion of a steady −12 dBFS tone (flat tone stack): residual after removing the fundamental.
+    const thd = (id: 'clean' | 'crunch' | 'overdrive'): number => {
+      const f = 375;
+      const y = run(preset(id, true), sine(f, 1, SR, 0.25));
+      const n = SR / 2;
+      const off = y.length - n;
+      let a = 0;
+      let b = 0;
+      for (let i = 0; i < n; i++) {
+        const w = (2 * Math.PI * f * (off + i)) / SR;
+        a += (y[off + i] as number) * Math.sin(w);
+        b += (y[off + i] as number) * Math.cos(w);
+      }
+      a *= 2 / n;
+      b *= 2 / n;
+      let res = 0;
+      let tot = 0;
+      for (let i = 0; i < n; i++) {
+        const w = (2 * Math.PI * f * (off + i)) / SR;
+        const v = y[off + i] as number;
+        res += (v - a * Math.sin(w) - b * Math.cos(w)) ** 2;
+        tot += v * v;
+      }
+      return Math.sqrt(res / tot);
+    };
+    expect(thd('clean')).toBeLessThan(0.03);
+    expect(thd('crunch')).toBeGreaterThan(0.05);
+    expect(thd('crunch')).toBeLessThan(0.18);
+    expect(thd('overdrive')).toBeGreaterThan(0.18);
+  });
+
   it('DI is bit-transparent', () => {
     const x = noise(4800, 0.2, 5);
     const y = run(AMP_PRESETS.di.amp, x);
@@ -278,7 +313,7 @@ describe('gain staging', () => {
   });
 
   it('a full-scale input never drives the output past 0 dBFS at the preset levels', () => {
-    for (const id of ['clean', 'overdrive'] as const) {
+    for (const id of ['clean', 'crunch', 'overdrive'] as const) {
       const y = run(preset(id), sine(110, 0.5, SR, 1));
       let peak = 0;
       for (const v of y) peak = Math.max(peak, Math.abs(v));
@@ -295,6 +330,7 @@ describe('gain staging', () => {
   it('describes drive in player terms', () => {
     expect(driveCharacter(AMP_PRESETS.clean.amp.drive)).toBe('clean');
     expect(driveCharacter(5)).toBe('crunch');
+    expect(driveCharacter(AMP_PRESETS.crunch.amp.drive)).toBe('crunch');
     expect(driveCharacter(AMP_PRESETS.overdrive.amp.drive)).toBe('overdrive');
     expect(driveCharacter(40)).toBe('saturated');
   });
@@ -345,7 +381,7 @@ describe('guard duck and bypass crossfade', () => {
 
 describe('numerical hygiene', () => {
   it('silence after a loud burst decays to exact zeros (no subnormals)', () => {
-    for (const id of ['clean', 'overdrive'] as const) {
+    for (const id of ['clean', 'crunch', 'overdrive'] as const) {
       const x = new Float32Array(SR * 6);
       x.set(noise(4800, 0.5, 2));
       const y = run(AMP_PRESETS[id].amp, x);
@@ -360,7 +396,7 @@ describe('numerical hygiene', () => {
     x[100] = Number.NaN;
     x[200] = Number.POSITIVE_INFINITY;
     x[300] = Number.NEGATIVE_INFINITY;
-    for (const id of ['clean', 'overdrive', 'di'] as const) {
+    for (const id of ['clean', 'crunch', 'overdrive', 'di'] as const) {
       const y = run(AMP_PRESETS[id].amp, x);
       expect(allNormalOrZero(y)).toBe(true);
       expect(rms(y, 2400)).toBeGreaterThan(0.01);

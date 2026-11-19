@@ -1,11 +1,47 @@
 /**
  * "Connect guitar input" flow shared by the input and tuner panels: start the audio engine inside
  * the click's user activation (falling back to the shell's "Click to enable audio" overlay), then
- * open the input. Also maps `getUserMedia` errors to player-facing text.
+ * open the input. Also maps `getUserMedia` errors to player-facing text, and lets both panels mount
+ * gracefully (an "unavailable" card instead of a thrown mount) when the audio services can't start.
  * @module
  */
 import type { AudioEngine, InputService } from '@shared/services';
-import type { AppContext } from '@shared/ui';
+import type { AppContext, PanelHandle } from '@shared/ui';
+import { card, h } from '../../components';
+
+/** The two services the input and tuner panels run on. */
+export interface AudioPanelServices {
+  engine: AudioEngine;
+  input: InputService;
+}
+
+/**
+ * Get the engine and input services, or a player-facing reason why they are unavailable (no Web
+ * Audio, a context without services, a failing factory). Never rejects.
+ */
+export async function audioPanelServices(ctx: AppContext): Promise<AudioPanelServices | { error: string }> {
+  try {
+    const [engine, input] = await Promise.all([ctx.services.get('engine'), ctx.services.get('input')]);
+    return { engine, input };
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    return { error: `Audio isn't available in this window (${reason}). Reload the page; if it persists, use a current Chrome.` };
+  }
+}
+
+/** Mount a static "unavailable" card with the panel's title in place of the live panel. */
+export function unavailablePanel<P>(host: HTMLElement, opts: { title: string; eyebrow?: string; panel: string; message: string }): PanelHandle<P> {
+  const root = card({
+    title: opts.title,
+    eyebrow: opts.eyebrow,
+    class: 'rw-panel-unavailable',
+    body: h('p', { class: 'rw-muted', role: 'status' }, opts.message),
+  });
+  root.dataset.panel = opts.panel;
+  root.dataset.state = 'unavailable';
+  host.append(root);
+  return { unmount: () => root.remove() };
+}
 
 /** How long to wait for `resume()` inside the click before falling back to the overlay, ms. */
 const RESUME_WAIT_MS = 400;

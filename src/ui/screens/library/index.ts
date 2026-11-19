@@ -13,7 +13,7 @@ import { ApiError } from '../../../api/client';
 import type { SearchResponse, ServerConfig, ServerEvent } from '@shared/api';
 import { SOURCE_IDS } from '@shared/song';
 import type { SearchResult } from '@shared/sources';
-import type { AppContext, ScreenMount } from '@shared/ui';
+import type { AppContext, ScreenHandle, ScreenMount } from '@shared/ui';
 import { button, emptyState, h, icon, uid } from '../../components';
 import { pickArrangement } from './arrangement-picker';
 import { dropImport } from './drop-import';
@@ -61,7 +61,29 @@ function describeError(err: unknown): string {
   return "Can't reach the Riffway companion server. Start it with npm run dev (or npm start), then try again.";
 }
 
+/**
+ * The page shown when the app context lacks what the library needs (`api`, `router`, `ui`), e.g. a
+ * shell that failed to start: the title and an explanation instead of a thrown mount.
+ */
+function unavailableView(el: HTMLElement, missing: readonly string[]): ScreenHandle {
+  const root = h(
+    'div',
+    { class: 'lib', dataset: { state: 'unavailable' } },
+    h('header', { class: 'lib-head' }, h('div', { class: 'lib-head__text' }, h('h1', null, 'Library'))),
+    emptyState({
+      title: 'Library unavailable',
+      message: `The app didn't finish starting (missing: ${missing.join(', ')}). Reload the page to try again.`,
+      icon: 'warning',
+    }),
+  );
+  el.append(root);
+  return { unmount: () => root.remove() };
+}
+
 export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => {
+  // The context type promises these, but a broken or partial shell must not crash the screen.
+  const missing = (['api', 'router', 'ui'] as const).filter((key) => !(ctx as Partial<AppContext>)[key]);
+  if (missing.length) return unavailableView(el, missing);
   const doc = el.ownerDocument;
   const win = doc.defaultView ?? window;
   let query: LibraryQuery = queryFromParams(params);

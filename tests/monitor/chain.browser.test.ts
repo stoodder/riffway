@@ -40,7 +40,7 @@ describe('monitor chain (OfflineAudioContext)', () => {
   it('adds < 1 ms of delay with the full chain (amp + cab), and none in DI', async () => {
     const x = new Float32Array(SR / 2);
     x.set(noise(SR / 4, 0.05, 12), 2400);
-    for (const id of ['clean', 'overdrive'] as const) {
+    for (const id of ['clean', 'crunch', 'overdrive'] as const) {
       const y = await renderChain(x, id);
       const lagMs = (xcorrLagFine(x, y, 240) / SR) * 1000;
       expect(lagMs).toBeGreaterThan(0);
@@ -54,9 +54,9 @@ describe('monitor chain (OfflineAudioContext)', () => {
     const x = pluckedTone(196, 1.5, SR, { amp: 10 ** (-12 / 20) });
     const inDb = db(rms(x));
     const out: Record<string, number> = {};
-    for (const id of ['clean', 'overdrive', 'di'] as const) out[id] = db(rms(await renderChain(x, id)));
+    for (const id of ['clean', 'crunch', 'overdrive', 'di'] as const) out[id] = db(rms(await renderChain(x, id)));
     expect(out.di).toBeCloseTo(inDb, 2);
-    for (const id of ['clean', 'overdrive'] as const) {
+    for (const id of ['clean', 'crunch', 'overdrive'] as const) {
       expect(out[id]!).toBeGreaterThan(inDb - 8);
       expect(out[id]!).toBeLessThan(inDb + 4);
     }

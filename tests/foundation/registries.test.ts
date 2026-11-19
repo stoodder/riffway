@@ -39,6 +39,12 @@ describe('screen registry', () => {
     expect(matchRoute('/dev/highway')?.screen).toBe('dev-highway');
     expect(matchRoute('/nope')).toBeNull();
   });
+
+  it('treats a malformed escape in a path param as no match (R1-P-11)', () => {
+    expect(matchRoute('#/song/%')).toBeNull();
+    expect(matchRoute('#/play/%E0%A4%A?arr=0')).toBeNull();
+    expect(matchRoute('#/song/ok%20id')?.params).toEqual({ id: 'ok id' });
+  });
 });
 
 describe('panel registry', () => {

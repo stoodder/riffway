@@ -12,7 +12,7 @@ import type { SongClock } from '@shared/clock';
 import type { Judgement, StrayEvent } from '@shared/judge';
 import type { HighwayOptions } from '@shared/services';
 import type { Song } from '@shared/song';
-import { computePositions } from '@core/handpos';
+import { computePositions, cueShowAt } from '@core/handpos';
 import { midiToName } from '@core/model';
 import {
   GemAtlas,
@@ -114,6 +114,8 @@ export class HighwayRenderer {
   private cueW = new Float32Array(0);
   private chordNoteW = 0;
   private positionW = new Float32Array(0);
+  /** Reused argument for `cueShowAt` (no per-frame allocation). */
+  private readonly cueArg = { showAt: 0, time: 0 };
 
   /** Per-note outcome code (0 = none) valid while `noteEpoch[i] === epoch`. */
   private readonly noteState: Uint8Array;
@@ -365,7 +367,7 @@ export class HighwayRenderer {
     }
 
     this.drawGrid(ctx, f, now, k, from, to);
-    if (this.opts.handCues && p.hand) this.drawCues(ctx, f, now, k, from, to);
+    if (this.opts.handCues && p.hand) this.drawCues(ctx, f, now, speed, k, from, to);
 
     const s0 = noteScanStart(p, from);
     const s1 = lowerBound(p.time, to, s0);
@@ -463,8 +465,11 @@ export class HighwayRenderer {
     ctx.fillText(this.prep.sections.label[i]!, x, y + 0.5);
   }
 
-  /** Hand-position shift cues: a fret-labelled bracket ahead of the first note in the new position. */
-  private drawCues(ctx: CanvasRenderingContext2D, f: WorldFonts, now: number, k: number, from: number, to: number): void {
+  /**
+   * Hand-position shift cues: a fret-labelled bracket ahead of the first note in the new position,
+   * shown from `cueShowAt(cue, speed)` (≥ 0.75 real seconds ahead, also above 100% speed).
+   */
+  private drawCues(ctx: CanvasRenderingContext2D, f: WorldFonts, now: number, speed: number, k: number, from: number, to: number): void {
     const L = this.layout;
     const cues = this.prep.hand!.cues;
     const c0 = lowerBound(cues.time, from);
@@ -475,7 +480,9 @@ export class HighwayRenderer {
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     for (let i = c0; i < cues.n && cues.time[i]! < to; i++) {
-      const shown = now - cues.showAt[i]!;
+      this.cueArg.showAt = cues.showAt[i]!;
+      this.cueArg.time = cues.time[i]!;
+      const shown = now - cueShowAt(this.cueArg, speed);
       if (shown < 0) continue;
       const x = Math.round(L.hitX + (cues.time[i]! - now) * k - L.gemR - 10);
       // Fade in after `showAt`. The label pill fades out before it reaches the position pill on the

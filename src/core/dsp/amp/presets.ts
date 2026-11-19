@@ -50,10 +50,17 @@ export const AMP_PRESETS: Readonly<Record<AmpPresetId, AmpPreset>> = {
     amp: { drive: 1.5, bias: 0, low: 1, mid: 0, high: 2, level: -6, bypass: false, gateDb: -72 },
     cabLowpassHz: 7000,
   },
+  crunch: {
+    id: 'crunch',
+    label: 'Crunch',
+    description: 'Classic rock rhythm crunch: breaks up when you dig in, cleans up when you pick lightly.',
+    amp: { drive: 5, bias: 0.1, low: 1, mid: 2, high: 1, level: -14, bypass: false, gateDb: -66 },
+    cabLowpassHz: 6000,
+  },
   overdrive: {
     id: 'overdrive',
     label: 'Overdrive',
-    description: 'Driven rock tone with mid push; lower the drive for crunch.',
+    description: 'Driven rock and metal tone with mid push and tight sustain.',
     amp: { drive: 12, bias: 0.15, low: 2, mid: 3, high: -1, level: -20, bypass: false, gateDb: -60 },
     cabLowpassHz: CAB_LOWPASS_HZ,
   },
@@ -67,11 +74,11 @@ export const AMP_PRESETS: Readonly<Record<AmpPresetId, AmpPreset>> = {
 };
 
 /** Preset ids in panel order. */
-export const AMP_PRESET_ORDER: readonly AmpPresetId[] = ['clean', 'overdrive', 'di'];
+export const AMP_PRESET_ORDER: readonly AmpPresetId[] = ['clean', 'crunch', 'overdrive', 'di'];
 
 /**
- * Drive character for the panel (by drive in dB): purely descriptive, so the player can find crunch
- * territory on the overdrive preset.
+ * Drive character for the panel (by drive in dB): purely descriptive, so the player knows where a
+ * drive setting sits (the Crunch preset starts in "crunch", Overdrive in "overdrive").
  */
 export function driveCharacter(drive: number): string {
   const db = 20 * Math.log10(Math.max(drive, 1e-6));

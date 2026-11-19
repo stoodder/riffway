@@ -196,9 +196,20 @@ Files indexed from the data dir only; nothing from ClassTab is committed (D2).
    `MIDI: http://www.classtab.org/<name>.mid` header URL. Multi-version tabs pair version *k* with the
    *k*-th numbered MIDI when present.
 2. **Read MIDI** with `@tonejs/midi`; merge tracks into onset groups (pitch sets with times).
-3. **Align** the tab's onset groups to MIDI onset groups with Needleman–Wunsch (score = Jaccard of
-   pitch sets, octave-insensitive fallback 0.5; gap −0.4). If ≥ 80% of tab groups match, take MIDI times,
-   interpolate unmatched groups linearly, take tempo/bars from the MIDI → `rhythm = 'midi'`.
+3. **Align** the tab's onset groups to MIDI onset groups (`alignTabToMidi`, `src/core/import/midi/`):
+   - **Octave shift:** the whole tab is first transposed by the octave shift (0, −12, +12, −24, +24
+     semitones; the smaller wins a tie) whose pitch histogram overlaps the MIDI's most. This covers
+     MIDIs written at notated pitch (an octave above the sounding guitar) and tabs an octave off.
+   - **Needleman–Wunsch** with similarity = Jaccard of the pitch sets, else 0.5 × the pitch-class
+     Jaccard (octave errors); gap −0.4; leading and trailing MIDI gaps are free (an intro, or repeats
+     the tab writes once).
+   - **Match rule:** an aligned pair counts as matched only when its similarity is **≥ 0.5** (half the
+     exact pitches shared, or a pure octave error). Each **run** of MIDI groups skipped between two
+     matched pairs counts as **one miss**. Match score = matched pairs / (tab groups + skipped runs).
+   - If the score is **≥ 80%**, take MIDI times for matched groups, interpolate the others linearly
+     (extrapolating with the matched tempo at the ends) and take tempo/bars from the MIDI →
+     `rhythm = 'midi'`. Weak pairs (one shared pitch class) still steer the alignment but never count,
+     so an unrelated piece in the same key stays far below 80%.
 4. Else use the beat ruler if present (`'ruler'`), else `'needs-alignment'`. A saved sidecar beats all
    of these (precedence in § ASCII tab parser step 8).
 Tests use **synthetic** tab/MIDI files we author in ClassTab's style (`tests/fixtures/classtab-synthetic/`).

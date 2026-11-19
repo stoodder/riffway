@@ -16,6 +16,7 @@
     "test:node": "vitest run --project node",
     "test:browser": "vitest run --project browser",
     "test:e2e": "npm run build && playwright test",
+    "test:e2e:input": "playwright test -c tests/input/e2e/playwright.config.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.node.json && tsc -p src/audio/worklets/tsconfig.json",
     "lint": "eslint .",
     "classtab:refresh": "tsx scripts/classtab-refresh.ts"

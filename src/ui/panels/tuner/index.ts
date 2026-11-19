@@ -12,7 +12,7 @@ import type { Unsubscribe } from '@shared/clock';
 import type { AudioEngine, InputService, TimedAnalysisEvent } from '@shared/services';
 import type { AppContext, PanelHandle, PanelMount, PanelPropsMap } from '@shared/ui';
 import { badge, button, card, h, setBusy } from '../../components';
-import { connectInput, describeOpenError, isGestureDismissed } from '../input/connect';
+import { audioPanelServices, connectInput, describeOpenError, isGestureDismissed, unavailablePanel } from '../input/connect';
 import {
   A4_MAX,
   A4_MIN,
@@ -41,8 +41,9 @@ const STROBE_PERIOD_PX = 24;
 const IDLE_AFTER_MS = 1500;
 
 export const mount: PanelMount<Props> = async (el, ctx, props) => {
-  const [engine, input] = await Promise.all([ctx.services.get('engine'), ctx.services.get('input')]);
-  const panel = new TunerPanel(el, ctx, engine, input, props.tuning ?? [...STANDARD_TUNING]);
+  const services = await audioPanelServices(ctx);
+  if ('error' in services) return unavailablePanel<Props>(el, { title: 'Tuner', eyebrow: 'Step 2', panel: 'tuner', message: services.error });
+  const panel = new TunerPanel(el, ctx, services.engine, services.input, props.tuning ?? [...STANDARD_TUNING]);
   panel.start();
   const handle: PanelHandle<Props> = {
     unmount: () => panel.destroy(),

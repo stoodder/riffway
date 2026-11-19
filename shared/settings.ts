@@ -13,7 +13,7 @@ import type { Unsubscribe } from './clock';
 export type InputChannel = 0 | 1 | 'mix';
 
 /** Amp presets (docs/monitoring.md). */
-export type AmpPresetId = 'clean' | 'overdrive' | 'di';
+export type AmpPresetId = 'clean' | 'crunch' | 'overdrive' | 'di';
 
 /** How calibration offsets were obtained. */
 export type CalibrationMethod = 'none' | 'play-to-click' | 'tap-to-click' | 'estimated';

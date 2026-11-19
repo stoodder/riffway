@@ -3,7 +3,7 @@
 ## Summary
 - With no amp in the chain, Riffway routes the guitar to the output through an amp worklet (noise
   gate, 4× oversampled anti-aliased soft clipper, tone stack) and a biquad cab filter. Presets:
-  **Clean**, **Overdrive** (lower its drive for crunch) and **DI** (bypass).
+  **Clean**, **Crunch**, **Overdrive** and **DI** (bypass).
 - Built for low latency: `latencyHint: 0`, matched sample rate, no look-ahead DSP. The amp + cab add
   **≈ 0.45 ms** (measured, below).
 - The panel shows an **estimated** monitoring delay split into input · processing · output and
@@ -44,18 +44,21 @@ DI crossfades to the dry input (bit-exact once faded). Non-finite input samples 
 | Preset | Drive | Bias | Low / Mid / High | Gate | Cab low-pass | Level |
 |---|---|---|---|---|---|---|
 | Clean | 1.5 | 0.0 | +1 / 0 / +2 dB | −72 dBFS | 7 kHz | −6 dB |
+| Crunch | 5 | 0.1 | +1 / +2 / +1 dB | −66 dBFS | 6 kHz | −14 dB |
 | Overdrive | 12 | 0.15 | +2 / +3 / −1 dB | −60 dBFS | 5.5 kHz | −20 dB |
 | DI | — (bypass) | — | — | off | off | 0 dB |
 
-Presets are data (`presets.ts`). Levels are set so Clean and Overdrive sit within ~3 dB of the dry
-signal for a typical −12 dBFS pick. The panel exposes drive (0–32 dB, labelled clean / edge of breakup /
+Presets are data (`presets.ts`). Levels are set so Clean, Crunch and Overdrive sit within ~3 dB of
+the dry signal for a typical −12 dBFS pick. Crunch sits between the two in character: it breaks up when
+you dig in and cleans up when you pick lightly (≈ 10 % distortion on a −12 dBFS tone vs ≈ 1 % Clean and
+≈ 25 % Overdrive; a pick 12 dB quieter loses ≈ 11 dB vs 12 Clean and < 10 Overdrive). The panel exposes drive (0–32 dB, labelled clean / edge of breakup /
 crunch / overdrive / saturated), bass/mid/treble (±12 dB) and level (−40…+6 dB); `setPreset` resets
 them to the preset's values. Bias, gate and cab come from the preset (`setParams` can override bias
 and bypass for the session; they are not persisted).
 
 ## Latency measurement and display
 **Added by Riffway's DSP** (measured by cross-correlation in `OfflineAudioContext`, 48 kHz):
-Clean 21 samples (0.44 ms), Overdrive 22 samples (0.46 ms), DI 0. The amp alone is 17.875 samples
+Clean 21 samples (0.44 ms), Crunch 21.7 samples (0.45 ms), Overdrive 22 samples (0.46 ms), DI 0. The amp alone is 17.875 samples
 (`AMP_LATENCY_SAMPLES`: oversampler round trip 17.75 + ADAA ⅛); the cab adds ~3–4 samples of group delay.
 
 The panel shows "≈ N ms (estimated)" with three parts:
@@ -64,8 +67,8 @@ input       = track.getSettings().latency, else 10 ms (shown "assumed")
 processing  = 128 / sampleRate (one render quantum) + amp DSP delay
 output      = ctx.baseLatency + (ctx.outputLatency || 10 ms "assumed")
 ```
-`latency()` returns the shared `LatencyEstimate` plus `parts.dspMs` and `assumed` flags
-(`MonitorLatencyEstimate`); the readout refreshes every 2 s. After a **play-to-click** calibration
+`latency()` returns the shared `LatencyEstimate` (`@shared/services`) with `parts.dspMs` and the
+`assumed` flags filled; the readout refreshes every 2 s. After a **play-to-click** calibration
 it also shows "Calibrated offset ≈ inputOffsetMs" (labelled as including the player's own timing);
 until then it says the number is an estimate. Bands: ≤ 15 ms "great", ≤ 30 ms "playable", > 30 ms
 "noticeable — see tips" (tips open automatically): wired headphones, plug the interface directly
@@ -100,8 +103,8 @@ headphonesCardSeen}` and `mixer = {master, monitor, backing, guide, metronome}`.
 
 ## Tests (`tests/monitor/`)
 - Node: half-band design and passband/stopband, oversampler delay, clipper curve and antiderivative,
-  tone stack at band centres (±0.5 dB), cab shape, harmonic content (Clean THD < 3 %, Overdrive odd
-  + even harmonics, symmetric clip has no even ones), aliasing (< −60 dB), gain staging and
+  tone stack at band centres (±0.5 dB), cab shape, harmonic content (Clean THD < 3 %, Crunch 5–18 %,
+  Overdrive > 18 % with odd + even harmonics, symmetric clip has no even ones), aliasing (< −60 dB), gain staging and
   compression, latency, duck and bypass crossfade, no NaN / subnormals (silence tails are exact zeros),
   gate behaviour (unity when open, silent tail, no chatter), guard trips and non-trips, latency maths,
   device labels.
