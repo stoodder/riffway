@@ -104,6 +104,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-104 | DSP robustness on recorded guitar | impl | done 7a39e09: pickup clip 100/100/100 (was 94/89/94), Iowa 100%, mic 96/85/96; held onsets add <=73 ms event delay (within budget) |
 | T-112 | R2 UI/docs/storage fixes | impl | done 086b938: badge removed, ClassTab download card in library, tier-consistent recs, setup flow fixes, e2e deterministic 10/10 |
 | T-111 | R2 game runtime + game UX fixes | impl | done 432cef0: I-01..09 fixed; outcome display in gutter, distinct outcome colours, earlier hand cues; held-onset worst 74.1 vs 74.3 ms budget (thin) |
+| T-121 | R3 correctness fixes | impl | done 817e710: delivery margin 60 ms; no silent mic fallback; pitch windows scale to 88.2/96/192 kHz; e2e screenshots only with RIFFWAY_UPDATE_SCREENSHOTS=1 |
 
 ---
 
@@ -513,7 +514,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** as T-111.
 
 ### T-121 · R3 fixes: correctness
-- **Status:** in-progress · **Deps:** T-092 · **Parallel:** y (with T-122) · **Agent:** `impl-fix-core`
+- **Status:** done · **Deps:** T-092 · **Parallel:** y (with T-122) · **Agent:** `impl-fix-core`
 - **Owns:** `src/core/judge/`, `src/core/dsp/` (except `amp/`), `src/audio/input/`, `src/audio/worklets/analysis.worklet.ts`, `src/game/session/`, `playwright.config.ts`, `e2e/support/`, tests for those areas, `docs/timing.md`, `docs/audio-input.md`, `docs/game-mechanics.md` (judge sections only)
 - **Findings:** R3-C-01 (widen delivery margin to ~60 ms; document Miss-mark delay), R3-C-02 (no silent laptop-mic fallback in guitar/auto mode: pause with notice like I-04, or require explicit opt-in), R3-C-03 (pitch window scales with sample rate so E2–F#2 and Drop-D D2 work at 88.2/96 kHz; tests at 44.1/48/88.2/96 kHz), R3-C-04 (`npm run test:e2e` must not rewrite committed screenshots unless an explicit env flag is set, e.g. `RIFFWAY_UPDATE_SCREENSHOTS=1`; document in CLAUDE.md text in report).
 - **Acceptance:** each fixed with regression tests; Status column in R3-correctness.md; full suite + e2e green.
