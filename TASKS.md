@@ -542,7 +542,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ## Review fix tasks
 R1: T-101, T-102 (+ T-103, T-104 follow-ups). R2: T-111, T-112. See docs/reviews/.
-Added by R1–R3 as `T-1xx` with owner, owned files and acceptance. None yet.
+Added by R1–R3 as `T-1xx` with owner, owned files and acceptance. R1: T-101, T-102 (+T-103, T-104). R2: T-111, T-112.
 
 ## Candidate sources (not this iteration unless noted)
 | ID | Source | Status | Terms | Effort | Notes |
