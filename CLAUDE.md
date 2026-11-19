@@ -19,7 +19,7 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 | `npm start` | Run the built app: server serves `dist/` and `/api` on 5174 |
 | `npm test` | Vitest, both projects: `node` (`tests/**/*.test.ts`) and `browser` (`tests/**/*.browser.test.ts`, headless Chromium) |
 | `npm run test:node` / `npm run test:browser` | One Vitest project only (`npm run test:watch` for watch mode) |
-| `npm run test:e2e` | Builds, then Playwright e2e (`e2e/`, keyboard mode, fake media + autoplay) against the built server on 5175 |
+| `npm run test:e2e` | Playwright e2e on the production build (keyboard input mode, fake mic; free port unless `RIFFWAY_E2E_PORT`), screenshots → `e2e/screenshots/` |
 | `npm run test:e2e:input` | Playwright fake-capture tests for the input/tuner panels (`tests/input/e2e`; own Vite on a random port 5200–5999 or `RIFFWAY_INPUT_E2E_PORT`) |
 | `npm run typecheck` | `tsc` ×3: app/tests (DOM), `tsconfig.node.json` (server + `src/core`, no DOM), worklets (AudioWorklet scope) |
 | `npm run lint` | ESLint (flat config; also guards `src/core` purity and the Songsterr API ban) |
