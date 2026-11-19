@@ -479,7 +479,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     part and ship the synthetic suite.
 
 ### T-091 · Review round R2 (integration, UX, performance, compliance)
-- **Status:** todo · **Deps:** wave 3 · **Parallel:** n · **Agent:** `review`
+- **Status:** in-progress · **Deps:** wave 3 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R2.md`; adds fix tasks
 - **Acceptance:** walk the spec's Definition of Done in the running app (keyboard mode); 60 fps on a
   dense song; server security (localhost bind, traversal, zip-slip); source-terms compliance; docs vs
