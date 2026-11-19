@@ -101,6 +101,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-036 | Audio-pipeline tests (tones + recorded guitar) | impl | done a820972: 18 tests + 2 it.fails; Iowa 93% recall/100% pitch; GuitarSet below target (pre-attack onsets, octave-down) -> T-104; input lag ~75-83 ms, keep 0.110 s |
 | T-040 | Wave 3 integration | impl | done 239cf93: CCRs, app-wide calibration profiles, rewire event, chord note once, failed-import label; built app walk-through clean |
 | T-041 | Playwright e2e + screenshots + manual checklist | impl | done 21567a6: 10/10 e2e on prod build, network guard, exact 94P/3W/4M results; 10 screenshots; 12-section manual checklist |
+| T-104 | DSP robustness on recorded guitar | impl | done 7a39e09: pickup clip 100/100/100 (was 94/89/94), Iowa 100%, mic 96/85/96; held onsets add <=73 ms event delay (within budget) |
 
 ---
 
@@ -493,7 +494,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** (1) CCRs, then remove local workarounds: `RiffwayTestHook.getNotes()`; `CalibrationSettings.profiles` + `deviceKey`, `CalibrationMethod 'loopback'`; `MixerLevels` per-bus mute; `GameSession` getters `countInBars`/`metronome`/`trainerState` (show trainer fail streak); metronome-accent setting wired to engine; Settings `game.timingLeniency`, `game.inputMode`, `game.fretNumbers` (+ highway fret-number toggle). (2) App startup calls `followCalibrationProfiles(ctx.settings)` so offsets follow device switches app-wide. (3) Input service fires `onDevicesChanged` after a context-change rewire; drop the monitor's polling workaround. (4) `stretch.ts` drops local `RawStretchNode`. (5) Chord note shown once (keep highway's, or HUD chip — pick the clearer). (6) Home checklist deep-links to `#/audio-setup?step=`; session sets `songCache.lastPlayedAt`. (7) Library: entries with an import error show "Failed to import" and `rhythmCounts` skips them. (8) `tests/server/network-guard.test.ts` vs `tests/foundation/lint-guards.test.ts` conflict resolved without weakening the guard for shipped code. (9) Docs: T-103 ruler/duet/MIDI-retry text into song-formats.md; counts table + composer rule into sources/classtab.md; T-032 shortcut map in game-mechanics.md (verify present). Full `npm test`, typecheck, lint, build green (except T-036/T-041 files mid-edit — list them).
 
 ### T-104 · DSP robustness on recorded guitar
-- **Status:** in-progress · **Deps:** T-036 · **Parallel:** y (with T-040, T-041) · **Agent:** `impl-fix-core`
+- **Status:** done · **Deps:** T-036 · **Parallel:** y (with T-040, T-041) · **Agent:** `impl-fix-core`
 - **Owns:** `src/core/dsp/` (except `amp/`), `tests/dsp/`, `tests/audio-pipeline/`, `docs/audio-input.md`
 - **Acceptance:** fix the failing cases T-036 documented in docs/audio-input.md: pre-attack pick/finger-noise onsets 20–50 ms early (and the double onset when gap > 40 ms), octave-down errors with expect hints at N=1024 on the mic clip, stray onsets, bend read as WrongNote (pitch tracking through bends). Raise GuitarSet floors toward 90/90/95 (recall/precision/pitch) without regressing Iowa or synthetic tests (pitch ≤ 2 cents, onsets ±5 ms, no double onsets on decays, single onset on hammer-on); convert `it.fails` to passing tests where fixed. Keep worklet hot path allocation-free. Report before/after table.
 
