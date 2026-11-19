@@ -73,6 +73,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-020 | Storage and progress core | impl | done dd18d75: 88 tests; CCR: SectionProgress.session (stored locally for now) |
 | T-017 | Server core, local+starter adapters, search | impl | done 122d16a: 40 tests; loopback Host/Origin guard; CCRs: ServerOptions.analyzer, LibraryService difficulty/indexing state |
 | T-011 | Song model helpers + alphaTab importer | impl | done 3efcc30: 142 tests; golden files; GP7 exports round-trip; triplet feel not applied |
+| T-014 | Judge, scoring and practice logic | impl | done 2d337d8: 159 tests incl. window-edge tables at 40-110% speed; bias-corrected matching |
 
 ---
 
@@ -155,7 +156,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - 5,000-note song analysed in < 20 ms (Node).
 
 ### T-014 · Judge, scoring and practice logic
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-game`
 - **Owns:** `src/core/judge/`, `src/core/practice/`, `tests/judge/`, `tests/practice/`, `docs/game-mechanics.md` (W1)
 - **Acceptance:**
   - `createJudge(song, config)` implements every step of the algorithm in `docs/game-mechanics.md`;
