@@ -96,6 +96,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-030 | Wave 2 integration | impl | done a7b70ef: additive CCRs, Crunch preset, UG/Songsterr lint guard, graceful mounts, vitest port fix |
 | T-035 | Settings + audio setup + export/import UI | impl | done 5ab9b1d: 43 tests; guided audio setup; data export/import with preview + merge/replace |
 | T-033 | Latency calibration wizard | impl | done c4c1a0b: 41 node + 16 browser; recovers synthetic 37 ms as 37.02 ms through real worklet; per device pair |
+| T-034 | Home dashboard + song page | impl | done 19f6603: 49 tests; first-run checklist, recommendations w/ reasons, streak w/o loss copy, song page w/ mastery map |
 
 ---
 
@@ -448,7 +449,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   algorithm unit tests; browser test recovers a synthetic 37 ms delay within ±3 ms through the analysis worklet.
 
 ### T-034 · Home dashboard + song page
-- **Status:** in-progress · **Deps:** T-018, T-020, T-026, T-027, T-028 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-018, T-020, T-026, T-027, T-028 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/home/`, `src/ui/screens/song/`, `tests/home/`
 - **Acceptance:** home shows 3 session goals, recommendations (6/3/1), streak (current/best, week dots,
   freezes), daily goal ring, next-day checks, continue last song, first-run checklist (input → tune →
