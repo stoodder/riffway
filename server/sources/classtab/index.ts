@@ -68,11 +68,14 @@ export function isClassTabAdapter(adapter: SourceAdapter): adapter is ClassTabAd
   return adapter.id === 'classtab' && typeof a.classtabStatus === 'function' && typeof a.refreshBlocker === 'function';
 }
 
-/** Tabs per rhythm status (`ClassTabStatus.rhythm`); user-aligned tabs count in none of them. */
+/**
+ * Tabs per rhythm status (`ClassTabStatus.rhythm`); user-aligned tabs and tabs that failed to import
+ * (`error`) count in none of them.
+ */
 export function rhythmCounts(entries: readonly IndexEntry[]): ClassTabStatus['rhythm'] {
   const out = { midi: 0, ruler: 0, needsAlignment: 0 };
   for (const e of entries) {
-    if (e.source !== 'classtab') continue;
+    if (e.source !== 'classtab' || e.error) continue;
     if (e.rhythm === 'midi') out.midi++;
     else if (e.rhythm === 'ruler') out.ruler++;
     else if (e.rhythm === 'needs-alignment') out.needsAlignment++;

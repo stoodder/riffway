@@ -10,7 +10,8 @@
  * - Unplugging ends the track: the input closes, `current` becomes null and listeners hear about it.
  *   On `devicechange` (debounced) a closed-by-unplug or fallback input re-opens as soon as the saved
  *   device is back.
- * - The engine may recreate its context (sample-rate change); the graph is rebuilt on the new one.
+ * - The engine may recreate its context (sample-rate change); the graph is rebuilt on the new one
+ *   and `onDevicesChanged` fires once it is wired (the source node changed).
  *
  * Browser APIs are injected ({@link InputServiceDeps}) so the logic runs against fakes in Node tests;
  * `createInputService` in `./index.ts` supplies the real ones.
@@ -95,6 +96,8 @@ class InputServiceImpl implements DisposableInputService {
   private readonly inputListeners = new Set<Listener<InputEvent>>();
   private readonly analysisListeners = new Set<Listener<TimedAnalysisEvent>>();
   private readonly deviceListeners = new Set<() => void>();
+  /** Context of the graph the last `onDevicesChanged` announced. */
+  private announcedCtx: BaseAudioContext | null = null;
   private readonly unsubs: Unsubscribe[] = [];
   private readonly onDeviceChange = (): void => this.scheduleDeviceCheck();
 
@@ -108,7 +111,15 @@ class InputServiceImpl implements DisposableInputService {
     this.unsubs.push(
       () => deps.mediaDevices.removeEventListener('devicechange', this.onDeviceChange),
       engine.onContextChange(() => {
-        if (this.stream) this.wire().catch((err: unknown) => console.error('Riffway: could not reconnect the input', err));
+        if (!this.stream) return;
+        // The source node is replaced on the new context: tell listeners (monitoring re-attaches),
+        // unless an open (whose rate change this is) has announced the new graph already.
+        this.wire().then(
+          () => {
+            if (this.current && this.graph && this.graphCtx === this.engine.ctx && this.announcedCtx !== this.graphCtx) this.notifyDevices();
+          },
+          (err: unknown) => console.error('Riffway: could not reconnect the input', err),
+        );
       }),
       settings.subscribe((s) => this.onSettings(s)),
     );
@@ -356,6 +367,7 @@ class InputServiceImpl implements DisposableInputService {
   }
 
   private notifyDevices(): void {
+    this.announcedCtx = this.graphCtx;
     for (const cb of this.deviceListeners) safeCall(cb, undefined);
   }
 }

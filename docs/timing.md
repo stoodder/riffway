@@ -176,7 +176,7 @@ click while guitar offsets are relative to the scheduled one.)
 **Loopback (optional).** Output cabled to the guitar input; the clicks themselves come back as onsets.
 Monitoring is switched off for the run (no feedback loop) and restored after. Same estimator. The
 result is the hardware round trip without player bias; it is stored in the device profile
-(`loopbackMs`) and "Use as guitar offset" saves it as `inputOffsetMs` with `method: 'estimated'`.
+(`loopbackMs`) and "Use as guitar offset" saves it as `inputOffsetMs` with `method: 'loopback'`.
 
 **Visual offset.** Endless clicks (90 BPM); gems scroll right → left into a hit line that flashes when a
 click is drawn there, using the highway's formula (drawn time = heard ctx time − `visualOffsetMs`/1000,
@@ -187,13 +187,12 @@ saved on every nudge. Default 0; applied only to rendering (`heardSongTime`).
 `calibration.profiles[deviceKey]` and sets `calibration.deviceKey`, where `deviceKey` =
 normalised input label (else device id, else "default") + ` → ` + output label (else sink id, else
 "default") — labels because Chrome rotates ids. A profile holds the six active fields plus the
-keyboard spread/time and `loopbackMs`. `followCalibrationProfiles(settings)` (run by the panel while
-mounted; the app should run it at startup — requested contract change) restores a pair's profile into
-the active fields when the input or output changes. A pair without a profile keeps the previous values;
+keyboard spread/time and `loopbackMs` (`CalibrationProfile` in `shared/settings.ts`).
+`followCalibrationProfiles(settings)` (run once at app startup by `src/main.ts`) restores a pair's
+profile into the active fields whenever the input or output changes, on any screen. A pair without a profile keeps the previous values;
 the panel says they were measured on another device, and the first save for the new pair marks carried
-guitar values `estimated`. These extension fields (`deviceKey`, `profiles`) are not in the frozen
-`CalibrationSettings` type; the settings store deep-merges and persists them and its validator ignores
-unknown fields, so they live in IndexedDB and exports.
+guitar values `estimated`. `deviceKey` and `profiles` are part of `CalibrationSettings`, so they live
+in IndexedDB and exports.
 
 ## How offsets apply to scoring
 - Guitar event: `eventCtx = onsetFrame / sampleRate − inputOffsetMs/1000` (`frameToEventCtx`, applied by
@@ -225,8 +224,10 @@ spanning two added buffers once playback passes the first, so chunked/streamed l
 ## Engine wiring (`index.ts`)
 - `createEngine({sampleRate = 48000, sinkId, settings})`: `new AudioContext({latencyHint: 0,
   sampleRate})`; a saved `sinkId` that fails falls back to the default output. With a settings store it
-  follows `mixer.*`, `practice.countInBars` / `practice.metronome` (defaults for play / metronome),
-  `calibration.visualOffsetMs` and `output.sinkId`; only changed fields are applied.
+  follows `mixer.*` with `mixerMute.*` (a muted bus plays at gain 0 and keeps its level),
+  `practice.countInBars` / `practice.metronome` (defaults for play / metronome),
+  `practice.metronomeAccent` (off: every click uses the beat voice), `calibration.visualOffsetMs` and
+  `output.sinkId`; only changed fields are applied.
 - Mixer: `monitor/backing/guide/metronome → master → safety limiter → destination`; `setLevel` is
   smoothed over ~10 ms. **Safety limiter:** a zero-latency `WaveShaperNode` soft clipper (linear to
   −1 dBFS, tanh knee, never above 0 dBFS, +12 dB range). A `DynamicsCompressorNode` was rejected:

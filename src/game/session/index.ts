@@ -6,6 +6,7 @@
  * @module
  */
 import type { GameSession, InputService, SessionOptions } from '@shared/services';
+import type { GameInputMode } from '@shared/settings';
 import type { SongMeta } from '@shared/api';
 import type { Tier } from '@shared/song';
 import type { AppContext } from '@shared/ui';
@@ -15,17 +16,19 @@ import { GameSessionImpl } from './core';
 
 export { GameSessionImpl, SESSION_SPEED_MAX, SESSION_SPEED_MIN, type SessionDeps, type SessionEngine, type SessionTicker, type TestInjection } from './core';
 export { clearActiveSession, getActiveSession, onActiveSession, setActiveSession } from './active';
+export { LENIENCY_SCALE, windowsFor } from './leniency';
 export * from './progress';
 export * from './results';
 
-/** Which inputs feed the judge. */
-export type SessionInputMode = 'auto' | 'keyboard' | 'guitar';
+/** Which inputs feed the judge (settings `game.inputMode`; see {@link GameInputMode}). */
+export type SessionInputMode = GameInputMode;
 
 /** Extra options of {@link createGameSession} (beyond the frozen {@link SessionOptions}). */
 export interface GameSessionExtras {
   /**
    * `keyboard`: keyboard only. `guitar`: open the guitar input (keyboard still works).
-   * `auto` (default): use the guitar when it is open or a device was chosen before.
+   * `auto`: use the guitar when it is open or a device was chosen before. Default: settings
+   * `game.inputMode` (`keyboard` with `?e2e=1`).
    */
   input?: SessionInputMode;
   /** Loading progress for the UI (`fraction` 0–1, null when indeterminate). */
@@ -110,7 +113,7 @@ export async function createGameSession(ctx: AppContext, opts: SessionOptions, e
     }
   }
 
-  const input = await openGuitar(ctx, extras.input ?? (ctx.flags.e2e ? 'keyboard' : 'auto'), notice);
+  const input = await openGuitar(ctx, extras.input ?? (ctx.flags.e2e ? 'keyboard' : settings.game.inputMode), notice);
 
   return new GameSessionImpl({
     song,

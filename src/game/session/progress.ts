@@ -350,8 +350,12 @@ export async function recordPracticeTime(
   await storage.putStreak(evaluateStreak(prev, days, at, weekTarget));
 }
 
-/** Set `lastPlayedAt` on the song's cache entry (creating it from the index entry when missing). */
-async function touchSongCache(
+/**
+ * Set `lastPlayedAt` on the song's cache entry (creating it from the index entry when missing): the
+ * home screen's "Continue" and recently-played order read it. Called when a run starts and when it is
+ * saved.
+ */
+export async function touchSongCache(
   storage: Pick<StorageService, 'getSongCache' | 'putSongCache'>,
   songId: string,
   entry: IndexEntry | null,

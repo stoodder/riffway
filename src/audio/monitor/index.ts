@@ -32,14 +32,6 @@ export {
   type LatencyInputs,
 } from './latency';
 
-/**
- * After a context change the input service rebuilds its graph on the new context asynchronously and
- * does not announce it, so the monitor re-reads `getInputNode()` at this interval until the node is
- * on the chain's context (or the input closes), for at most {@link INPUT_REATTACH_MAX_MS}.
- */
-const INPUT_REATTACH_POLL_MS = 50;
-const INPUT_REATTACH_MAX_MS = 5000;
-
 /** Transient overrides from `setParams` that settings don't store (cleared by `setPreset`). */
 type Overrides = Partial<Pick<AmpParams, 'bias' | 'bypass'>>;
 
@@ -58,7 +50,6 @@ class Monitor implements MonitorService {
   private readonly listeners = new Set<(ev: MonitorGuardEvent) => void>();
   private readonly unsubs: Unsubscribe[] = [];
   private speakerCheck = 0;
-  private reattachTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     private readonly engine: AudioEngine,
@@ -160,7 +151,6 @@ class Monitor implements MonitorService {
 
   /** Tear down (tests; the app keeps the service for its lifetime). */
   dispose(): void {
-    this.stopReattach();
     for (const u of this.unsubs.splice(0)) u();
     this.chain?.dispose();
     this.chain = null;
@@ -194,12 +184,13 @@ class Monitor implements MonitorService {
     });
     this.attachInput();
     this.applyOpen();
-    this.reattachWhenRewired(chain);
   }
 
   /**
    * Connect the current input node when it lives on the chain's context. Re-read on every
-   * `onDevicesChanged` (re-open, unplug, device switch: the node is replaced) and after rebuilds.
+   * `onDevicesChanged` (re-open, unplug, device switch, and the input's rewire after a context
+   * change: the node is replaced) and after rebuilds; whichever of the two rebuilds finishes last
+   * attaches the input.
    */
   private attachInput(): void {
     const chain = this.chain;
@@ -208,30 +199,6 @@ class Monitor implements MonitorService {
     const usable = node && node.context === chain.ctx ? node : null;
     chain.connectSource(usable, this.settings.get().input.channel, this.input.current?.channelCount ?? 1);
     this.applyOpen();
-  }
-
-  /**
-   * An open input whose node is still on the old context is being rewired by the input service:
-   * re-read `getInputNode()` until it moves to `chain`'s context, then attach it.
-   */
-  private reattachWhenRewired(chain: MonitorChain): void {
-    this.stopReattach();
-    const deadline = Date.now() + INPUT_REATTACH_MAX_MS;
-    const check = (): void => {
-      this.reattachTimer = null;
-      if (this.chain !== chain || !this.input.current) return;
-      if (this.input.getInputNode()?.context === chain.ctx) {
-        this.attachInput();
-        return;
-      }
-      if (Date.now() < deadline) this.reattachTimer = setTimeout(check, INPUT_REATTACH_POLL_MS);
-    };
-    if (this.input.current && this.input.getInputNode()?.context !== chain.ctx) this.reattachTimer = setTimeout(check, INPUT_REATTACH_POLL_MS);
-  }
-
-  private stopReattach(): void {
-    if (this.reattachTimer !== null) clearTimeout(this.reattachTimer);
-    this.reattachTimer = null;
   }
 
   private applyOpen(): void {

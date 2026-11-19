@@ -14,7 +14,7 @@ const SONGS = () => [
   result('starter:hall', 'In the Hall of the Mountain King', { composer: 'Edvard Grieg', tier: 4, rating: 4.3 }),
   result('local:aaa', 'Campfire Song', { source: 'local', artist: 'Some Artist', availability: 'needs-rhythm', rhythm: 'needs-alignment', ratingProvisional: true }),
   result('local:bbb', 'Twin Lead Etude', { source: 'local', arrangements: 2, tags: { style: ['fingerstyle'], genre: [], skills: [] } }),
-  result('local:ccc', 'Broken Download', { source: 'local', availability: 'needs-import', tier: null, rating: null }),
+  result('local:ccc', 'Broken Download', { source: 'local', availability: 'needs-import', tier: null, rating: null, error: 'No guitar tab found' }),
   result('starter:chug', 'Drop-D Palm-Mute Chug', { tuningId: 'drop-d', tuningLabel: 'Drop D', tier: 4 }),
 ];
 
@@ -78,7 +78,8 @@ describe('library screen', () => {
     expect(hall.querySelector('.lib-row__by')?.textContent).toBe('Edvard Grieg');
     expect(row('Campfire Song').querySelector('.lib-row__state')?.textContent).toContain('Needs rhythm');
     expect(row('Campfire Song').querySelector('.lib-row__est')?.textContent).toBe('est.');
-    expect(row('Broken Download').querySelector('.lib-row__state')?.textContent).toContain('Needs import');
+    expect(row('Broken Download').querySelector('.lib-row__state')?.textContent).toContain('Failed to import');
+    expect(row('Broken Download').querySelector('.lib-row__state [title]')?.getAttribute('title')).toBe('No guitar tab found');
     expect(row('Broken Download').textContent).toContain('Unrated');
     expect(el.querySelector('.lib-status')?.textContent).toBe('5 songs');
     expect(el.querySelector('.lib-folder__path')?.textContent).toBe('/Users/me/Music/Tabs');

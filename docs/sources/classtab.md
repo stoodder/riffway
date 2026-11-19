@@ -88,8 +88,22 @@ and a legend (`= note held`, `p pull off`). Parse them with tolerant regular exp
 - **Indexing:** T-012's `pairClassTab` (tab text decoded UTF-8 → windows-1252) gives each tab its MIDI;
   a multi-version tab is indexed once with version 1's MIDI. Every entry is tagged `fingerstyle` and
   `classical` (a search filter, never hidden), links to `https://www.classtab.org/<file>`, and takes
-  composer and title from the header line. `GET /api/songs/:id/rhythm` serves the paired MIDI.
+  the title from the header line. Composer: header if confirmed (life dates or `Composer:` label), else
+  file-name prefix. `GET /api/songs/:id/rhythm` serves the paired MIDI.
   A running server notices a refresh made by the CLI (`state.json` watcher) and re-indexes.
 - **First real run** (2026-11-19, snapshot of 2026-11-01): 3,976 tabs and 2,341 MIDI files; 2,276 tabs
   paired; rhythm from MIDI 1,921, beat ruler 432, needs alignment 1,616; 5 files skipped as not tabs and
   2 indexed as unplayable (bass / 7-string); composer found in 2,852 headers. About 70 s end to end.
+- **After T-103** (ruler, duet and MIDI-retry improvements, same snapshot):
+
+  | Count | Tabs |
+  |---|---|
+  | Rhythm from MIDI | 2,075 |
+  | Rhythm from beat ruler | 506 |
+  | Needs rhythm alignment | 1,388 |
+  | Playable now (MIDI + ruler) | 2,581 |
+  | Paired MIDI that failed the match | 198 |
+  | With a composer | 3,956 |
+
+  `ClassTabStatus.rhythm` counts only tabs that imported; a tab with an import error is listed in the
+  library as "Failed to import" and counted in none of the rhythm buckets.

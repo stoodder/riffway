@@ -44,6 +44,8 @@ export interface FakeSession extends GameSession {
   rejectSpeed(err: Error): void;
   emitMessage(m: PracticeMessage): void;
   emitState(s: SessionState): void;
+  /** Settable trainer fail streak (`trainerState.failStreak`). */
+  failStreak: number;
   calls: {
     setSpeed: ReturnType<typeof vi.fn>;
     setLoopBars: ReturnType<typeof vi.fn>;
@@ -55,7 +57,10 @@ export interface FakeSession extends GameSession {
   };
 }
 
-export function fakeSession(song: Song = makeSong(), init: { speed?: number; trainer?: boolean; state?: SessionState } = {}): FakeSession {
+export function fakeSession(
+  song: Song = makeSong(),
+  init: { speed?: number; trainer?: boolean; state?: SessionState; countInBars?: number; metronome?: boolean } = {},
+): FakeSession {
   const messageSubs = new Set<(m: PracticeMessage) => void>();
   const stateSubs = new Set<(s: SessionState) => void>();
   const clockSubs = new Set<(c: ClockChange) => void>();
@@ -67,10 +72,13 @@ export function fakeSession(song: Song = makeSong(), init: { speed?: number; tra
   let loop: TransportLoop | null = null;
   let trainer = init.trainer ?? false;
   let state: SessionState = init.state ?? 'playing';
+  let countInBars = init.countInBars ?? 1;
+  let metronome = init.metronome ?? true;
   let pendingSpeed: { resolve: () => void; reject: (e: Error) => void } | null = null;
   const self = {
     heard: 0,
     holdSpeed: false,
+    failStreak: 0,
   } as FakeSession;
   const calls = {
     setSpeed: vi.fn((s: number): Promise<void> => {
@@ -97,8 +105,12 @@ export function fakeSession(song: Song = makeSong(), init: { speed?: number; tra
     setSpeedTrainer: vi.fn((on: boolean) => {
       trainer = on;
     }),
-    setCountInBars: vi.fn(),
-    setMetronome: vi.fn(),
+    setCountInBars: vi.fn((bars: number) => {
+      countInBars = bars;
+    }),
+    setMetronome: vi.fn((on: boolean) => {
+      metronome = on;
+    }),
     setGuideMuted: vi.fn(),
   };
   const clock = {
@@ -158,6 +170,9 @@ export function fakeSession(song: Song = makeSong(), init: { speed?: number; tra
     loop: { get: () => loop },
     speedTrainer: { get: () => trainer },
     state: { get: () => state },
+    countInBars: { get: () => countInBars },
+    metronome: { get: () => metronome },
+    trainerState: { get: () => ({ speed, failStreak: self.failStreak }) },
   });
   return self;
 }

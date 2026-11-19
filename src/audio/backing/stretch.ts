@@ -1,8 +1,7 @@
 /**
- * Typed wrapper around the signalsmith-stretch 1.3.2 AudioWorklet node (WASM, registered from an
- * inline Blob by the library). Every remote method of the node returns a Promise that resolves once
- * the worklet has handled the message; the ambient declarations in `src/types/` type some of them as
- * synchronous, so this module re-types the node locally.
+ * Wrapper around the signalsmith-stretch 1.3.2 AudioWorklet node (WASM, registered from an inline
+ * Blob by the library; types in `src/types/signalsmith-stretch.d.ts`). Every remote method of the
+ * node returns a Promise that resolves once the worklet has handled the message.
  *
  * The node compensates its own latency: at output time `T` it plays the input position its time map
  * gives for `T`, provided the change for `T` arrived at least `latency()` before `T`
@@ -11,14 +10,6 @@
  */
 import SignalsmithStretch from 'signalsmith-stretch';
 import type { StretchEvent } from './plan';
-
-/** The node's remote methods as they really behave (Promise-returning). */
-interface RawStretchNode extends AudioWorkletNode {
-  schedule(change: { output: number; input: number; rate: number; active: boolean }): Promise<unknown>;
-  addBuffers(channels: Float32Array[], transfer?: Transferable[]): Promise<number>;
-  dropBuffers(): Promise<unknown>;
-  latency(): Promise<number>;
-}
 
 /** What the backing player needs from a stretch node (a fake implements it in tests). */
 export interface StretchNode {
@@ -35,11 +26,11 @@ export interface StretchNode {
 
 /** Create a stereo stretch node on `ctx` (loads the worklet module once per context). */
 export async function createStretchNode(ctx: BaseAudioContext): Promise<StretchNode> {
-  const node = (await SignalsmithStretch(ctx, {
+  const node = await SignalsmithStretch(ctx, {
     numberOfInputs: 1,
     numberOfOutputs: 1,
     outputChannelCount: [2],
-  })) as unknown as RawStretchNode;
+  });
   const latency = await node.latency();
   let generation = 0;
   return {

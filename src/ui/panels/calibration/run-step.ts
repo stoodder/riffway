@@ -17,6 +17,7 @@ import {
   estimatedGuitarPatch,
   guitarResultPatch,
   keyboardResultPatch,
+  loopbackGuitarPatch,
   loopbackResultPatch,
   onsetSource,
   restorePatch,
@@ -311,7 +312,7 @@ export function createRunStep(kind: CalibrationKind, deps: RunStepDeps): RunStep
           label: 'Use as guitar offset',
           variant: 'primary',
           onClick: (ev) => {
-            save(estimatedGuitarPatch(ctx.settings.get(), e.offsetMs!, Date.now()), 'Guitar offset set from the loopback measurement.');
+            save(loopbackGuitarPatch(ctx.settings.get(), e.offsetMs!, Date.now()), 'Guitar offset set from the loopback measurement.');
             (ev.currentTarget as HTMLButtonElement).disabled = true;
           },
         }),

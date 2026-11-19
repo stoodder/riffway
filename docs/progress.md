@@ -20,7 +20,7 @@ Pure logic is in `src/core/progress/` (Node-testable); persistence in `src/stora
 | `practiceDays` | `'YYYY-MM-DD'` (local) | `{activeSec, runs}` | — |
 | `streak` | `'streak'` | `{weekTarget, current, best, freezes, weeksTowardFreeze, lastEvaluatedWeek, repairWeek?}` | — |
 | `audioLinks` | `[songId, arrangement]` | `{audioId, fileName, anchors: {songTime, audioTime}[], gainDb, enabled}` | — |
-| `songCache` | `songId` | `{meta, difficulty, lastPlayedAt, favourite}` (for home screen without a server round trip) | `lastPlayedAt` |
+| `songCache` | `songId` | `{meta, difficulty, lastPlayedAt, favourite}` (for home screen without a server round trip; the game session sets `lastPlayedAt` when a run starts and when it is saved) | `lastPlayedAt` |
 
 Records also carry their key fields (`songId`, `arrangement`, …); exact types are in `shared/storage.ts`.
 `sectionProgress` records also carry `session: {id, cleanRunsAt100}` (the last run's session and its clean

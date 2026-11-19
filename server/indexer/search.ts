@@ -48,6 +48,7 @@ export function toSearchResult(entry: IndexEntry, score: number): SearchResult {
   };
   if (entry.artist) result.artist = entry.artist;
   if (entry.composer) result.composer = entry.composer;
+  if (entry.error) result.error = entry.error;
   return result;
 }
 

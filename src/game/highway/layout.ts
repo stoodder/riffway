@@ -15,7 +15,7 @@ export const NOTE_SPEED_MIN = 0.5;
 export const NOTE_SPEED_MAX = 2;
 /** Height of the strip above the lanes (section names, bar numbers, cue labels, loop flags). */
 export const TOP_STRIP = 30;
-/** Height of the strip below the lanes (palm-mute brackets, chord note). */
+/** Height of the strip below the lanes (palm-mute brackets). */
 export const BOTTOM_STRIP = 26;
 
 /** Mutable layout record; {@link computeLayout} fills one in place on every resize. */

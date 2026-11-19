@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { ClassTabRefreshResponse, ClassTabStatus, SearchResponse, ServerEvent, SongMeta } from '@shared/api';
 import type { IndexEntry } from '@shared/sources';
 import { createApp } from '../../server/app';
-import { createClassTabAdapter, isClassTabAdapter, type ClassTabAdapter, type ClassTabAdapterOptions } from '../../server/sources/classtab';
+import { createClassTabAdapter, isClassTabAdapter, rhythmCounts, type ClassTabAdapter, type ClassTabAdapterOptions } from '../../server/sources/classtab';
 import { readClassTabState, writeClassTabState } from '../../server/sources/classtab/state';
 import type { ServerContext } from '../../server/types';
 import { buildZip, fakeSleep, startZipServer, SYNTHETIC_DIR, syntheticEntries, tempDir, type ZipServer } from './helpers';
@@ -253,5 +253,21 @@ describe('ClassTab adapter + routes', () => {
     await writeClassTabState(file, { ...(await readClassTabState(file)), lastDownload: clock, tabs: 5 });
     expect(await changed).toEqual([join(dataDir, 'classtab', 'files')]);
     expect(existsSync(file)).toBe(true);
+  });
+});
+
+describe('rhythmCounts', () => {
+  it('counts ClassTab tabs per rhythm status, skipping other sources, aligned tabs and failed imports', () => {
+    const e = (source: string, rhythm: string, error?: string): IndexEntry => ({ source, rhythm, ...(error ? { error } : {}) }) as unknown as IndexEntry;
+    const counts = rhythmCounts([
+      e('classtab', 'midi'),
+      e('classtab', 'midi', 'MIDI match failed'),
+      e('classtab', 'ruler'),
+      e('classtab', 'needs-alignment'),
+      e('classtab', 'needs-alignment', 'no tab staff found'),
+      e('classtab', 'aligned'),
+      e('local', 'midi'),
+    ]);
+    expect(counts).toEqual({ midi: 1, ruler: 1, needsAlignment: 1 });
   });
 });

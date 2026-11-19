@@ -12,7 +12,7 @@
 import type { AudioEngine, InputService } from '@shared/services';
 import type { Settings } from '@shared/settings';
 import type { AppContext, PanelHandle, PanelMount, PanelPropsMap } from '@shared/ui';
-import { calibratedForOtherDevice, currentProfile, followCalibrationProfiles, storedCalibration } from '../../../audio/calibration';
+import { calibratedForOtherDevice, currentProfile } from '../../../audio/calibration';
 import { badge, h, icon, tabs, type Tabs } from '../../components';
 import { METHOD_LABEL, appliedSentence, deviceLine, fmtMs, fmtSignedMs, fmtSpread, fmtWhen, visualSentence } from './model';
 import { createRunStep, type RunStep } from './run-step';
@@ -51,8 +51,6 @@ export const mount: PanelMount<Props> = async (el, ctx, props): Promise<PanelHan
 };
 
 function build(root: HTMLElement, ctx: AppContext, engine: AudioEngine, input: InputService, mode: Mode, cleanups: (() => void)[]): { select(mode: Mode): void } {
-  cleanups.push(followCalibrationProfiles(ctx.settings));
-
   // ---- Summary -----------------------------------------------------------------------------------
   const device = h('p', { class: 'rw-calib__device' });
   const otherNote = h(
@@ -75,14 +73,14 @@ function build(root: HTMLElement, ctx: AppContext, engine: AudioEngine, input: I
   );
 
   const renderSummary = (s: Settings): void => {
-    const c = storedCalibration(s);
+    const c = s.calibration;
     const profile = currentProfile(s);
     const other = calibratedForOtherDevice(s);
     device.replaceChildren(icon('headphones'), deviceLine(s));
     otherNote.hidden = !other;
 
     const m = METHOD_LABEL[c.method === 'tap-to-click' ? 'none' : c.method];
-    const guitarCalibrated = c.method === 'play-to-click' || c.method === 'estimated';
+    const guitarCalibrated = c.method === 'play-to-click' || c.method === 'loopback' || c.method === 'estimated';
     rows.guitar.set(
       guitarCalibrated ? fmtMs(c.inputOffsetMs) : '—',
       badge(m.text, { tone: m.tone }),

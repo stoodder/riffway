@@ -206,7 +206,7 @@ export interface PanelRegistration<K extends PanelId> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// e2e test hook (`?e2e=1`, D6) — installed by src/test-hooks (stub now, filled by T-031)
+// e2e test hook (`?e2e=1`, D6) — installed by src/test-hooks (T-031)
 // ---------------------------------------------------------------------------------------------
 
 /** `window.__riffwayTest.inject()` argument: a keyboard-style event at an exact song time. */
@@ -232,6 +232,19 @@ export interface TestHookState {
   } | null;
 }
 
+/** One judge target of the session's song (`getNotes()`); tied destinations are excluded. */
+export interface TestHookNote {
+  /** `Note.id`. */
+  id: number;
+  /** Onset, song seconds at 100%. */
+  songTime: number;
+  /** String lane, 1 = high e. */
+  lane: StringNumber;
+  midi: number;
+  /** Chord group id, when the note belongs to a chord. */
+  chord: number | null;
+}
+
 /** `window.__riffwayTest`. Methods that need a session reject/throw when none is active. */
 export interface RiffwayTestHook {
   readonly version: 1;
@@ -240,6 +253,8 @@ export interface RiffwayTestHook {
   inject(args: TestInjectArgs): void;
   getState(): TestHookState;
   getJudgements(): Judgement[];
+  /** The session song's judge targets, so a test can script a whole song with `inject`. Empty without a session. */
+  getNotes(): TestHookNote[];
   setSpeed(speed: number): Promise<void>;
   seek(songTime: number): void;
 }

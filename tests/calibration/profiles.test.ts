@@ -13,11 +13,11 @@ import {
   followCalibrationProfiles,
   guitarResultPatch,
   keyboardResultPatch,
+  loopbackGuitarPatch,
   loopbackResultPatch,
   profileSwitchPatch,
   restorePatch,
   snapshot,
-  storedCalibration,
   visualOffsetPatch,
 } from '../../src/audio/calibration';
 import { openStorage } from '../../src/storage';
@@ -40,7 +40,7 @@ describe('result patches', () => {
     await st.update(guitarResultPatch(st.get(), { offsetMs: 41.5, spreadMs: 3.2 }, NOW));
     const c = st.get().calibration;
     expect(c).toMatchObject({ inputOffsetMs: 41.5, method: 'play-to-click', measuredAt: NOW, spreadMs: 3.2, keyboardOffsetMs: 0, visualOffsetMs: 0 });
-    expect(storedCalibration(st.get()).deviceKey).toBe(deviceKey(USB));
+    expect(st.get().calibration.deviceKey).toBe(deviceKey(USB));
     expect(currentProfile(st.get())).toMatchObject({
       inputLabel: 'Scarlett Solo USB',
       outputLabel: 'External Headphones',
@@ -71,6 +71,14 @@ describe('result patches', () => {
     expect(st.get().calibration.visualOffsetMs).toBe(-10);
     // Later saves keep the loopback detail.
     expect(currentProfile(st.get())).toMatchObject({ loopbackMs: 33.4, visualOffsetMs: -10, method: 'estimated' });
+  });
+
+  it('"Use as guitar offset" saves the loopback round trip with method loopback', async () => {
+    const st = memorySettings(USB);
+    await st.update(loopbackResultPatch(st.get(), 31.2, NOW));
+    await st.update(loopbackGuitarPatch(st.get(), 31.2, NOW + 1));
+    expect(st.get().calibration).toMatchObject({ inputOffsetMs: 31.2, method: 'loopback', measuredAt: NOW + 1, spreadMs: null, deviceKey: deviceKey(USB) });
+    expect(currentProfile(st.get())).toMatchObject({ inputOffsetMs: 31.2, method: 'loopback', loopbackMs: 31.2 });
   });
 
   it('undo restores the previous active fields and profile', async () => {

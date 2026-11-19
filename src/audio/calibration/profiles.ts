@@ -5,49 +5,18 @@
  * The judge, the input service and the engine read the *active* fields of
  * `settings.calibration` (`CalibrationSettings`). Every save also stores a copy of them under
  * `calibration.profiles[deviceKey]`, and switching the input or output device restores that device
- * pair's copy ({@link followCalibrationProfiles}). The profile map, the active pair's key and the
- * keyboard / loopback details are an extension of the frozen `CalibrationSettings` contract
- * ({@link CalibrationExtension}); the settings store deep-merges and persists unknown fields, and
- * its validator ignores them, so they ride along in IndexedDB and in exports.
+ * pair's copy ({@link followCalibrationProfiles}, run once for the app's lifetime by `src/main.ts`).
  * @module
  */
 import type { Unsubscribe } from '@shared/clock';
-import type { CalibrationMethod, CalibrationSettings, DeepPartial, Settings, SettingsStore } from '@shared/settings';
+import type { CalibrationProfile, CalibrationSettings, DeepPartial, Settings, SettingsStore } from '@shared/settings';
 import { ASSUMED_LATENCY_SEC } from '../monitor/latency';
 
-/** One device pair's calibration. */
-export interface CalibrationProfile {
-  /** Display labels of the pair (null = system default). */
-  inputLabel: string | null;
-  outputLabel: string | null;
-  inputOffsetMs: number;
-  method: CalibrationMethod;
-  measuredAt: number | null;
-  spreadMs: number | null;
-  keyboardOffsetMs: number;
-  keyboardMeasuredAt: number | null;
-  keyboardSpreadMs: number | null;
-  visualOffsetMs: number;
-  /** Hardware round trip from a loopback measurement (ms), or null. */
-  loopbackMs: number | null;
-  loopbackAt: number | null;
-}
+/** A settings patch with a calibration part. */
+export type CalibrationPatch = DeepPartial<Settings>;
 
-/** Fields stored next to `CalibrationSettings` (not in the frozen contract). */
-export interface CalibrationExtension {
-  /** Device pair the active fields belong to. */
-  deviceKey?: string;
-  profiles?: Record<string, CalibrationProfile>;
-}
-
-/** `settings.calibration` with the extension fields. */
-export type StoredCalibration = CalibrationSettings & CalibrationExtension;
-
-/** A settings patch that may carry the extension fields. */
-export type CalibrationPatch = DeepPartial<Settings> & { calibration?: DeepPartial<StoredCalibration> };
-
-/** Active fields copied between `settings.calibration` and a profile. */
-const ACTIVE_FIELDS = ['inputOffsetMs', 'keyboardOffsetMs', 'visualOffsetMs', 'method', 'measuredAt', 'spreadMs'] as const;
+/** The active fields of `settings.calibration` (what the judge, input service and engine read), copied to and from a profile. */
+export type ActiveCalibration = Pick<CalibrationSettings, 'inputOffsetMs' | 'keyboardOffsetMs' | 'visualOffsetMs' | 'method' | 'measuredAt' | 'spreadMs'>;
 
 const norm = (s: string): string => s.trim().toLowerCase().replace(/\s+/g, ' ');
 
@@ -61,14 +30,9 @@ export function deviceKey(s: Pick<Settings, 'input' | 'output'>): string {
   return `${norm(input)} → ${norm(output)}`;
 }
 
-/** The stored calibration with its extension fields. */
-export function storedCalibration(s: Settings): StoredCalibration {
-  return s.calibration as StoredCalibration;
-}
-
 /** The profile of the current device pair, or null. */
 export function currentProfile(s: Settings): CalibrationProfile | null {
-  return storedCalibration(s).profiles?.[deviceKey(s)] ?? null;
+  return s.calibration.profiles[deviceKey(s)] ?? null;
 }
 
 /**
@@ -76,11 +40,11 @@ export function currentProfile(s: Settings): CalibrationProfile | null {
  * and has not calibrated this pair yet).
  */
 export function calibratedForOtherDevice(s: Settings): boolean {
-  const c = storedCalibration(s);
-  return c.method !== 'none' && c.deviceKey !== undefined && c.deviceKey !== deviceKey(s);
+  const c = s.calibration;
+  return c.method !== 'none' && c.deviceKey !== null && c.deviceKey !== deviceKey(s);
 }
 
-function profileOf(s: Settings, active: CalibrationSettings, prev: CalibrationProfile | null, extra: Partial<CalibrationProfile>): CalibrationProfile {
+function profileOf(s: Settings, active: ActiveCalibration, prev: CalibrationProfile | null, extra: Partial<CalibrationProfile>): CalibrationProfile {
   return {
     inputLabel: s.input.label,
     outputLabel: s.output.label,
@@ -99,13 +63,13 @@ function profileOf(s: Settings, active: CalibrationSettings, prev: CalibrationPr
 }
 
 /** Patch that sets active fields and stores the resulting profile for the current device pair. */
-function savePatch(s: Settings, active: Partial<CalibrationSettings>, extra: Partial<CalibrationProfile> = {}): CalibrationPatch {
+function savePatch(s: Settings, active: Partial<ActiveCalibration>, extra: Partial<CalibrationProfile> = {}): CalibrationPatch {
   const key = deviceKey(s);
   // Offsets measured on another device pair are only an estimate for this one: the new pair's
   // profile starts from them marked "estimated", without the other pair's keyboard / loopback details.
   const other = calibratedForOtherDevice(s);
-  const carried: Partial<CalibrationSettings> = other && active.method === undefined ? { method: 'estimated', spreadMs: null } : {};
-  const next: CalibrationSettings = { ...s.calibration, ...carried, ...active };
+  const carried: Partial<ActiveCalibration> = other && active.method === undefined ? { method: 'estimated', spreadMs: null } : {};
+  const next: ActiveCalibration = { ...s.calibration, ...carried, ...active };
   const prev = other ? null : currentProfile(s);
   return { calibration: { ...carried, ...active, deviceKey: key, profiles: { [key]: profileOf(s, next, prev, extra) } } };
 }
@@ -120,7 +84,7 @@ export function guitarResultPatch(s: Settings, r: { offsetMs: number; spreadMs: 
  * describe the guitar offset, so they only change when nothing better is stored (`method: 'none'`).
  */
 export function keyboardResultPatch(s: Settings, r: { offsetMs: number; spreadMs: number }, now: number): CalibrationPatch {
-  const active: Partial<CalibrationSettings> = { keyboardOffsetMs: r.offsetMs };
+  const active: Partial<ActiveCalibration> = { keyboardOffsetMs: r.offsetMs };
   if (s.calibration.method === 'none') Object.assign(active, { method: 'tap-to-click' as const, measuredAt: now, spreadMs: r.spreadMs });
   return savePatch(s, active, { keyboardMeasuredAt: now, keyboardSpreadMs: r.spreadMs });
 }
@@ -128,6 +92,11 @@ export function keyboardResultPatch(s: Settings, r: { offsetMs: number; spreadMs
 /** Guitar offset that was not measured with the guitar ("estimated"). */
 export function estimatedGuitarPatch(s: Settings, offsetMs: number, now: number): CalibrationPatch {
   return savePatch(s, { inputOffsetMs: offsetMs, method: 'estimated', measuredAt: now, spreadMs: null });
+}
+
+/** Guitar offset set from a loopback measurement ("Use as guitar offset"): `method: 'loopback'`. */
+export function loopbackGuitarPatch(s: Settings, offsetMs: number, now: number): CalibrationPatch {
+  return savePatch(s, { inputOffsetMs: offsetMs, method: 'loopback', measuredAt: now, spreadMs: null });
 }
 
 /** Store a loopback measurement (hardware round trip) for the current device pair. */
@@ -141,7 +110,7 @@ export function visualOffsetPatch(s: Settings, visualOffsetMs: number): Calibrat
 }
 
 /** Restore the active fields (and the current pair's profile) to an earlier snapshot (undo). */
-export function restorePatch(s: Settings, snapshot: { active: CalibrationSettings; profile: CalibrationProfile | null }): CalibrationPatch {
+export function restorePatch(s: Settings, snapshot: { active: ActiveCalibration; profile: CalibrationProfile | null }): CalibrationPatch {
   const active = pickActive(snapshot.active);
   if (!snapshot.profile) return { calibration: { ...active } };
   const key = deviceKey(s);
@@ -149,15 +118,14 @@ export function restorePatch(s: Settings, snapshot: { active: CalibrationSetting
 }
 
 /** Snapshot of what {@link restorePatch} restores. */
-export function snapshot(s: Settings): { active: CalibrationSettings; profile: CalibrationProfile | null } {
+export function snapshot(s: Settings): { active: ActiveCalibration; profile: CalibrationProfile | null } {
   const p = currentProfile(s);
   return { active: pickActive(s.calibration), profile: p ? { ...p } : null };
 }
 
-function pickActive(c: CalibrationSettings): CalibrationSettings {
-  const out = {} as Record<(typeof ACTIVE_FIELDS)[number], unknown>;
-  for (const f of ACTIVE_FIELDS) out[f] = c[f];
-  return out as unknown as CalibrationSettings;
+function pickActive(c: ActiveCalibration): ActiveCalibration {
+  const { inputOffsetMs, keyboardOffsetMs, visualOffsetMs, method, measuredAt, spreadMs } = c;
+  return { inputOffsetMs, keyboardOffsetMs, visualOffsetMs, method, measuredAt, spreadMs };
 }
 
 /**
@@ -166,26 +134,18 @@ function pickActive(c: CalibrationSettings): CalibrationSettings {
  * were measured on another device).
  */
 export function profileSwitchPatch(s: Settings): CalibrationPatch | null {
-  const c = storedCalibration(s);
+  const c = s.calibration;
   const key = deviceKey(s);
   if (c.deviceKey === key) return null;
-  const p = c.profiles?.[key];
+  const p = c.profiles[key];
   if (!p) return null;
-  const active: CalibrationSettings = {
-    inputOffsetMs: p.inputOffsetMs,
-    keyboardOffsetMs: p.keyboardOffsetMs,
-    visualOffsetMs: p.visualOffsetMs,
-    method: p.method,
-    measuredAt: p.measuredAt,
-    spreadMs: p.spreadMs,
-  };
-  return { calibration: { ...active, deviceKey: key } };
+  return { calibration: { ...pickActive(p), deviceKey: key } };
 }
 
 /**
  * Keep the active calibration on the current device pair's profile: applies
- * {@link profileSwitchPatch} now and after every settings change. Call once for the app's lifetime
- * (the calibration panel also runs it while mounted; running it twice is harmless).
+ * {@link profileSwitchPatch} now and after every settings change. `src/main.ts` calls it once for
+ * the app's lifetime; running it twice is harmless.
  */
 export function followCalibrationProfiles(settings: Pick<SettingsStore, 'get' | 'update' | 'subscribe'>): Unsubscribe {
   let applying = false;

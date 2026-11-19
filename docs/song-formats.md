@@ -133,6 +133,10 @@ technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generat
    with the staff; each mark is one subdivision. Marks per bar ÷ beats per bar (from `time:`) gives the
    subdivision; notes on a mark get its time, notes between marks interpolate. Tempo from `tempo:` else
    80 BPM with `tempoEstimated`. Result `rhythm = 'ruler'`.
+   Rulers may carry bar numbers (`12|`, `(12)`, `12.`), `.` `,` `+` `'` subdivisions, directions (`$`,
+   Fine, D.C., `3/8`) and tuplet brackets; a bracket claims the bar's missing slots and its notes share
+   that time. Bars with finer marks in one beat split each beat evenly. A fermata line may sit between
+   ruler and staff. Staves joined by ` |` lines form a duet system; only guitar 1 is imported.
 8. **Rhythm precedence** (`asciiToSong`): a sidecar whose onset count matches the tab's onset groups
    (`'aligned'`; a mismatch keeps the other rhythm and warns `sidecar-mismatch`) > a paired MIDI with
    ≥ 80% of onset groups matched (`'midi'`) > a beat ruler on every block (`'ruler'`) > proportional
@@ -210,6 +214,7 @@ Files indexed from the data dir only; nothing from ClassTab is committed (D2).
      (extrapolating with the matched tempo at the ends) and take tempo/bars from the MIDI →
      `rhythm = 'midi'`. Weak pairs (one shared pitch class) still steer the alignment but never count,
      so an unrelated piece in the same key stays far below 80%.
+   - If the MIDI match fails it is retried without the tab's repeats, then against each track alone.
 4. Else use the beat ruler if present (`'ruler'`), else `'needs-alignment'`. A saved sidecar beats all
    of these (precedence in § ASCII tab parser step 8).
 Tests use **synthetic** tab/MIDI files we author in ClassTab's style (`tests/fixtures/classtab-synthetic/`).

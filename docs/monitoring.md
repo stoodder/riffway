@@ -20,7 +20,7 @@ guide / backing / metronome ─▶ their buses ─▶ master ─▶ safety limit
   `settings.input.channel` picks the interface channel (`'mix'` downmixes; mono sources use 0).
 - `out` opens with a **300 ms linear ramp-in** (no pop; a feedback loop shows up gradually) and closes
   with a 10 ms fade. The cab is crossfaded (`cabGain`/`dryGain`), never rewired, so preset changes don't click.
-- Mixer buses (engine): `monitor`, `backing`, `guide`, `metronome` → `master`. Mute = gain 0, never disconnect.
+- Mixer buses (engine): `monitor`, `backing`, `guide`, `metronome` → `master`. Mute = gain 0 (`mixerMute`), never disconnect.
 - No `AnalyserNode`, `ScriptProcessor` or `DynamicsCompressorNode` in series on the monitor path.
 - `index.ts` (`createMonitor`) builds the chain on the engine's context, rebuilds it on
   `onContextChange`, re-attaches `input.getInputNode()` on `onDevicesChanged`, and follows settings.
@@ -99,7 +99,8 @@ on Chrome/macOS are typically 20–70 ms round trip; the owner verifies with the
 
 ## Settings
 `monitor = {enabled, preset, drive, tone {low, mid, high}, level, allowSpeakers: {[sinkId]: bool},
-headphonesCardSeen}` and `mixer = {master, monitor, backing, guide, metronome}`.
+headphonesCardSeen}`, `mixer = {master, monitor, backing, guide, metronome}` (levels 0–1) and
+`mixerMute` (same keys, booleans: a muted bus plays at 0 and keeps its level for unmuting).
 
 ## Tests (`tests/monitor/`)
 - Node: half-band design and passband/stopband, oversampler delay, clipper curve and antiderivative,

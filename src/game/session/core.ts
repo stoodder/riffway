@@ -34,6 +34,7 @@ import type {
   PracticeMessage,
   RunSummary,
   StrayEvent,
+  TimingWindows,
   TrainerState,
 } from '@shared/judge';
 import type { BackingService, GameSession, GuideService, InputService, SessionState } from '@shared/services';
@@ -42,10 +43,10 @@ import type { DifficultyReport, Song } from '@shared/song';
 import type { IndexEntry } from '@shared/sources';
 import type { RunMode, SectionProgress, StorageService } from '@shared/storage';
 import { createJudge, inputHorizon, passStats, type PassClockMapping } from '@core/judge';
-import { WINDOWS } from '@core/judge/constants';
 import { sectionAt } from '@core/model';
 import { initialTrainerState, toTransportLoop, trainerStep } from '@core/practice';
 import { guideShouldMute } from '../../audio/backing';
+import { windowsFor } from './leniency';
 import { expectedRangeAt, laneIndex, laneMidi, sameRange, type LaneIndex, type LanePress, type MidiRange } from '../input';
 import {
   completedSections,
@@ -55,6 +56,7 @@ import {
   sectionEventText,
   type SavedRun,
   type SectionUpdate,
+  touchSongCache,
 } from './progress';
 import { rememberResult, type RunResult } from './results';
 
@@ -133,6 +135,8 @@ type RunEnd = 'completed' | 'finished' | 'quit';
 /** One run: a fresh `play()` until song end, finish or quit. */
 interface Run {
   readonly judge: Judge;
+  /** Timing windows of this run (settings `game.timingLeniency` when it started). */
+  readonly windows: TimingWindows;
   judgePass: number;
   readonly judgements: Judgement[];
   strays: number;
@@ -214,7 +218,8 @@ export class GameSessionImpl implements GameSession {
   private runLog: Judgement[] = [];
   private barLoop: BarLoop | null = null;
   private _speedTrainer: boolean;
-  private countInBars: number;
+  private _countInBars: number;
+  private _metronome: boolean;
   private guideMutedOverride: boolean | null = null;
   private trainer: TrainerState;
   private readonly testQueue: TestInjection[] = [];
@@ -236,7 +241,8 @@ export class GameSessionImpl implements GameSession {
     this.ticker = deps.ticker ?? intervalTicker();
     this.now = deps.now ?? Date.now;
     this._speedTrainer = deps.speedTrainer;
-    this.countInBars = deps.settings.get().practice.countInBars;
+    this._countInBars = deps.settings.get().practice.countInBars;
+    this._metronome = deps.settings.get().practice.metronome;
     this.trainer = { speed: deps.speed, failStreak: 0 };
     this.book = new SectionProgressBook(
       deps.storage,
@@ -261,7 +267,15 @@ export class GameSessionImpl implements GameSession {
     }
     this.unsubs.push(t.onChange((c) => this.onClockChange(c)));
     this.unsubs.push(t.onEnded(() => this.onEnded()));
-    this.unsubs.push(deps.settings.subscribe(() => this.applyGuideMute()));
+    let prevMetronome = this._metronome;
+    this.unsubs.push(
+      deps.settings.subscribe((s) => {
+        // The engine follows `practice.metronome`; mirror it.
+        if (s.practice.metronome !== prevMetronome) this._metronome = s.practice.metronome;
+        prevMetronome = s.practice.metronome;
+        this.applyGuideMute();
+      }),
+    );
     if (deps.input) this.unsubs.push(deps.input.onInput((ev) => this.input(ev)));
     this.applyGuideMute();
     this.ticker.start(() => this.tick());
@@ -310,9 +324,16 @@ export class GameSessionImpl implements GameSession {
     return this.run !== null && !this.run.done;
   }
 
-  /** Count-in bars used for the next `play()`. */
-  get countIn(): number {
-    return this.countInBars;
+  get countInBars(): number {
+    return this._countInBars;
+  }
+
+  get metronome(): boolean {
+    return this._metronome;
+  }
+
+  get trainerState(): TrainerState {
+    return { ...this.trainer };
   }
 
   judgeState(): JudgeState {
@@ -335,7 +356,7 @@ export class GameSessionImpl implements GameSession {
       return;
     }
     if (this._state === 'paused') {
-      this.engine.transport.play({ countInBars: this.countInBars });
+      this.engine.transport.play({ countInBars: this._countInBars });
       this.syncState();
     }
   }
@@ -409,10 +430,11 @@ export class GameSessionImpl implements GameSession {
   }
 
   setCountInBars(bars: number): void {
-    this.countInBars = Math.min(2, Math.max(0, Math.round(bars)));
+    this._countInBars = Math.min(2, Math.max(0, Math.round(bars)));
   }
 
   setMetronome(on: boolean): void {
+    this._metronome = on;
     this.engine.transport.setMetronome(on);
   }
 
@@ -472,7 +494,7 @@ export class GameSessionImpl implements GameSession {
     const offsetMs = this.deps.settings.get().calibration.keyboardOffsetMs;
     const ctxTime = this.engine.perfToCtxTime(press.timeStampMs) - offsetMs / 1000;
     const songTime = this.engine.clock.songTimeAt(ctxTime);
-    const midi = laneMidi(this.song, this.lanes, press.lane, songTime, WINDOWS.good * this.speed, press.wrongPitch);
+    const midi = laneMidi(this.song, this.lanes, press.lane, songTime, this.run.windows.good * this.speed, press.wrongPitch);
     const ev: InputEvent = { ctxTime, kind: 'onset', midi, cents: 0, clarity: 1, source: 'keyboard' };
     this.input(ev);
     return ev;
@@ -534,7 +556,7 @@ export class GameSessionImpl implements GameSession {
       const horizon = this.horizon(now);
       this.dispatch(run, run.judge.advance(horizon));
       this.evaluatePasses(run, horizon);
-      if (run.endCtx !== null && horizon >= run.endCtx + WINDOWS.good + SETTLE_MARGIN_SEC) void this.finalize('completed');
+      if (run.endCtx !== null && horizon >= run.endCtx + run.windows.good + SETTLE_MARGIN_SEC) void this.finalize('completed');
     }
     this.updateExpect(now);
   }
@@ -547,13 +569,15 @@ export class GameSessionImpl implements GameSession {
       t.stop();
     }
     const s = this.deps.settings.get();
-    const judge = createJudge(this.song, { clock: this.engine.clock, strictOctave: s.game.strictOctave, region: this.region() });
+    const windows = windowsFor(s.game.timingLeniency);
+    const judge = createJudge(this.song, { clock: this.engine.clock, windows, strictOctave: s.game.strictOctave, region: this.region() });
     const now = this.engine.ctx.currentTime;
     this.runLog = [];
     this.hasEnded = false;
     this.lastResult = null;
     this.run = {
       judge,
+      windows,
       judgePass: 0,
       judgements: this.runLog,
       strays: 0,
@@ -574,8 +598,12 @@ export class GameSessionImpl implements GameSession {
     if (section !== null && this._speedTrainer) this.trainer = this.trainerFor(section);
     const loop = t.loop;
     if (loop) from = loop.start - loop.preroll;
-    t.play({ ...(from !== undefined ? { from } : {}), countInBars: this.countInBars });
+    t.play({ ...(from !== undefined ? { from } : {}), countInBars: this._countInBars });
     this.syncState();
+    const storage = this.deps.storage;
+    if (storage) {
+      touchSongCache(storage, this.songId, this.deps.entry, this.now()).catch((err: unknown) => console.warn('Riffway: could not update the recent songs', err));
+    }
   }
 
   /** Drop the current run unscored (restart): its active time still counts as practice. */
@@ -693,7 +721,7 @@ export class GameSessionImpl implements GameSession {
         run.judgePass = change.pass;
         run.passLoop.set(change.pass, this.barLoop);
         if (change.reason === 'loop-wrap' && run.passLoop.get(prev)) {
-          run.pendingEvals.push({ pass: prev, at: change.anchor.anchorCtxTime + WINDOWS.good + SETTLE_MARGIN_SEC });
+          run.pendingEvals.push({ pass: prev, at: change.anchor.anchorCtxTime + run.windows.good + SETTLE_MARGIN_SEC });
         }
       }
       const speed = change.anchor.speed;
@@ -839,7 +867,7 @@ export class GameSessionImpl implements GameSession {
       }
       if (!Number.isFinite(t) || t > now) return;
       this.testQueue.shift();
-      const midi = laneMidi(this.song, this.lanes, next.lane, next.songTime, WINDOWS.good * this.speed, next.wrongPitch ?? false);
+      const midi = laneMidi(this.song, this.lanes, next.lane, next.songTime, run.windows.good * this.speed, next.wrongPitch ?? false);
       this.input({ ctxTime: t, kind: 'onset', midi, cents: 0, clarity: 1, source: 'test' });
     }
   }

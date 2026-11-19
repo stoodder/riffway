@@ -6,12 +6,14 @@
  * - **Speed** 40–100% in 5% steps (110% with the overspeed opt-in once the looped sections are
  *   mastered), −/+ buttons, presets and a slider. No pitch change: the session re-renders the
  *   guide and time-stretches the backing; while playing the change lands on the next bar.
- * - **Speed trainer** (D8): toggle, "now → goal 100%" ladder, clean runs to go, live messages
- *   ("Clean run! +5% → 80%", "Slow down a notch → 75%").
+ * - **Speed trainer** (D8): toggle, "now → goal 100%" ladder, clean runs to go, the fail streak
+ *   (`session.trainerState`), live messages ("Clean run! +5% → 80%", "Slow down a notch → 75%").
  * - **A/B loop**: section/bar strip (drag, edge drag, click a section), Set A / Set B at the heard
  *   position, ±1-bar nudges, "Loop a section" list; loops snap to sections then bars, with a 1-bar
  *   pre-roll (2 below 60%; docs/timing.md § Count-in, loops and pre-roll).
- * - **Count-in** 0–2 bars, **metronome** on/off and volume (persisted in settings).
+ * - **Count-in** 0–2 bars, **metronome** on/off, downbeat accent and volume. Count-in and metronome
+ *   show the session's values (`session.countInBars` / `session.metronome`); every change is also
+ *   saved as the default in settings.
  *
  * Keyboard shortcuts and focus rules: see `./shortcuts.ts` (lane keys always win).
  * @module
@@ -22,7 +24,7 @@ import type { GameSession } from '@shared/services';
 import type { DeepPartial, Settings } from '@shared/settings';
 import type { SectionProgress } from '@shared/storage';
 import type { AppContext, PanelHandle, PanelMount, PanelPropsMap } from '@shared/ui';
-import { toTransportLoop } from '@core/practice';
+import { TRAINER, toTransportLoop } from '@core/practice';
 import { badge, button, h, icon, slider, toggle, uid, type Slider, type Toggle } from '../../components';
 import {
   type LoopDraft,
@@ -117,6 +119,7 @@ class PracticePanel {
   // Count-in / metronome
   private readonly countInGroup = h('div', { class: 'rw-practice__seg', role: 'radiogroup' });
   private metronomeToggle!: Toggle;
+  private accentToggle!: Toggle;
   private metronomeVolume!: Slider;
 
   // Messages
@@ -124,7 +127,7 @@ class PracticePanel {
   private messageTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Last synced session values (so the rAF poll only touches the DOM on change)
-  private seen = { speed: Number.NaN, loopKey: '', trainer: false as boolean | null };
+  private seen = { speed: Number.NaN, loopKey: '', trainer: false as boolean | null, failStreak: -1, countIn: -1, metronome: null as boolean | null };
 
   constructor(
     host: HTMLElement,
@@ -198,9 +201,15 @@ class PracticePanel {
     this.countInGroup.addEventListener('keydown', (ev) => this.onRadioKey(ev));
     this.metronomeToggle = toggle({
       label: 'Metronome',
-      description: 'Accented downbeats. Count-in and pre-roll always click.',
-      checked: this.settings.practice.metronome,
+      description: 'Count-in and pre-roll always click.',
+      checked: this.session.metronome,
       onChange: (on) => this.setMetronome(on),
+    });
+    this.accentToggle = toggle({
+      label: 'Accent downbeats',
+      description: 'A higher click on beat 1 of every bar.',
+      checked: this.settings.practice.metronomeAccent,
+      onChange: (on) => this.persist({ practice: { metronomeAccent: on } }),
     });
     this.metronomeVolume = slider({
       label: 'Metronome volume',
@@ -253,6 +262,7 @@ class PracticePanel {
         'Count-in & metronome',
         h('div', { class: 'rw-field' }, h('span', { class: 'rw-field__label' }, 'Count-in'), this.countInGroup),
         this.metronomeToggle.el,
+        this.accentToggle.el,
         this.metronomeVolume.el,
       ),
     );
@@ -328,7 +338,7 @@ class PracticePanel {
   }
 
   private renderCountIn(): void {
-    const bars = this.settings.practice.countInBars;
+    const bars = this.session.countInBars;
     for (const b of this.countInGroup.querySelectorAll<HTMLButtonElement>('button')) {
       const on = Number(b.dataset.bars) === bars;
       b.setAttribute('aria-checked', String(on));
@@ -367,6 +377,7 @@ class PracticePanel {
         ladder.map((r) => h('li', { class: `rw-practice__rung rw-practice__rung--${r.state}`, title: formatSpeed(r.speed) }, h('span', { class: 'rw-num' }, String(Math.round(r.speed * 100))))),
       ),
       h('p', { class: 'rw-field__hint rw-practice__hint' }, this.cleanRuns > 0 ? `Clean runs this session: ${this.cleanRuns}` : 'Play the loop through; each run counts.'),
+      ...failStreakNote(this.session.trainerState.failStreak),
     );
   }
 
@@ -462,9 +473,19 @@ class PracticePanel {
       this.renderLoop();
       this.refreshOverspeed();
     }
-    if (force || s.speedTrainer !== this.seen.trainer) {
+    const failStreak = s.trainerState.failStreak;
+    if (force || s.speedTrainer !== this.seen.trainer || failStreak !== this.seen.failStreak) {
       this.seen.trainer = s.speedTrainer;
+      this.seen.failStreak = failStreak;
       this.renderTrainer();
+    }
+    if (force || s.countInBars !== this.seen.countIn) {
+      this.seen.countIn = s.countInBars;
+      this.renderCountIn();
+    }
+    if (force || s.metronome !== this.seen.metronome) {
+      this.seen.metronome = s.metronome;
+      this.metronomeToggle.set(s.metronome);
     }
   }
 
@@ -484,8 +505,7 @@ class PracticePanel {
   private onSettings(next: Settings): void {
     const prev = this.settings;
     this.settings = next;
-    if (next.practice.countInBars !== prev.practice.countInBars) this.renderCountIn();
-    if (next.practice.metronome !== prev.practice.metronome) this.metronomeToggle.set(next.practice.metronome);
+    if (next.practice.metronomeAccent !== prev.practice.metronomeAccent) this.accentToggle.set(next.practice.metronomeAccent);
     if (next.mixer.metronome !== prev.mixer.metronome && document.activeElement !== this.metronomeVolume.input) {
       this.metronomeVolume.set(Math.round(next.mixer.metronome * 100));
     }
@@ -589,14 +609,15 @@ class PracticePanel {
 
   private setCountIn(bars: number): void {
     this.session.setCountInBars(bars);
-    this.settings = { ...this.settings, practice: { ...this.settings.practice, countInBars: bars } };
+    this.seen.countIn = this.session.countInBars;
     this.renderCountIn();
     this.persist({ practice: { countInBars: bars } });
   }
 
   private setMetronome(on: boolean): void {
     this.session.setMetronome(on);
-    this.metronomeToggle.set(on);
+    this.seen.metronome = this.session.metronome;
+    this.metronomeToggle.set(this.session.metronome);
     this.persist({ practice: { metronome: on } });
   }
 
@@ -604,7 +625,7 @@ class PracticePanel {
     const dir = ev.key === 'ArrowRight' || ev.key === 'ArrowDown' ? 1 : ev.key === 'ArrowLeft' || ev.key === 'ArrowUp' ? -1 : 0;
     if (!dir) return;
     ev.preventDefault();
-    const i = COUNT_IN_CHOICES.indexOf(this.settings.practice.countInBars as 0 | 1 | 2);
+    const i = COUNT_IN_CHOICES.indexOf(this.session.countInBars as 0 | 1 | 2);
     const next = COUNT_IN_CHOICES[(Math.max(0, i) + dir + COUNT_IN_CHOICES.length) % COUNT_IN_CHOICES.length] as number;
     this.setCountIn(next);
     this.countInGroup.querySelector<HTMLButtonElement>(`[data-bars="${next}"]`)?.focus();
@@ -688,8 +709,8 @@ class PracticePanel {
       prevSection: () => this.adjacentSection(-1),
       nextSection: () => this.adjacentSection(1),
       toggleTrainer: () => this.setTrainer(!this.session.speedTrainer),
-      toggleMetronome: () => this.setMetronome(!this.settings.practice.metronome),
-      cycleCountIn: () => this.setCountIn((this.settings.practice.countInBars + 1) % COUNT_IN_CHOICES.length),
+      toggleMetronome: () => this.setMetronome(!this.session.metronome),
+      cycleCountIn: () => this.setCountIn((this.session.countInBars + 1) % COUNT_IN_CHOICES.length),
     };
   }
 
@@ -703,6 +724,15 @@ class PracticePanel {
     this.strip.destroy();
     this.root.remove();
   }
+}
+
+/** "1 run under 70% · one more steps down 5%" while the trainer has a fail streak (else nothing). */
+function failStreakNote(failStreak: number): HTMLElement[] {
+  if (failStreak <= 0) return [];
+  const left = TRAINER.failsToStepDown - failStreak;
+  const runs = `${failStreak} run${failStreak === 1 ? '' : 's'} under 70%`;
+  const then = left <= 1 ? 'one more steps down 5%' : `${left} more in a row step down 5%`;
+  return [h('p', { class: 'rw-field__hint rw-practice__hint rw-practice__fails', dataset: { failStreak: String(failStreak) } }, `${runs} · ${then}`)];
 }
 
 /** A titled group inside the panel. */

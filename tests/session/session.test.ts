@@ -5,6 +5,7 @@
  */
 import 'fake-indexeddb/auto';
 import { describe, expect, it } from 'vitest';
+import type { SongCacheEntry } from '@shared/storage';
 import { recallResult, resultKey } from '../../src/game/session/results';
 import { FakeGuide, FakeInput, makeSong, Rig, settle, testStorage } from './helpers';
 
@@ -61,6 +62,21 @@ describe('GameSessionImpl — scripted runs', () => {
     storage.close();
   });
 
+  it('starting a run marks the song as last played, even if the run is quit', async () => {
+    const storage = await testStorage();
+    await storage.putSongCache({ songId: 'test:song', meta: { id: 'test:song', title: 'Test Song' } as SongCacheEntry['meta'], difficulty: null, lastPlayedAt: null, favourite: false });
+    const rig = new Rig({ song: beatSong(), storage });
+    const s = rig.session;
+    s.play();
+    await settle();
+    expect((await storage.getSongCache('test:song'))?.lastPlayedAt).toBe(rig.wall);
+    await s.quit();
+    expect(await storage.listRuns()).toHaveLength(0);
+    expect((await storage.listRecentSongs(5)).map((e) => e.songId)).toEqual(['test:song']);
+    await s.dispose();
+    storage.close();
+  });
+
   it('keyboard presses use the heard-domain time minus the keyboard offset', async () => {
     const song = beatSong();
     const rig = new Rig({ song, settings: { calibration: { keyboardOffsetMs: 30 } } });
@@ -81,6 +97,27 @@ describe('GameSessionImpl — scripted runs', () => {
     // The 0.2 s late press found no candidate within Good → a stray, not a WrongNote.
     expect(s.judgeState().counts.WrongNote).toBe(0);
     await s.dispose();
+  });
+
+  it('timing leniency scales the windows of the run (relaxed ×1.5, tight ×0.75)', async () => {
+    const outcomes = async (leniency: 'tight' | 'standard' | 'relaxed'): Promise<string[]> => {
+      const song = beatSong();
+      const rig = new Rig({ song, settings: { game: { timingLeniency: leniency } } });
+      const s = rig.session;
+      s.play();
+      const deltas = [0.03, 0.06, 0.1, 0.15];
+      song.notes.slice(0, 4).forEach((n, i) => {
+        rig.until(() => rig.clock.t >= rig.ctxOf(n.time) + (deltas[i] ?? 0), 10);
+        s.keyPress({ lane: 1, wrongPitch: false, timeStampMs: rig.clock.t * 1000 });
+      });
+      rig.advance(0.5);
+      const out = s.judgements().filter((j) => j.final).slice(0, 4).map((j) => j.outcome);
+      await s.dispose();
+      return out;
+    };
+    expect(await outcomes('standard')).toEqual(['Perfect', 'Great', 'Good', 'Miss']);
+    expect(await outcomes('relaxed')).toEqual(['Perfect', 'Great', 'Great', 'Good']);
+    expect(await outcomes('tight')).toEqual(['Great', 'Good', 'Miss', 'Miss']);
   });
 
   it('Shift on a key press plays one semitone up: a WrongNote that breaks the combo', async () => {
@@ -275,10 +312,42 @@ describe('GameSessionImpl — practice loops', () => {
     const rig = new Rig({ song, speed: 0.8, deps: { mode: 'practice', speedTrainer: true, loopSection: 1 } });
     const s = rig.session;
     s.play();
+    const streaks: number[] = [];
+    let loops = 0;
+    s.onMessage((m) => {
+      if (m.kind === 'loop' && m.text.startsWith('Loop:')) {
+        loops++;
+        streaks.push(s.trainerState.failStreak);
+      }
+    });
     rig.until(() => rig.messages.some((m) => m.kind === 'trainer'), 60);
     expect(rig.messages.find((m) => m.kind === 'trainer')?.text).toBe('Slow down a notch → 75%');
+    // The first failed pass shows a fail streak of 1; the second steps down and resets it.
+    expect(loops).toBe(2);
+    expect(streaks).toEqual([1, 0]);
+    expect(s.trainerState).toEqual({ speed: 0.75, failStreak: 0 });
     rig.advance(4);
     expect(s.speed).toBe(0.75);
+    await s.dispose();
+  });
+
+  it('exposes count-in bars and the metronome (settings defaults, setters, settings changes)', async () => {
+    const rig = new Rig({ song: beatSong(), settings: { practice: { countInBars: 2, metronome: false } } });
+    const s = rig.session;
+    expect(s.countInBars).toBe(2);
+    expect(s.metronome).toBe(false);
+    s.setCountInBars(7);
+    expect(s.countInBars).toBe(2);
+    s.setCountInBars(0);
+    expect(s.countInBars).toBe(0);
+    s.setMetronome(true);
+    expect(s.metronome).toBe(true);
+    // Settings changes made elsewhere (the engine follows them) are mirrored.
+    await rig.settings.update({ practice: { metronome: true } });
+    await rig.settings.update({ practice: { metronome: false } });
+    expect(s.metronome).toBe(false);
+    await rig.settings.update({ game: { noteSpeed: 1.5 } });
+    expect(s.metronome).toBe(false);
     await s.dispose();
   });
 

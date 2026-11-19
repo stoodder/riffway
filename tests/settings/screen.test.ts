@@ -111,6 +111,23 @@ describe('settings screen', () => {
       });
     });
 
+    it('sets timing leniency (windows follow), input mode, fret numbers and the metronome accent', async () => {
+      await start();
+      expect(switchFor('Fret numbers').getAttribute('aria-checked')).toBe('true');
+      expect(radio('auto').checked).toBe(true);
+      choose(radio('relaxed'));
+      await vi.waitFor(() => expect(el.querySelector('.set-windows')?.textContent).toBe('Perfect±53 msGreat±105 msGood±180 ms'));
+      choose(radio('keyboard'));
+      switchFor('Fret numbers').click();
+      tab('Practice & goals');
+      switchFor('Accent downbeats').click();
+      await vi.waitFor(() => {
+        const s = fake.ctx.settings.get();
+        expect(s.game).toMatchObject({ timingLeniency: 'relaxed', inputMode: 'keyboard', fretNumbers: false });
+        expect(s.practice.metronomeAccent).toBe(false);
+      });
+    });
+
     it('follows changes made elsewhere (import, reset)', async () => {
       await start();
       await fake.ctx.settings.update({ game: { feedbackDetail: 'minimal', strictOctave: true } });

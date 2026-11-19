@@ -159,10 +159,13 @@ describe('event bridge and commands', () => {
     ]);
   });
 
-  it('re-sends the expect hint and tuner mode to a rebuilt graph', async () => {
+  it('re-sends the expect hint and tuner mode to a rebuilt graph, then announces it', async () => {
     svc.expect({ minMidi: 60, maxMidi: 70 });
     svc.setTunerMode(true);
+    const changes = vi.fn(() => expect(svc.getInputNode()).toBe(deps.graphs[1]?.source));
+    svc.onDevicesChanged(changes);
     await engine.setSampleRate(48000);
+    await vi.waitFor(() => expect(changes).toHaveBeenCalledTimes(1));
     await vi.waitFor(() => expect(deps.graphs).toHaveLength(2));
     await vi.waitFor(() => expect(svc.getInputNode()).toBe(deps.graphs[1].source));
     expect(deps.graphs[0].disposed).toBe(true);

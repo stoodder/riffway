@@ -151,6 +151,29 @@ describe('createHighway', () => {
     expect(sr).toBeGreaterThan(sb + 40);
   });
 
+  it('hides fret numbers when the fretNumbers option is off (settings game.fretNumbers)', () => {
+    const canvas = mountCanvas();
+    const { clock } = testClock({ now: 1.5, speed: 1 });
+    highway = createHighway(canvas, tinySong(), clock, { noteSpeed: 1, handCues: false });
+    const L = computeLayout(W, H, devicePixelRatio, 1);
+    const x = timeToX(L, tt(4), 1.5, 1);
+    /** Pixels in the middle of the gem, where the fret number sits. */
+    const centre = (): number[] => {
+      const dpr = canvas.width / W;
+      const r = Math.max(2, Math.round(L.gemR * 0.4 * dpr));
+      return Array.from(canvas.getContext('2d')!.getImageData(Math.round(x * dpr) - r, Math.round(L.laneY[4]! * dpr) - r, 2 * r, 2 * r).data);
+    };
+    const diff = (a: number[], b: number[]): number => a.reduce((sum, v, i) => sum + Math.abs(v - b[i]!), 0) / a.length;
+    highway.drawFrame(1000);
+    const withNumbers = centre();
+    highway.setOptions({ fretNumbers: false });
+    highway.drawFrame(1000);
+    expect(diff(withNumbers, centre())).toBeGreaterThan(5);
+    highway.setOptions({ fretNumbers: true });
+    highway.drawFrame(1000);
+    expect(diff(withNumbers, centre())).toBeLessThan(0.5);
+  });
+
   it('only reads heardSongTime (with the frame time), speed and onChange from the clock', () => {
     const canvas = mountCanvas();
     const { clock, touched, perfArgs } = testClock({ now: 1 });

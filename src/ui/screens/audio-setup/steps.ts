@@ -88,8 +88,8 @@ export function stepStatuses(s: Settings): Record<StepId, StepStatus> {
   const monitor: StepStatus = s.monitor.enabled ? { tone: 'done', text: `On · ${AMP_PRESETS[s.monitor.preset].label}` } : { tone: 'optional', text: 'Off' };
   const cal = s.calibration;
   const calibration: StepStatus =
-    cal.method === 'play-to-click' || cal.method === 'tap-to-click'
-      ? { tone: 'done', text: `${formatOffset(cal.method === 'play-to-click' ? cal.inputOffsetMs : cal.keyboardOffsetMs)} offset` }
+    cal.method === 'play-to-click' || cal.method === 'loopback' || cal.method === 'tap-to-click'
+      ? { tone: 'done', text: `${formatOffset(cal.method === 'tap-to-click' ? cal.keyboardOffsetMs : cal.inputOffsetMs)} offset` }
       : cal.method === 'estimated'
         ? { tone: 'warning', text: 'Estimated only' }
         : { tone: 'todo', text: 'Not calibrated' };

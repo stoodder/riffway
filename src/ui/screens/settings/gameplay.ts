@@ -1,11 +1,13 @@
 /**
- * Gameplay and practice settings: feedback detail, assists (hand cues, guide synth), strict octave,
- * note speed, the (fixed) timing windows, practice defaults, goals and playing preferences.
+ * Gameplay and practice settings: feedback detail, assists (hand cues, fret numbers, guide synth),
+ * input mode, strict octave, note speed, timing leniency with the resulting windows, practice
+ * defaults (count-in, metronome and its accent, trainer), goals and playing preferences.
  * Every control saves on change through the settings store.
  * @module
  */
-import { WINDOWS } from '@core/judge/constants';
-import type { FeedbackDetail, Settings } from '@shared/settings';
+import type { TimingWindows } from '@shared/judge';
+import type { FeedbackDetail, GameInputMode, Settings, TimingLeniency } from '@shared/settings';
+import { windowsFor } from '../../../game/session/leniency';
 import { h, select, slider, toggle } from '../../components';
 import { choiceGroup, group, section, type Binder, type Choice } from './controls';
 
@@ -19,6 +21,20 @@ export const FEEDBACK_CHOICES: readonly Choice<FeedbackDetail>[] = [
     description: 'Outcome words (Perfect, Great, Good). Early/late only when you’re outside the Great window.',
   },
   { value: 'detailed', label: 'Detailed', description: 'Every hit labelled early or late, and the note you played on a wrong note.' },
+];
+
+/** Timing-leniency choices (docs/game-mechanics.md § Windows). */
+export const LENIENCY_CHOICES: readonly Choice<TimingLeniency>[] = [
+  { value: 'tight', label: 'Tight' },
+  { value: 'standard', label: 'Standard' },
+  { value: 'relaxed', label: 'Relaxed' },
+];
+
+/** Input-mode choices (keyboard mode: docs/game-mechanics.md § Keyboard input mode). */
+export const INPUT_MODE_CHOICES: readonly Choice<GameInputMode>[] = [
+  { value: 'auto', label: 'Automatic', tag: 'Recommended', description: 'Your guitar once it’s set up in Audio setup; the keyboard always works too.' },
+  { value: 'guitar', label: 'Guitar', description: 'Always open the guitar input when a song starts.' },
+  { value: 'keyboard', label: 'Keyboard only', description: 'Play with the lane keys; the guitar input stays closed.' },
 ];
 
 /** Daily goal options in minutes (docs/progress.md § Streaks). */
@@ -60,6 +76,12 @@ export function gameplayTab(b: Binder): HTMLElement {
   });
   b.bind((s) => feedback.set(s.game.feedbackDetail));
 
+  const fretNumbers = toggle({
+    label: 'Fret numbers',
+    description: 'The fret to play, printed on every note. Turn off to read by position alone.',
+    checked: true,
+    onChange: (v) => void b.save({ game: { fretNumbers: v } }),
+  });
   const handCues = toggle({
     label: 'Hand-position cues',
     description: 'Brackets on the highway show where your fretting hand should be and when it moves.',
@@ -95,6 +117,7 @@ export function gameplayTab(b: Binder): HTMLElement {
     onChange: (v) => void b.save({ game: { noteSpeed: v } }),
   });
   b.bind((s) => {
+    fretNumbers.set(s.game.fretNumbers);
     handCues.set(s.game.handCues);
     guide.set(s.game.guide);
     muteGuide.set(s.game.muteGuideWithBacking);
@@ -102,13 +125,26 @@ export function gameplayTab(b: Binder): HTMLElement {
     noteSpeed.set(s.game.noteSpeed);
   });
 
-  const windows = h(
-    'dl',
-    { class: 'set-windows' },
-    windowRow('Perfect', WINDOWS.perfect, 'perfect'),
-    windowRow('Great', WINDOWS.great, 'great'),
-    windowRow('Good', WINDOWS.good, 'good'),
-  );
+  const inputMode = choiceGroup({
+    label: 'Input',
+    choices: INPUT_MODE_CHOICES,
+    value: 'auto',
+    onChange: (v) => void b.save({ game: { inputMode: v } }),
+  });
+  const leniency = choiceGroup({
+    label: 'Timing leniency',
+    layout: 'inline',
+    choices: LENIENCY_CHOICES,
+    value: 'standard',
+    hint: 'Standard is what scores and bests are built around. Relaxed widens every window by half while you learn a hard song; tight narrows them by a quarter for precision work.',
+    onChange: (v) => void b.save({ game: { timingLeniency: v } }),
+  });
+  const windows = h('dl', { class: 'set-windows' });
+  b.bind((s) => {
+    inputMode.set(s.game.inputMode);
+    leniency.set(s.game.timingLeniency);
+    windows.replaceChildren(...windowRows(windowsFor(s.game.timingLeniency)));
+  });
 
   return h(
     'div',
@@ -118,13 +154,26 @@ export function gameplayTab(b: Binder): HTMLElement {
       'How much the highway tells you while you play. Less detail during play tends to stick better; the results screen always has the full timing breakdown.',
       feedback.el,
     ),
-    section('Assists', 'Every assist can be switched off as you get more confident.', group(null, handCues.el, guide.el, muteGuide.el)),
-    section('Judging', null, group(null, strict.el, noteSpeed.el), group('Timing windows', windows, h('p', { class: 'rw-field__hint' }, 'Windows are in real time, so they stay the same at any practice speed. Calibrate latency in Audio setup if hits feel consistently early or late.'))),
+    section('Assists', 'Every assist can be switched off as you get more confident.', group(null, fretNumbers.el, handCues.el, guide.el, muteGuide.el)),
+    section('Input', 'What plays the notes. In keyboard mode the lane keys (1–6 by default, high e first) are the strings and Shift plays a wrong note on purpose.', inputMode.el),
+    section(
+      'Judging',
+      null,
+      group(null, strict.el, noteSpeed.el),
+      group(
+        'Timing windows',
+        leniency.el,
+        windows,
+        h('p', { class: 'rw-field__hint' }, 'Windows are in real time, so they stay the same at any practice speed. Calibrate latency in Audio setup if hits feel consistently early or late.'),
+      ),
+    ),
   );
 }
 
-function windowRow(label: string, sec: number, tone: 'perfect' | 'great' | 'good'): HTMLElement {
-  return h('div', { class: `set-windows__row set-windows__row--${tone}` }, h('dt', null, label), h('dd', { class: 'rw-num' }, ms(sec)));
+function windowRows(w: TimingWindows): HTMLElement[] {
+  const row = (label: string, sec: number, tone: 'perfect' | 'great' | 'good'): HTMLElement =>
+    h('div', { class: `set-windows__row set-windows__row--${tone}` }, h('dt', null, label), h('dd', { class: 'rw-num' }, ms(sec)));
+  return [row('Perfect', w.perfect, 'perfect'), row('Great', w.great, 'great'), row('Good', w.good, 'good')];
 }
 
 /** The Practice & goals tab. */
@@ -140,6 +189,12 @@ export function practiceTab(b: Binder): HTMLElement {
     onChange: (v) => void b.save({ practice: { countInBars: Number(v) } }),
   });
   const metronome = toggle({ label: 'Metronome', description: 'Click along with the song by default.', checked: true, onChange: (v) => void b.save({ practice: { metronome: v } }) });
+  const accent = toggle({
+    label: 'Accent downbeats',
+    description: 'A higher click on beat 1 of every bar, count-in included.',
+    checked: true,
+    onChange: (v) => void b.save({ practice: { metronomeAccent: v } }),
+  });
   const trainer = toggle({
     label: 'Speed trainer',
     description: 'Practice starts sections at 70% and speeds up 5% after each clean run (90%+).',
@@ -208,6 +263,7 @@ export function practiceTab(b: Binder): HTMLElement {
   b.bind((s: Settings) => {
     countIn.set(String(s.practice.countInBars));
     metronome.set(s.practice.metronome);
+    accent.set(s.practice.metronomeAccent);
     trainer.set(s.practice.speedTrainer);
     overspeed.set(s.practice.overspeed);
     daily.set(String(s.goals.dailyMinutes));
@@ -221,7 +277,7 @@ export function practiceTab(b: Binder): HTMLElement {
   return h(
     'div',
     { class: 'set-tab' },
-    section('Practice defaults', 'Starting values for practice runs; you can change them on the fly in the practice panel.', group(null, countIn.el, metronome.el, trainer.el, overspeed.el)),
+    section('Practice defaults', 'Starting values for practice runs; you can change them on the fly in the practice panel.', group(null, countIn.el, metronome.el, accent.el, trainer.el, overspeed.el)),
     section('Goals', 'Streaks are weekly and forgiving: no reminders, no “streak lost” messages.', group(null, daily.el, weekly.el)),
     section(
       'Preferences',

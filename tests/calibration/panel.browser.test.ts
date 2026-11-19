@@ -301,7 +301,7 @@ describe('calibration panel', () => {
     expect(currentProfile(h.settings.get())!.loopbackMs).toBeCloseTo(23.5, 0);
     expect(h.settings.get().calibration.method).toBe('none');
     buttonByText(step.el, 'Use as guitar offset').click();
-    await until(() => h.settings.get().calibration.method === 'estimated', 1000);
+    await until(() => h.settings.get().calibration.method === 'loopback', 1000);
     expect(h.settings.get().calibration.inputOffsetMs).toBeCloseTo(23.5, 0);
   }, 15_000);
 

@@ -3,7 +3,8 @@
 ## Summary
 - Pitch and timing are judged **separately**. Outcomes: **Perfect / Great / Good** (with early/late),
   **WrongNote** (onset in window, wrong pitch), **Miss** (no onset in window).
-- Windows (real seconds, not scaled by speed): Perfect ±35 ms, Great ±70 ms, Good ±120 ms.
+- Windows (real seconds, not scaled by speed): Perfect ±35 ms, Great ±70 ms, Good ±120 ms, scaled by
+  the *timing leniency* setting (tight ×0.75, standard ×1, relaxed ×1.5).
 - Score = base × combo multiplier (×1–×4). **Accuracy % = notes hit with correct pitch (Good or
   better) / total judged notes**, the same metric the speed trainer and mastery use.
 - Chords are judged leniently (one onset + any chord tone) and the HUD says so.
@@ -18,6 +19,11 @@ Constants live in `src/core/judge/constants.ts`; tune them there and update this
 | Good | ≤ 120 ms | 50 | +1 |
 | WrongNote | onset ≤ 120 ms, pitch mismatch | 0 | reset |
 | Miss | no matching onset by note time + 120 ms | 0 | reset |
+
+The table is the `standard` leniency. Settings `game.timingLeniency` scales all three windows for the
+next run (`windowsFor` in `src/game/session/leniency.ts`): `tight` ×0.75 (26 / 53 / 90 ms), `relaxed`
+×1.5 (53 / 105 / 180 ms); the settings screen shows the resulting windows. The run's Good window also
+sets the song-end settle, the loop-pass evaluation delay and the keyboard pitch lookup.
 
 `Δ = eventCtx − ` the note's context time in its loop pass, after calibration ([timing.md](timing.md)). Early/late labels
 appear only when |Δ| > Great window (bandwidth feedback, learning research row 7); the full timing
@@ -64,8 +70,9 @@ final, pass}` (`Judgement` in `shared/judge.ts`) to the HUD and the run log. Hit
 that upgraded it).
 
 **Chord leniency.** A chord group is hit by one onset whose pitch matches any chord tone; all notes in
-the group get that outcome. HUD shows a small "Chords: any chord tone counts" note while chords are on
-screen. Real chord verification is a stretch task (T-070).
+the group get that outcome. The game HUD shows a small "Chords: judged on timing + any chord tone" note
+while chords are in view (the highway itself draws no chord note). Real chord verification is a
+stretch task (T-070).
 
 ### Driving the judge (time domains)
 - **One judge per run** (a fresh `play()` until song end or quit). `config.clock` is the engine's
@@ -161,9 +168,16 @@ start speed, loads the backing link (guide muted per `guideShouldMute`), opens t
 - Practice start speed: explicit `speed`, else for a looped section with the trainer on the stored
   trainer speed (or 70% / 60% by tier), else 100%. Speeds clamp to 40–110%; crossing 60% re-applies the
   loop with its 1- or 2-bar pre-roll.
-- **Guitar input:** `input=keyboard` never opens it; `auto` (default) uses an input that is already
-  open or the device chosen before (it never prompts on its own); `guitar` opens it. With `?e2e=1` the
-  default is `keyboard` (a fake capture device's beeps would add onsets). The session sends `expect`
+- **Guitar input:** the `input` route param, else settings `game.inputMode`: `keyboard` never opens
+  it; `auto` (default) uses an input that is already open or the device chosen before (it never
+  prompts on its own); `guitar` opens it. With `?e2e=1` the default is `keyboard` (a fake capture
+  device's beeps would add onsets).
+- **Practice state** read by the practice panel: `countInBars` (from settings `practice.countInBars`,
+  then `setCountInBars`), `metronome` (settings `practice.metronome`, `setMetronome`, and later settings
+  changes) and `trainerState` (`{speed, failStreak}`; the panel shows "1 run under 70% · one more steps
+  down 5%").
+- The session sets the song cache's `lastPlayedAt` when a run starts (home "Continue" and
+  recently-played order). The session sends `expect`
   hints (pitch range of notes from 0.25 s back to 3 s ahead, bends included, dead notes excluded) every
   0.2 s when the range changes, and `expect(null)` on dispose.
 
@@ -211,9 +225,10 @@ Shifts also feed [difficulty.md](difficulty.md).
 
 ## Highway and technique glyphs
 Horizontal lanes, high e on top. x = `hitX + (note.time − heardSongTime) / speed × pxPerSec`
-(constant visual velocity in real time). Gems show the fret number; sustains draw a tail.
+(constant visual velocity in real time). Gems show the fret number (settings `game.fretNumbers`,
+highway option `fretNumbers`; off = position-only reading); sustains draw a tail.
 Layout (`src/game/highway/layout.ts`, CSS px): a 30 px strip above the lanes (sections, bar numbers,
-cue labels, loop flags) and 26 px below (palm-mute brackets, chord note); six equal lanes in between,
+cue labels, loop flags) and 26 px below (palm-mute brackets); six equal lanes in between,
 gem half-size `clamp(0.36 × laneH, 9, 24)`; hit line at `hitX = clamp(0.24 × width, 220, 340)` with the
 gutter (combo, outcome text, lane letters, fade-out) to its left; `pxPerSec = 320 × noteSpeed`
 (note speed 0.5–2), so a 1280 px canvas at note speed 1 shows ~3 real seconds of notes ahead of the
@@ -269,6 +284,6 @@ Hit feedback: gem flash + particle burst + outcome text at the hit line; WrongNo
   time (dropped if the pass skips it), so a whole song can be scripted right after pressing Play;
   an exact time gives Δ = 0 → Perfect.
 - `getJudgements()` — the run's final judgements (also after leaving for the results page).
-- `getNotes()` (extension) — the song's judge targets `{id, songTime, lane, midi, chord}`; inject one
+- `getNotes()` — the song's judge targets `{id, songTime, lane, midi, chord}`; inject one
   event per chord.
 - `setSpeed(speed)` / `seek(songTime)` — like the practice panel.

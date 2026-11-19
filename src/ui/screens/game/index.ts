@@ -156,6 +156,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
     const hw = createHighway(canvas, s.song, s.clock, {
       noteSpeed: settings.game.noteSpeed,
       handCues: settings.game.handCues,
+      fretNumbers: settings.game.fretNumbers,
       positions: computePositions(s.song),
       loop: s.loop,
     });
@@ -187,7 +188,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       const bar0 = bars.find((b) => b.time + b.dur > Math.max(0, start)) ?? bars[0];
       const beats = bar0 ? Math.max(1, bar0.beats.length || bar0.num) : 4;
       ciBeat = bar0 && beats > 0 ? bar0.dur / beats : 0.5;
-      ciEnd = start + s.countIn * beats * ciBeat;
+      ciEnd = start + s.countInBars * beats * ciBeat;
     };
 
     // ---- Live updates ----
@@ -210,7 +211,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       }),
     );
     cleanups.push(
-      ctx.settings.subscribe((next) => hw.setOptions({ noteSpeed: next.game.noteSpeed, handCues: next.game.handCues })),
+      ctx.settings.subscribe((next) => hw.setOptions({ noteSpeed: next.game.noteSpeed, handCues: next.game.handCues, fretNumbers: next.game.fretNumbers })),
     );
 
     const frame = (): void => {

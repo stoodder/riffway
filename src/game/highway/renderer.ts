@@ -72,7 +72,6 @@ const GHOST_SCALE = 0.74;
 const CUE_FADE_SEC = 0.25;
 const SUB_EARLY = 'EARLY';
 const SUB_LATE = 'LATE';
-const CHORD_NOTE = 'Chords: any chord tone counts';
 const LOOP_A = 'A';
 const LOOP_B = 'B';
 const PM_TEXT = 'PM';
@@ -91,7 +90,7 @@ interface WorldFonts {
 }
 
 /** Options with defaults applied. */
-export type ResolvedOptions = Required<Pick<HighwayOptions, 'noteSpeed' | 'handCues'>> & Pick<HighwayOptions, 'positions' | 'loop'>;
+export type ResolvedOptions = Required<Pick<HighwayOptions, 'noteSpeed' | 'handCues' | 'fretNumbers'>> & Pick<HighwayOptions, 'positions' | 'loop'>;
 
 /** Draws the highway into a canvas; see the module docs. */
 export class HighwayRenderer {
@@ -112,7 +111,6 @@ export class HighwayRenderer {
   private sectionW = new Float32Array(0);
   private chordNameW = new Float32Array(0);
   private cueW = new Float32Array(0);
-  private chordNoteW = 0;
   private positionW = new Float32Array(0);
   /** Reused argument for `cueShowAt` (no per-frame allocation). */
   private readonly cueArg = { showAt: 0, time: 0 };
@@ -133,7 +131,7 @@ export class HighwayRenderer {
     opts: HighwayOptions,
   ) {
     this.ctx = context2d(canvas);
-    this.opts = { noteSpeed: opts.noteSpeed, handCues: opts.handCues, positions: opts.positions, loop: opts.loop ?? null };
+    this.opts = { noteSpeed: opts.noteSpeed, handCues: opts.handCues, fretNumbers: opts.fretNumbers ?? true, positions: opts.positions, loop: opts.loop ?? null };
     this.prep = prepareSong(song, this.handAnalysis());
     this.noteState = new Uint8Array(this.prep.n);
     this.noteEpoch = new Int32Array(this.prep.n);
@@ -145,13 +143,14 @@ export class HighwayRenderer {
     return this.opts;
   }
 
-  /** Merge option changes (note speed, hand cues, positions, loop). */
+  /** Merge option changes (note speed, hand cues, fret numbers, positions, loop). */
   setOptions(patch: Partial<HighwayOptions>): void {
     const positionsChanged = patch.positions !== undefined && patch.positions !== this.opts.positions;
     const cuesTurnedOn = patch.handCues === true && !this.opts.handCues;
     this.opts = {
       noteSpeed: patch.noteSpeed ?? this.opts.noteSpeed,
       handCues: patch.handCues ?? this.opts.handCues,
+      fretNumbers: patch.fretNumbers ?? this.opts.fretNumbers,
       positions: patch.positions ?? this.opts.positions,
       loop: patch.loop !== undefined ? patch.loop : this.opts.loop,
     };
@@ -219,8 +218,6 @@ export class HighwayRenderer {
     const hand = this.prep.hand;
     this.cueW = Float32Array.from(hand ? hand.cues.label : [], (l) => ctx.measureText(l).width);
     this.positionW = Float32Array.from(hand ? hand.positions.label : [], (l) => ctx.measureText(l).width);
-    ctx.font = f.strip;
-    this.chordNoteW = ctx.measureText(CHORD_NOTE).width;
     ctx.font = f.chord;
     this.chordNameW = Float32Array.from(this.prep.chords.name, (l) => ctx.measureText(l).width);
     ctx.restore();
@@ -325,11 +322,10 @@ export class HighwayRenderer {
     const now = this.clock.heardSongTime(perfNow);
     const speed = safeSpeed(this.clock.speed);
     const live = Number.isFinite(now);
-    let chordsVisible = false;
     if (live) {
       this.lastNow = now;
       visibleWindow(L, now, speed, this.win);
-      chordsVisible = this.drawWorld(ctx, atlas, now, speed);
+      this.drawWorld(ctx, atlas, now, speed);
     }
 
     const fg = this.fg;
@@ -339,11 +335,11 @@ export class HighwayRenderer {
     this.fx.drawFlashes(ctx, L, atlas, perfNow);
     this.hud.draw(ctx, L, this.hudFont, perfNow);
     this.fx.drawPopups(ctx, L, this.fxFont, perfNow);
-    if (live) this.drawStatus(ctx, now, chordsVisible);
+    if (live) this.drawStatus(ctx, now);
   }
 
-  /** Grid, sections, cues, notes, glyphs and the loop region. Returns true when a chord is on screen. */
-  private drawWorld(ctx: CanvasRenderingContext2D, atlas: GemAtlas, now: number, speed: number): boolean {
+  /** Grid, sections, cues, notes, glyphs and the loop region. */
+  private drawWorld(ctx: CanvasRenderingContext2D, atlas: GemAtlas, now: number, speed: number): void {
     const L = this.layout;
     const p = this.prep;
     const f = this.worldFonts!;
@@ -373,12 +369,11 @@ export class HighwayRenderer {
     const s1 = lowerBound(p.time, to, s0);
     this.drawLongTails(ctx, now, k, from, to, s0);
     for (let i = s0; i < s1; i++) this.drawTailAndLinks(ctx, i, now, k, from);
-    const chordsVisible = this.drawChords(ctx, f, now, k, from, to);
+    this.drawChords(ctx, f, now, k, from, to);
     const g0 = lowerBound(p.time, from, s0);
     for (let i = g0; i < s1; i++) this.drawGem(ctx, atlas, f, i, now, k);
     this.drawPalmMutes(ctx, f, now, k, from, to);
     if (loop) this.drawLoopBounds(ctx, f, loop.start, loop.end, now, k);
-    return chordsVisible;
   }
 
   /** Beat and bar lines, bar numbers, section lines and (sticky) section labels. */
@@ -694,13 +689,15 @@ export class HighwayRenderer {
     ctx.stroke();
   }
 
-  /** Chord frames (box over the struck strings + name). Returns true if any chord is visible. */
-  private drawChords(ctx: CanvasRenderingContext2D, f: WorldFonts, now: number, k: number, from: number, to: number): boolean {
+  /**
+   * Chord frames (box over the struck strings + name). The chord-leniency note is the game HUD's
+   * (`src/ui/screens/game/hud.ts`), not drawn here.
+   */
+  private drawChords(ctx: CanvasRenderingContext2D, f: WorldFonts, now: number, k: number, from: number, to: number): void {
     const L = this.layout;
     const c = this.prep.chords;
     const c0 = lowerBound(c.time, from);
     const r = L.gemR;
-    let any = false;
     ctx.font = f.chord;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'bottom';
@@ -708,7 +705,6 @@ export class HighwayRenderer {
       const st = this.stateOf(c.firstNote[i]!);
       const x = L.hitX + (c.time[i]! - now) * k;
       if (isHitCode(st) || x < L.hitX - L.fadeW) continue;
-      if (x > L.hitX - r) any = true;
       const top = L.laneY[c.minS[i]!]! - r - 6;
       const bottom = L.laneY[c.maxS[i]!]! + r + 6;
       ctx.globalAlpha = st === 5 ? 0.45 : 1;
@@ -735,10 +731,9 @@ export class HighwayRenderer {
       }
     }
     ctx.globalAlpha = 1;
-    return any;
   }
 
-  /** One gem with its fret number and per-note glyphs (bend arrow, short vibrato). */
+  /** One gem with its fret number (unless `fretNumbers` is off) and per-note glyphs (bend arrow, short vibrato). */
   private drawGem(ctx: CanvasRenderingContext2D, atlas: GemAtlas, f: WorldFonts, i: number, now: number, k: number): void {
     const p = this.prep;
     const fl = p.flags[i]!;
@@ -754,7 +749,7 @@ export class HighwayRenderer {
     const state = st === 4 ? STATE_WRONG : st === 5 ? STATE_MISS : STATE_NORMAL;
     const scale = fl & F_GHOST ? GHOST_SCALE : 1;
     atlas.drawGem(ctx, shape, state, s, x, y, scale);
-    if (!(fl & F_DEAD)) atlas.drawFret(ctx, p.fret[i]!, x, y, scale);
+    if (!(fl & F_DEAD) && this.opts.fretNumbers) atlas.drawFret(ctx, p.fret[i]!, x, y, scale);
 
     // Short vibrato (no tail to carry it).
     if (fl & F_VIBRATO && (p.end[i]! - p.time[i]!) * k <= r * 1.4) this.wave(ctx, x + r + 3, x + r * 3, y, x, r * 0.25);
@@ -898,8 +893,8 @@ export class HighwayRenderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  /** Current section (gutter), current hand position (pill on the hit line) and the chord-leniency note. */
-  private drawStatus(ctx: CanvasRenderingContext2D, now: number, chordsVisible: boolean): void {
+  /** Current section (gutter) and current hand position (pill on the hit line). */
+  private drawStatus(ctx: CanvasRenderingContext2D, now: number): void {
     const L = this.layout;
     const f = this.worldFonts!;
     const sec = this.prep.sections;
@@ -930,18 +925,6 @@ export class HighwayRenderer {
         ctx.fillStyle = HW_COLORS.accentStrong;
         ctx.fillText(hand.positions.label[i]!, L.hitX, y + 0.5);
       }
-    }
-    if (chordsVisible) {
-      const y = L.lanesBottom + (L.height - L.lanesBottom) / 2 + 0.5;
-      const x = L.width - 14;
-      roundRectPath(ctx, x - this.chordNoteW - 10, y - 9, this.chordNoteW + 20, 18, 9);
-      ctx.fillStyle = HW_COLORS.strip;
-      ctx.fill();
-      ctx.font = f.strip;
-      ctx.textAlign = 'right';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = HW_COLORS.textMuted;
-      ctx.fillText(CHORD_NOTE, x, y);
     }
   }
 }

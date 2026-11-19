@@ -37,7 +37,7 @@ export interface LatencyInputs {
   sampleRate: number;
   /** Group delay of the amp DSP in samples (0 for DI). */
   dspSamples: number;
-  /** Calibration settings: a play-to-click calibration supplies the measured round trip. */
+  /** Calibration settings: a play-to-click or loopback calibration supplies the measured round trip. */
   calibration: Pick<CalibrationSettings, 'method' | 'inputOffsetMs'>;
 }
 
@@ -62,8 +62,8 @@ const usable = (v: number | null | undefined): v is number => typeof v === 'numb
 
 /**
  * Estimate the monitoring delay: `input + baseLatency + output + 128 / sr + amp DSP`, in ms.
- * `calibratedOffsetMs` is the play-to-click `inputOffsetMs` (it also contains the player's own
- * timing habit, so the UI calls it "calibrated offset", not latency).
+ * `calibratedOffsetMs` is the measured `inputOffsetMs` (play-to-click, which also contains the
+ * player's own timing habit, or loopback), so the UI calls it "calibrated offset", not latency.
  */
 export function estimateMonitorLatency(i: LatencyInputs): LatencyEstimate {
   const inputSec = usable(i.inputLatencySec) ? i.inputLatencySec : ASSUMED_LATENCY_SEC;
@@ -80,7 +80,7 @@ export function estimateMonitorLatency(i: LatencyInputs): LatencyEstimate {
   return {
     monitorMs,
     band: latencyBand(monitorMs),
-    calibratedOffsetMs: i.calibration.method === 'play-to-click' ? i.calibration.inputOffsetMs : null,
+    calibratedOffsetMs: i.calibration.method === 'play-to-click' || i.calibration.method === 'loopback' ? i.calibration.inputOffsetMs : null,
     parts,
     assumed: { input: !usable(i.inputLatencySec), output: !usable(i.outputLatencySec) },
   };

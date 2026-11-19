@@ -6,7 +6,7 @@
  */
 import type { SearchResult } from '@shared/sources';
 import { badge, difficultyPill, h, rovingFocus, uid, type RovingFocus } from '../../components';
-import { AVAILABILITY, RHYTHM_LABEL, SOURCE_LABEL, formatDuration } from './labels';
+import { RHYTHM_LABEL, SOURCE_LABEL, availabilityChip, formatDuration } from './labels';
 
 /** Options for {@link resultList}. */
 export interface ResultListOptions {
@@ -47,7 +47,7 @@ function difficulty(r: SearchResult): HTMLElement {
 }
 
 function row(r: SearchResult, isNew: boolean, onOpen: (r: SearchResult) => void): HTMLLIElement {
-  const avail = AVAILABILITY[r.availability];
+  const avail = availabilityChip(r);
   const byId = uid('lib-by');
   const metaId = uid('lib-meta');
   const stateId = uid('lib-state');

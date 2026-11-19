@@ -11,32 +11,19 @@
  * - `getJudgements()`: the run's **final** judgements in emission order (a provisional WrongNote
  *   appears once, as its final outcome) — of the last session, also after it left the screen
  *   (results page).
- * - `getNotes()` (**extension**, not yet in the frozen `RiffwayTestHook` contract): the session song's
- *   judge targets `{id, songTime, lane, midi, chord}` (tied destinations excluded), so a test can
- *   script a whole song with `inject`. Empty without a session.
+ * - `getNotes()`: the session song's judge targets `{id, songTime, lane, midi, chord}` (tied
+ *   destinations excluded), so a test can script a whole song with `inject`. Empty without a session.
  * - `setSpeed(speed)`: like the practice panel (bar-aligned while playing; resolves when the guide
  *   render for that speed is ready). `seek(songTime)`: like the practice panel (starts a new pass).
  * @module
  */
-import type { StringNumber } from '@shared/song';
 import type { AppContext, RiffwayTestHook, TestHookState } from '@shared/ui';
+
+export type { TestHookNote } from '@shared/ui';
+/** The installed hook type (kept for importers; `getNotes()` is now part of {@link RiffwayTestHook}). */
+export type RiffwayTestHookExt = RiffwayTestHook;
 import { getActiveSession, getLastSession } from '../game/session/active';
 import type { GameSessionImpl } from '../game/session/core';
-
-/** One judge target of the session's song (`getNotes()`). */
-export interface TestHookNote {
-  id: number;
-  songTime: number;
-  lane: StringNumber;
-  midi: number;
-  /** Chord group id, when the note belongs to a chord. */
-  chord: number | null;
-}
-
-/** The installed hook: the contract plus extensions documented in the module doc. */
-export interface RiffwayTestHookExt extends RiffwayTestHook {
-  getNotes(): TestHookNote[];
-}
 
 function requireSession(method: string): GameSessionImpl {
   const s = getActiveSession();
@@ -45,9 +32,9 @@ function requireSession(method: string): GameSessionImpl {
 }
 
 /** Install `window.__riffwayTest` when `ctx.flags.e2e` is set. Returns the hook (or null). */
-export function installTestHooks(ctx: AppContext): RiffwayTestHookExt | null {
+export function installTestHooks(ctx: AppContext): RiffwayTestHook | null {
   if (!ctx.flags.e2e) return null;
-  const hook: RiffwayTestHookExt = {
+  const hook: RiffwayTestHook = {
     version: 1,
     ready: () => {
       const s = getActiveSession();

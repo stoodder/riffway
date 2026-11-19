@@ -1,10 +1,11 @@
 /**
- * Browser entry (T-018): design system → router + UI → `createAppContext` → `installTestHooks`
- * (`?e2e=1`) → shell. Keep `installTestHooks(ctx)`: the e2e suite relies on it.
+ * Browser entry (T-018): design system → router + UI → `createAppContext` → app-wide wiring
+ * (`startAppWiring`: calibration follows device switches) → `installTestHooks` (`?e2e=1`) → shell. Keep `installTestHooks(ctx)`: the e2e suite relies on it.
  * If the context cannot be created (e.g. IndexedDB unavailable) a boot error is shown instead.
  */
 import type { AppContext } from '@shared/ui';
 import { createAppContext } from './app/context';
+import { startAppWiring } from './app/startup';
 import { installTestHooks } from './test-hooks';
 import './ui/design';
 import { emptyState } from './ui/components';
@@ -30,6 +31,7 @@ const ui = createUi({
 try {
   const ctx = await createAppContext({ router: createHashRouter(), ui });
   ctxRef = ctx;
+  startAppWiring(ctx);
   installTestHooks(ctx);
   startShell(root, ctx);
 } catch (err) {

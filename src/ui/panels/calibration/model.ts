@@ -39,6 +39,7 @@ export function fmtWhen(epochMs: number, now = Date.now()): string {
 export const METHOD_LABEL: Readonly<Record<CalibrationMethod, { text: string; tone: 'success' | 'info' | 'warning' | 'neutral' }>> = {
   'play-to-click': { text: 'Play-to-click', tone: 'success' },
   'tap-to-click': { text: 'Keyboard only', tone: 'info' },
+  loopback: { text: 'Loopback', tone: 'info' },
   estimated: { text: 'Estimated', tone: 'warning' },
   none: { text: 'Not calibrated', tone: 'neutral' },
 };

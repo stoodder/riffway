@@ -19,7 +19,7 @@
  */
 import type { AnalysisEvent, AmpParams } from './audio-events';
 import type { ScheduledSource, SongClock, Transport, TransportLoop, Unsubscribe } from './clock';
-import type { InputEvent, Judgement, JudgeState, PracticeMessage, RunSummary, StrayEvent } from './judge';
+import type { InputEvent, Judgement, JudgeState, PracticeMessage, RunSummary, StrayEvent, TrainerState } from './judge';
 import type { AmpPresetId, MixerLevels, SettingsStore } from './settings';
 import type { HandPositionAnalysis, Song, SongBundle } from './song';
 import type { AudioLink, RunMode } from './storage';
@@ -34,9 +34,10 @@ export interface EngineOptions {
   /** Output device (`setSinkId`); `''` = default. Defaults to the settings' `output.sinkId`. */
   sinkId?: string;
   /**
-   * Settings to follow (the app passes `ctx.settings`): mixer levels, `practice.countInBars` /
-   * `practice.metronome` defaults, `calibration.visualOffsetMs` (for `heardSongTime`) and
-   * `output.sinkId`, applied at creation and on every change.
+   * Settings to follow (the app passes `ctx.settings`): mixer levels and `mixerMute`,
+   * `practice.countInBars` / `practice.metronome` defaults, `practice.metronomeAccent`,
+   * `calibration.visualOffsetMs` (for `heardSongTime`) and `output.sinkId`, applied at creation and on
+   * every change.
    */
   settings?: Pick<SettingsStore, 'get' | 'subscribe'>;
 }
@@ -56,7 +57,7 @@ export interface AudioEngine {
   /** Recreate the context at another sample rate (input device changed). Re-wires buses; sources must reconnect. */
   setSampleRate(sampleRate: number): Promise<void>;
   setSinkId(sinkId: string): Promise<void>;
-  /** Bus level 0–1 (persisted by the caller). Mute = 0; never disconnects. */
+  /** Set a bus gain 0–1 now (live fader feedback; persisted levels and mutes come from settings). Never disconnects. */
   setLevel(bus: MixerBus, level: number): void;
   /** Long-audio hook: re-issued on play, seek, speed change and loop wrap. */
   registerScheduledSource(source: ScheduledSource): Unsubscribe;
@@ -222,8 +223,17 @@ export interface GameSession {
   clearLoop(): void;
   setSpeedTrainer(on: boolean): void;
   readonly speedTrainer: boolean;
+  /**
+   * Speed-trainer state for the current loop: the trainer speed and the consecutive failed runs
+   * (< 70%; two in a row step the speed down).
+   */
+  readonly trainerState: TrainerState;
   setCountInBars(bars: number): void;
+  /** Count-in bars before the next `play()` (0–2; starts at settings `practice.countInBars`). */
+  readonly countInBars: number;
   setMetronome(on: boolean): void;
+  /** Metronome on (starts at settings `practice.metronome`, follows it and `setMetronome`). */
+  readonly metronome: boolean;
   setGuideMuted(muted: boolean): void;
   onJudgement(cb: (j: Judgement) => void): Unsubscribe;
   onStray(cb: (s: StrayEvent) => void): Unsubscribe;
@@ -241,6 +251,8 @@ export interface HighwayOptions {
   /** Scroll speed multiplier (settings `game.noteSpeed`). */
   noteSpeed: number;
   handCues: boolean;
+  /** Fret numbers on the gems (settings `game.fretNumbers`; default true). */
+  fretNumbers?: boolean;
   /** Precomputed positions/cues (T-013 `computePositions`). */
   positions?: HandPositionAnalysis;
   /** Loop region to shade. */

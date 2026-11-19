@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 /**
- * Mixer (T-032): fader taper and dB readout, unmute memory, and the panel — live engine levels
- * while dragging, debounced persistence, mute/unmute per bus, guide mute via `game.guide` and the
- * session, the `G` shortcut, hints, and lifecycle.
+ * Mixer (T-032): fader taper and dB readout, and the panel — live engine levels while dragging,
+ * debounced persistence, mute/unmute per bus (`settings.mixerMute`, level kept), guide mute via
+ * `game.guide` and the session, the `G` shortcut, hints, and lifecycle.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { BackingService, MonitorService } from '@shared/services';
 import type { PanelHandle } from '@shared/ui';
 import { mount, PERSIST_DELAY_MS } from '../../src/ui/panels/mixer';
-import { MIXER_CHANNELS, UNMUTE_STORAGE_KEY, faderToLevel, formatLevelDb, levelToFader, unmuteMemory } from '../../src/ui/panels/mixer/model';
+import { MIXER_CHANNELS, faderToLevel, formatLevelDb, levelToFader } from '../../src/ui/panels/mixer/model';
 import { fakeEngine, fakeSession, flush, makeCtx, memorySettings, press } from './helpers';
 
 const handles: PanelHandle<unknown>[] = [];
@@ -16,7 +16,6 @@ const handles: PanelHandle<unknown>[] = [];
 afterEach(() => {
   for (const h of handles.splice(0)) h.unmount();
   document.body.replaceChildren();
-  localStorage.clear();
 });
 
 describe('mixer model', () => {
@@ -38,25 +37,6 @@ describe('mixer model', () => {
 
   it('lists all five buses', () => {
     expect(MIXER_CHANNELS.map((c) => c.bus)).toEqual(['monitor', 'backing', 'guide', 'metronome', 'master']);
-  });
-
-  it('remembers pre-mute levels across instances and tolerates bad storage', () => {
-    const store = new Map<string, string>();
-    const storage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v) };
-    const a = unmuteMemory(storage);
-    expect(a.restoreLevel('backing')).toBe(0.8); // default
-    a.remember('backing', 0.3);
-    a.remember('guide', 0); // ignored
-    expect(unmuteMemory(storage).restoreLevel('backing')).toBe(0.3);
-    store.set(UNMUTE_STORAGE_KEY, '{nope');
-    expect(unmuteMemory(storage).restoreLevel('backing')).toBe(0.8);
-    store.set(UNMUTE_STORAGE_KEY, JSON.stringify({ backing: 7, bogus: 0.5 }));
-    expect(unmuteMemory(storage).restoreLevel('backing')).toBe(0.8);
-    const throwing = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('denied'); } };
-    const m = unmuteMemory(throwing);
-    m.remember('monitor', 0.4);
-    expect(m.restoreLevel('monitor')).toBe(0.4);
-    expect(unmuteMemory(null).restoreLevel('master')).toBe(0.8);
   });
 });
 
@@ -108,23 +88,33 @@ describe('mixer panel', () => {
     }
   });
 
-  it('mutes to 0 and restores the previous level (also after a reload)', async () => {
+  it('mutes with the per-bus flag, keeps the level, and unmutes to it (also after a reload)', async () => {
     const r = await setup({ settings: memorySettings({ mixer: { monitor: 0.49 } }) });
     r.mute('monitor').click();
     expect(r.eng.setLevel).toHaveBeenLastCalledWith('monitor', 0);
-    expect(r.settings.update).toHaveBeenLastCalledWith({ mixer: { monitor: 0 } });
+    expect(r.settings.update).toHaveBeenLastCalledWith({ mixerMute: { monitor: true } });
     await flush();
+    expect(r.settings.get().mixer.monitor).toBe(0.49);
     expect(r.mute('monitor').getAttribute('aria-pressed')).toBe('true');
     expect(r.row('monitor').classList.contains('rw-mixer__row--muted')).toBe(true);
-    expect(r.fader('monitor').value).toBe('0');
+    expect(r.fader('monitor').value).toBe('70');
+    // Moving a muted fader sets the level without un-silencing the bus.
+    const calls = r.eng.setLevel.mock.calls.length;
+    r.fader('monitor').value = '80';
+    r.fader('monitor').dispatchEvent(new Event('change'));
+    expect(r.eng.setLevel.mock.calls.length).toBe(calls);
+    expect(r.settings.update).toHaveBeenLastCalledWith({ mixer: { monitor: 0.64 } });
+    await flush();
     r.handle.unmount();
     handles.splice(0);
     const again = await setup({ settings: r.settings });
+    expect(again.mute('monitor').getAttribute('aria-pressed')).toBe('true');
     again.mute('monitor').click();
-    expect(again.settings.update).toHaveBeenLastCalledWith({ mixer: { monitor: 0.49 } });
+    expect(again.eng.setLevel).toHaveBeenLastCalledWith('monitor', 0.64);
+    expect(again.settings.update).toHaveBeenLastCalledWith({ mixerMute: { monitor: false } });
     await flush();
     expect(again.mute('monitor').getAttribute('aria-pressed')).toBe('false');
-    expect(again.fader('monitor').value).toBe('70');
+    expect(again.fader('monitor').value).toBe('80');
   });
 
   it('mutes the guide through game.guide and the session; G toggles it', async () => {

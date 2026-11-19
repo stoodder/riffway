@@ -116,7 +116,7 @@ describe('library index', () => {
     expect(failed.error).toMatch(/No guitar tab found/);
     const res = await t.app.inject({ method: 'GET', url: '/api/search' });
     expect(res.json<{ results: { fileName: string; availability: string }[] }>().results).toEqual([
-      expect.objectContaining({ fileName: 'Some Band - Notes.txt', availability: 'needs-import' }),
+      expect.objectContaining({ fileName: 'Some Band - Notes.txt', availability: 'needs-import', error: expect.stringMatching(/No guitar tab found/) }),
     ]);
   });
 

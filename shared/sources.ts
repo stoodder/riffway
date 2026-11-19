@@ -108,6 +108,8 @@ export interface SearchResult {
   durationSec: number;
   /** MiniSearch relevance (0 when listing without a query). */
   score: number;
+  /** The entry's import error (`IndexEntry.error`): shown as "Failed to import" (availability `needs-import`). */
+  error?: string;
   /** Badges contributed by link-out adapters, e.g. `{source:'songsterr', label:'In your library – playable'}`. */
   badges?: { source: SourceId; label: string }[];
 }

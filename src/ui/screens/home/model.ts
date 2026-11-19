@@ -374,28 +374,29 @@ export function buildChecklist(input: Pick<HomeInput, 'settings' | 'runs' | 'che
   const calibrated = settings.calibration.method !== 'none';
   const guitarRun = runs.some((r) => r.inputSource === 'guitar');
   const first = starterSongs(input.candidates, 1)[0];
-  const setup = route('audio-setup');
+  /** The audio-setup step (`#/audio-setup?step=…`). */
+  const setup = (step: 'input' | 'tuner' | 'calibration', extra: RouteParams = {}): RouteTarget => route('audio-setup', { step, ...extra });
   const steps: ChecklistStep[] = [
     {
       id: 'input',
       title: 'Pick your guitar input',
       detail: settings.input.label ? `Using ${settings.input.label}` : 'Choose your audio interface and check the level meter.',
       done: settings.input.deviceId !== null,
-      action: { label: 'Choose input', to: setup },
+      action: { label: 'Choose input', to: setup('input') },
     },
     {
       id: 'tune',
       title: 'Tune up',
       detail: 'Riffway judges pitch, so start in tune. The tuner listens to your input.',
       done: input.checklist.tunedMarked || calibrated || guitarRun,
-      action: { label: 'Open tuner', to: setup },
+      action: { label: 'Open tuner', to: setup('tuner') },
     },
     {
       id: 'calibrate',
       title: 'Calibrate latency',
       detail: calibrated ? 'Timing offsets are set.' : 'Play along with a click for 20 seconds so hits line up exactly.',
       done: calibrated,
-      action: { label: 'Calibrate', to: setup },
+      action: { label: 'Calibrate', to: setup('calibration', { mode: 'guitar' }) },
     },
     {
       id: 'first-song',

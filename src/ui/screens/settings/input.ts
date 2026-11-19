@@ -19,6 +19,7 @@ const METHOD_TEXT: Record<CalibrationSettings['method'], string> = {
   none: 'Not calibrated yet',
   'play-to-click': 'Calibrated by playing along to clicks',
   'tap-to-click': 'Calibrated by tapping along to clicks',
+  loopback: 'Measured with a loopback cable',
   estimated: 'Estimated from what the browser reports',
 };
 

@@ -42,6 +42,14 @@ export const AVAILABILITY: Readonly<Record<Availability, { label: string; tone: 
   },
 };
 
+/** Chip for an entry whose import failed (`SearchResult.error`); the help text is the error itself. */
+export const FAILED_IMPORT: { label: string; tone: BadgeTone; icon: IconName } = { label: 'Failed to import', tone: 'danger', icon: 'error' };
+
+/** Availability chip of a result: "Failed to import" (with its error) when the import failed. */
+export function availabilityChip(r: { availability: Availability; error?: string }): { label: string; tone: BadgeTone; icon: IconName; help: string } {
+  return r.error ? { ...FAILED_IMPORT, help: r.error } : AVAILABILITY[r.availability];
+}
+
 /** `m:ss` (or `h:mm:ss`) for a duration in seconds; `''` for unknown/zero. */
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '';

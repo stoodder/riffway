@@ -97,6 +97,13 @@ describe('speed', () => {
   });
 });
 
+/** The switch (`role="switch"`) labelled `label`. */
+function switchFor(host: HTMLElement, label: string): HTMLButtonElement {
+  const sw = Array.from(host.querySelectorAll<HTMLButtonElement>('[role="switch"]')).find((b) => document.getElementById(b.getAttribute('aria-labelledby') ?? '')?.textContent === label);
+  if (!sw) throw new Error(`no switch ${label}`);
+  return sw;
+}
+
 /** Same as setup() but without awaiting real timers (for fake-timer tests). */
 async function setupFake(session: FakeSession) {
   const eng = fakeEngine();
@@ -139,6 +146,18 @@ describe('speed trainer', () => {
     expect(r.q('.rw-practice__trainer').textContent).toContain('Clean runs this session: 1');
     session.emitMessage({ kind: 'trainer', text: 'Slow down a notch → 75%' });
     expect(msg.dataset.tone).toBe('down');
+  });
+
+  it('shows the fail streak from session.trainerState', async () => {
+    const session = fakeSession(makeSong(), { speed: 0.8, trainer: true });
+    const r = await setup({ session });
+    expect(r.host.querySelector('.rw-practice__fails')).toBeNull();
+    session.failStreak = 1;
+    session.emitMessage({ kind: 'loop', text: 'Loop: 60% at 80%' });
+    expect(r.q('.rw-practice__fails').textContent).toBe('1 run under 70% · one more steps down 5%');
+    session.failStreak = 0;
+    session.emitState('paused');
+    expect(r.host.querySelector('.rw-practice__fails')).toBeNull();
   });
 });
 
@@ -261,6 +280,23 @@ describe('count-in and metronome', () => {
     expect(radio(0).getAttribute('aria-checked')).toBe('true');
     radio(0).dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
     expect(r.session.calls.setCountInBars).toHaveBeenLastCalledWith(1);
+  });
+
+  it('shows the session count-in and metronome, not the stored defaults', async () => {
+    const r = await setup({ session: fakeSession(makeSong(), { countInBars: 2, metronome: false }) });
+    expect(r.q('.rw-practice__seg-btn[data-bars="2"]').getAttribute('aria-checked')).toBe('true');
+    expect(switchFor(r.host, 'Metronome').getAttribute('aria-checked')).toBe('false');
+    press('KeyM');
+    expect(r.session.calls.setMetronome).toHaveBeenLastCalledWith(true);
+    expect(switchFor(r.host, 'Metronome').getAttribute('aria-checked')).toBe('true');
+  });
+
+  it('accent toggle persists practice.metronomeAccent', async () => {
+    const r = await setup();
+    const accent = switchFor(r.host, 'Accent downbeats');
+    expect(accent.getAttribute('aria-checked')).toBe('true');
+    accent.click();
+    expect(r.settings.update).toHaveBeenCalledWith({ practice: { metronomeAccent: false } });
   });
 
   it('toggles the metronome and sets its volume live + persisted', async () => {

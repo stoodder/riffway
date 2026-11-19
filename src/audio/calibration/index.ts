@@ -45,16 +45,14 @@ export {
   followCalibrationProfiles,
   guitarResultPatch,
   keyboardResultPatch,
+  loopbackGuitarPatch,
   loopbackResultPatch,
   profileSwitchPatch,
   restorePatch,
   snapshot,
-  storedCalibration,
   visualOffsetPatch,
-  type CalibrationExtension,
+  type ActiveCalibration,
   type CalibrationPatch,
-  type CalibrationProfile,
   type EstimateInputs,
-  type StoredCalibration,
 } from './profiles';
 export { ClickLoop, FLASH_DECAY_SEC, VISUAL_OFFSET, clampVisualOffset, nudgeVisualOffset, visualFrame, type ClickLoopHost, type VisualFrame } from './visual';

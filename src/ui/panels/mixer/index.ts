@@ -6,9 +6,9 @@
  *
  * - Levels persist in `settings.mixer` (the engine follows settings); while a fader is dragged the
  *   level is also applied straight to the engine bus (`engine.setLevel`) for instant feedback.
- * - Mute = level 0 (buses are never disconnected); the level before muting is remembered per bus
- *   and restored on unmute. The guide's mute is the `game.guide` assist toggle and, with a
- *   session, `session.setGuideMuted`.
+ * - Mute is the per-bus `settings.mixerMute` flag: the engine plays a muted bus at 0 and the fader
+ *   keeps its level, so unmuting restores it. The guide's mute is the `game.guide` assist toggle
+ *   and, with a session, `session.setGuideMuted`.
  * - Usable mid-song: `G` toggles the guide (see `../practice/shortcuts.ts`); mouse use never keeps
  *   keyboard focus away from the game.
  * @module
@@ -19,7 +19,7 @@ import type { DeepPartial, Settings } from '@shared/settings';
 import type { AppContext, PanelHandle, PanelMount, PanelPropsMap } from '@shared/ui';
 import { h, slider, type Slider } from '../../components';
 import { MIXER_SHORTCUTS, bindShortcuts, releasePointerFocus } from '../practice/shortcuts';
-import { FADER_MAX, MIXER_CHANNELS, faderToLevel, formatLevelDb, levelToFader, unmuteMemory, type KeyValueStorage, type UnmuteMemory } from './model';
+import { FADER_MAX, MIXER_CHANNELS, faderToLevel, formatLevelDb, levelToFader } from './model';
 import './mixer.css';
 
 type Props = PanelPropsMap['mixer'];
@@ -53,12 +53,13 @@ class MixerPanel {
   private readonly root: HTMLElement;
   private readonly rows: Row[];
   private readonly cleanups: Unsubscribe[] = [];
-  private readonly memory: UnmuteMemory;
   private settings: Settings;
   /** Bus being dragged (its fader is not overwritten by settings echoes). */
   private dragging: MixerBus | null = null;
   private persistTimer: ReturnType<typeof setTimeout> | null = null;
   private pending: Partial<Record<MixerBus, number>> = {};
+  /** Mute flags not yet echoed by the settings store. */
+  private pendingMute: Partial<Record<MixerBus, boolean>> = {};
 
   constructor(
     host: HTMLElement,
@@ -66,7 +67,6 @@ class MixerPanel {
     private session: GameSession | null,
   ) {
     this.settings = ctx.settings.get();
-    this.memory = unmuteMemory(safeLocalStorage());
     this.rows = MIXER_CHANNELS.map((c) => this.buildRow(c.bus, c.label));
     this.root = h(
       'section',
@@ -82,6 +82,9 @@ class MixerPanel {
         // Drop local overrides the store has caught up with.
         for (const [bus, level] of Object.entries(this.pending) as [MixerBus, number][]) {
           if (Math.abs(s.mixer[bus] - level) < 1e-9) delete this.pending[bus];
+        }
+        for (const [bus, muted] of Object.entries(this.pendingMute) as [MixerBus, boolean][]) {
+          if (s.mixerMute[bus] === muted) delete this.pendingMute[bus];
         }
         this.refresh();
       }),
@@ -129,7 +132,7 @@ class MixerPanel {
 
   private isMuted(bus: MixerBus): boolean {
     if (bus === 'guide') return !this.settings.game.guide;
-    return !((this.pending[bus] ?? this.settings.mixer[bus]) > 0);
+    return this.pendingMute[bus] ?? this.settings.mixerMute[bus];
   }
 
   private hintFor(bus: MixerBus, muted: boolean): string | null {
@@ -155,7 +158,8 @@ class MixerPanel {
   private onFader(bus: MixerBus, pos: number, commit: boolean): void {
     const level = faderToLevel(pos);
     this.dragging = commit ? null : bus;
-    this.ctx.services.peek('engine')?.setLevel(bus, level);
+    // A muted bus stays silent while its level is set (the engine applies it on unmute).
+    if (!this.isMuted(bus) || bus === 'guide') this.ctx.services.peek('engine')?.setLevel(bus, level);
     this.pending[bus] = level;
     this.schedulePersist(commit ? 0 : PERSIST_DELAY_MS);
     this.refreshRow(bus);
@@ -170,16 +174,11 @@ class MixerPanel {
       this.persist({ game: { guide: on } });
       return;
     }
-    const current = this.pending[bus] ?? this.settings.mixer[bus];
-    let next: number;
-    if (current > 0) {
-      this.memory.remember(bus, current);
-      next = 0;
-    } else next = this.memory.restoreLevel(bus);
-    this.ctx.services.peek('engine')?.setLevel(bus, next);
-    this.pending[bus] = next;
-    this.schedulePersist(0);
+    const muted = !this.isMuted(bus);
+    this.ctx.services.peek('engine')?.setLevel(bus, muted ? 0 : (this.pending[bus] ?? this.settings.mixer[bus]));
+    this.pendingMute[bus] = muted;
     this.refresh();
+    this.persist({ mixerMute: { [bus]: muted } });
   }
 
   private refreshRow(bus: MixerBus): void {
@@ -207,6 +206,7 @@ class MixerPanel {
     this.ctx.settings.update(patch).catch((err: unknown) => {
       // Show what is actually stored again.
       this.pending = {};
+      this.pendingMute = {};
       this.settings = this.ctx.settings.get();
       this.refresh();
       this.ctx.ui.toast(`Couldn't save the mixer: ${err instanceof Error ? err.message : String(err)}`, { kind: 'error' });
@@ -220,13 +220,5 @@ class MixerPanel {
     }
     for (const c of this.cleanups.splice(0)) c();
     this.root.remove();
-  }
-}
-
-function safeLocalStorage(): KeyValueStorage | null {
-  try {
-    return globalThis.localStorage ?? null;
-  } catch {
-    return null;
   }
 }

@@ -41,6 +41,7 @@ describe('setup checklist', () => {
     expect(c.visible).toBe(true);
     expect(c.steps[3]!.action.to).toEqual({ screen: 'song', params: { id: 'starter:open', arr: '0' } });
     expect(c.steps.slice(0, 3).every((s) => s.action.to.screen === 'audio-setup')).toBe(true);
+    expect(c.steps.slice(0, 3).map((s) => s.action.to.params)).toEqual([{ step: 'input' }, { step: 'tuner' }, { step: 'calibration', mode: 'guitar' }]);
   });
 
   it('ticks steps from settings, runs and the "I’m tuned" mark, and hides when complete or dismissed', () => {

@@ -357,5 +357,6 @@ export function toSearchResult(meta: SongMeta): SearchResult {
   };
   if (e.artist) result.artist = e.artist;
   if (e.composer) result.composer = e.composer;
+  if (e.error) result.error = e.error;
   return result;
 }

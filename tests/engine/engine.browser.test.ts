@@ -247,4 +247,47 @@ describe('createEngine (realtime AudioContext)', () => {
     expect(subs.size).toBe(0);
     engine = null;
   });
+
+  it('follows mixerMute (muted bus at 0, level kept) and practice.metronomeAccent', async () => {
+    let current: Settings = defaultSettings();
+    current.mixerMute.backing = true;
+    current.practice.metronomeAccent = false;
+    const subs = new Set<(s: Settings) => void>();
+    const settings = { get: () => current, subscribe: (cb: (s: Settings) => void) => (subs.add(cb), () => subs.delete(cb)) };
+    engine = await createEngine({ settings });
+    expect(engine.buses.backing.gain.value).toBe(0);
+    current = structuredClone(current);
+    current.mixerMute.backing = false;
+    for (const cb of subs) cb(current);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(engine.buses.backing.gain.value).toBeCloseTo(current.mixer.backing, 1);
+
+    // Accent off: every click uses the same (beat) buffer; on: downbeats use another.
+    const buffers = new Set<AudioBuffer | null>();
+    const Native = globalThis.AudioBufferSourceNode;
+    class Spy extends Native {
+      constructor(ctx: BaseAudioContext, opts?: AudioBufferSourceOptions) {
+        super(ctx, opts);
+        buffers.add(opts?.buffer ?? null);
+      }
+    }
+    globalThis.AudioBufferSourceNode = Spy;
+    try {
+      await engine.resume();
+      engine.transport.load(makeTimeline([{ bpm: 240, num: 4, bars: 8 }]));
+      engine.transport.play({ from: 0, countInBars: 0 });
+      await new Promise((r) => setTimeout(r, 250));
+      expect(buffers.size).toBe(1);
+      engine.transport.stop();
+      current = structuredClone(current);
+      current.practice.metronomeAccent = true;
+      for (const cb of subs) cb(current);
+      buffers.clear();
+      engine.transport.play({ from: 0, countInBars: 0 });
+      await new Promise((r) => setTimeout(r, 250));
+      expect(buffers.size).toBe(2);
+    } finally {
+      globalThis.AudioBufferSourceNode = Native;
+    }
+  });
 });

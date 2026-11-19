@@ -12,7 +12,7 @@
 import type { ScheduledSource, SongClock, Unsubscribe } from '@shared/clock';
 import type { PassClockMapping } from '@core/judge';
 import type { AudioEngine, EngineOptions, MixerBus } from '@shared/services';
-import { DEFAULT_SETTINGS, type MixerLevels, type Settings } from '@shared/settings';
+import { DEFAULT_SETTINGS, type MixerLevels, type MixerMute, type Settings } from '@shared/settings';
 import { type OutputClock, createSongClock, heardCtxTime } from './clock';
 import { type ClickPlayer, createClickPlayer } from './metronome';
 import { MIXER_BUSES, type Mixer, createMixer } from './mixer';
@@ -43,6 +43,13 @@ export const DEFAULT_SAMPLE_RATE = 48000;
 export interface CreateEngineOptions extends EngineOptions {
   /** Initial levels when no settings store is given (default `DEFAULT_SETTINGS.mixer`). */
   levels?: MixerLevels;
+}
+
+/** Bus gains to apply: the levels, with muted buses at 0 (`settings.mixerMute`). */
+export function effectiveLevels(levels: MixerLevels, mute: Partial<MixerMute> | undefined): MixerLevels {
+  const out = { ...levels };
+  for (const bus of MIXER_BUSES) if (mute?.[bus]) out[bus] = 0;
+  return out;
 }
 
 /** `AudioContext.setSinkId` (Chrome 110+; not yet in TypeScript's DOM lib). */
@@ -81,6 +88,8 @@ class Engine implements AudioEngine {
   private readonly contextListeners = new Set<(ctx: AudioContext) => void>();
   private readonly unsubs: Unsubscribe[] = [];
   private visualOffsetMs: number;
+  /** `practice.metronomeAccent`: downbeats click with the accent voice. */
+  private accent: boolean;
   private sinkId: string;
   private disposed = false;
 
@@ -90,10 +99,11 @@ class Engine implements AudioEngine {
     this.ctx = ctx;
     this.sinkId = opts.sinkId ?? s?.output.sinkId ?? '';
     this.visualOffsetMs = s?.calibration.visualOffsetMs ?? 0;
-    this.mixer = createMixer(ctx, s?.mixer ?? opts.levels ?? DEFAULT_SETTINGS.mixer);
+    this.accent = s?.practice.metronomeAccent ?? DEFAULT_SETTINGS.practice.metronomeAccent;
+    this.mixer = createMixer(ctx, s ? effectiveLevels(s.mixer, s.mixerMute) : (opts.levels ?? DEFAULT_SETTINGS.mixer));
     this.clicks = createClickPlayer(ctx, this.mixer.buses.metronome);
     this.transport = new TransportCore(
-      { now: () => this.ctx.currentTime, clicks: { schedule: (when, accent) => this.clicks.schedule(when, accent) } },
+      { now: () => this.ctx.currentTime, clicks: { schedule: (when, accent) => this.clicks.schedule(when, accent && this.accent) } },
       {
         countInBars: s?.practice.countInBars ?? DEFAULT_SETTINGS.practice.countInBars,
         metronome: s?.practice.metronome ?? DEFAULT_SETTINGS.practice.metronome,
@@ -198,7 +208,10 @@ class Engine implements AudioEngine {
   private applySettings(next: Settings): void {
     const prev = this.prevSettings ?? next;
     this.prevSettings = next;
-    for (const bus of MIXER_BUSES) if (next.mixer[bus] !== prev.mixer[bus]) this.mixer.setLevel(bus, next.mixer[bus]);
+    const level = effectiveLevels(next.mixer, next.mixerMute);
+    const before = effectiveLevels(prev.mixer, prev.mixerMute);
+    for (const bus of MIXER_BUSES) if (level[bus] !== before[bus]) this.mixer.setLevel(bus, level[bus]);
+    this.accent = next.practice.metronomeAccent;
     this.transport.countInBars = next.practice.countInBars;
     if (next.practice.metronome !== prev.practice.metronome) this.transport.setMetronome(next.practice.metronome);
     this.visualOffsetMs = next.calibration.visualOffsetMs;
