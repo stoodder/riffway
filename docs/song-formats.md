@@ -142,16 +142,53 @@ technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generat
    with an info diagnostic `multiple-versions`.
 
 ## Rhythm alignment UX (ASCII paste/file, needs-alignment songs)
-Goal: playable in under a minute.
-1. **Preview** the detected staves (unparsed lines highlighted), editable title/artist/tuning.
-2. **BPM + time signature** fields; a "tap tempo" button.
-3. **Snap-to-grid (default):** within each bar, column spacing is the duration ratio; quantise onsets
-   to the chosen subdivision (1/8, 1/16, 1/8 triplet); chords stay together. Instant guide-synth preview.
-4. **Tap-along (optional):** a metronome plays at the BPM (optionally 50% speed); the player taps
-   Space for each note onset (chords = one tap). Taps map to onsets in order; optional quantise to grid.
-   Undo last tap, restart from bar.
-5. **Confirm** → sidecar `RhythmSidecar` `{schema, bpm, timeSig, grid, onsets[], method, savedAt}` saved via `PUT /api/songs/:id/sidecar`
-   (pasted tabs: `POST /api/library/paste` writes `<artist> - <title>.txt` + sidecar); `rhythm = 'aligned'`.
+Import screen `src/ui/screens/import/` (pure logic in `model.ts`). Goal: playable in under a minute.
+Routes: `#/import` (paste; `?q=` prefills the title) and `#/import?song=<id>` ("Align rhythm" for a library
+ASCII tab: the file is read-only, only the sidecar is saved; a non-ASCII song shows "already has its rhythm").
+1. **Paste or open** a `.txt`/`.tab` (button or drop on the text box; windows-1252 decoded). A
+   "Search on Ultimate Guitar" link-out sits beside it (opens `search.php?search_type=title&value=` in a new
+   tab with artist + title; the app never requests UG, [sources/ultimate-guitar.md](sources/ultimate-guitar.md)).
+2. **Live preview** (150 ms debounce) of the first version only, exactly as `asciiToSong` imports it:
+   tuning, bars, onsets, notes, header tempo/time/capo; every parser diagnostic with its line number (a
+   "Line n" chip selects that line in the text box); a numbered parsed view with staff lines tinted and
+   unparsed lines highlighted. Title/artist/BPM/time signature prefill from the header until edited.
+3. **Details:** title (required), artist, tuning override (named tunings), capo. Overrides are saved as
+   header lines in front of the text (`Tuning: D A D G B E`, `Capo: 2`, `Tempo: Q=120`, `Time: 3/4`; only
+   values that differ from the tab, tempo/time only when the user set them) followed by a blank line; the
+   header parser keeps the first value it sees, so they win. Non-standard string labels still beat a
+   `Tuning:` line; the screen warns when that happens.
+4. **BPM + time signature**; **tap tempo** (button or `T`; mean of the last 8 intervals, a 2 s pause restarts).
+5. **Snap to grid (default):** `snapToGrid` (column spacing within a bar = duration ratio, quantised; chords
+   stay together). Grid **Auto** picks 1/8 when every onset fits it (own slot, mean distance ≤ 0.2 slot),
+   else 1/8 triplet when triplets fit and 1/16 does not, else 1/16; or choose 1/8, 1/8 triplet, 1/16.
+6. **Tap along:** the transport plays constant bars at the BPM with the metronome at 50/60/75/100% speed
+   (default 75%) after a one-bar count-in; Space or the pad = one tap per onset group (chords = one tap).
+   Tap time = `clock.songTimeAt(engine.perfToCtxTime(event.timeStamp) − keyboardOffsetMs)`, so speed is
+   factored out. Taps during the count-in and bounces (< 30 ms) are ignored. The next eight onsets are shown
+   as fret columns. Backspace / "Undo tap", Esc stops, "Restart from bar n" keeps the taps before that bar
+   and restarts a bar earlier. Untapped onsets are extrapolated (`mapTapsToOnsets`; from the BPM with
+   fewer than two taps); optional quantise to the grid. Saving with missing taps asks first.
+7. **Preview:** the aligned song is rebuilt by `asciiToSong(text + sidecar)` on every change and drawn as
+   a six-lane strip (bars, beats, fret chips, playhead that follows playback; scroll bar; click = play from
+   there). "Play preview" (50/75/100%, click on/off) plays it through the guide synth; if the guide cannot
+   load within 8 s, a simple oscillator voice on the guide bus plays instead.
+8. **Save** → sidecar `RhythmSidecar` `{schema, bpm, timeSig, grid, onsets[], method: 'snap'|'tap', savedAt}`
+   (onsets rounded to µs). Paste: `POST /api/library/paste`; align: `PUT /api/songs/:id/sidecar`; then the
+   song page opens. `rhythm = 'aligned'`.
+
+**Server** (`server/routes/sidecars.ts`, DEC-17): sidecars live in `<dataDir>/sidecars/<encodeURIComponent(id)>.json`.
+- `POST /api/library/paste` `{title, artist?, text, sidecar?}`: title 1–200 chars; text ≤ `LIMITS.importBytes`
+  (413 `too-large`), a final newline is added. The text is checked with `asciiToSong` (400 `empty` without
+  notes; 400 `sidecar-mismatch` when the sidecar's onset count differs). File `<artist> - <title>.txt` (slashes
+  → `-`, cleaned like uploads) in the import subfolder, never overwriting (` (2)`, … via exclusive create).
+  The sidecar is written first, the file is indexed at once (when the local source is enabled), and the
+  sidecar follows the id the indexer assigned. Identical content already in the library returns that song
+  (its sidecar is replaced). Response `{id, path}`.
+- `GET /api/songs/:id/sidecar` (404 `no-sidecar`); `PUT` validates the shape (bpm 20–400, `timeSig`
+  `[1–32, 1|2|4|8|16|32]`, grid 8/12/16, non-decreasing onsets ≥ 0), requires an ASCII song (400
+  `unsupported`) whose tab matches the onset count (400 `sidecar-mismatch`), writes, then `reindex`es.
+- `GET /api/sidecars` → every valid sidecar; `POST /api/sidecars` writes the valid ones (invalid entries
+  are skipped), re-indexes songs in the library and answers `{written}`.
 
 ## ClassTab pairing (`src/core/import/align/`)
 Files indexed from the data dir only; nothing from ClassTab is committed (D2).
