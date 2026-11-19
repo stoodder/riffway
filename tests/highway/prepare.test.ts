@@ -65,9 +65,10 @@ describe('laneNames', () => {
   it('lower-cases the high e in standard tuning', () => {
     expect(laneNames([64, 59, 55, 50, 45, 40])).toEqual(['', 'e', 'B', 'G', 'D', 'A', 'E']);
   });
-  it('keeps distinct names in other tunings', () => {
-    expect(laneNames([64, 59, 55, 50, 45, 38])).toEqual(['', 'E', 'B', 'G', 'D', 'A', 'D']);
+  it('always lower-cases string 1 (Drop D keeps its high e; R2-U-06)', () => {
+    expect(laneNames([64, 59, 55, 50, 45, 38])).toEqual(['', 'e', 'B', 'G', 'D', 'A', 'D']);
     expect(laneNames([62, 57, 53, 48, 43, 38])).toEqual(['', 'd', 'A', 'F', 'C', 'G', 'D']);
+    expect(laneNames([63, 58, 54, 49, 44, 39])[1]).toBe('d#');
   });
 });
 

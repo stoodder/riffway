@@ -5,7 +5,7 @@
  * wires the real services into it.
  * @module
  */
-import type { GameSession, InputService, SessionOptions } from '@shared/services';
+import type { BackingService, GameSession, GuideService, InputService, SessionOptions } from '@shared/services';
 import type { GameInputMode } from '@shared/settings';
 import type { SongMeta } from '@shared/api';
 import type { Tier } from '@shared/song';
@@ -35,6 +35,30 @@ export interface GameSessionExtras {
   onProgress?(label: string, fraction: number | null): void;
   /** Non-fatal problems (no guitar, guide or backing unavailable). */
   onNotice?(text: string): void;
+  /**
+   * Abort the load (the play screen was left while loading): it then rejects with the signal's
+   * reason (an `AbortError`) and never builds a session, touches the transport or opens input.
+   */
+  signal?: AbortSignal;
+}
+
+/**
+ * Which session load last claimed each shared service (guide, backing). The services are app-wide
+ * singletons; only the claimant may unload them, so a stale game (one that was left while loading,
+ * or disposed after a newer game loaded) never tears down the next game's guide or backing (R2-I-01).
+ */
+const owners = new WeakMap<object, symbol>();
+
+/** Unload `service` if `token` still owns it. */
+function release(service: { unload(): void } | null, token: symbol): void {
+  if (!service || owners.get(service) !== token) return;
+  owners.delete(service);
+  service.unload();
+}
+
+/** A guide that can say whether a song's load is still current (`GuideImpl.holds`). */
+interface GuideHolds {
+  holds?(song: unknown): boolean;
 }
 
 /** One practice session per page load (mastery counts clean runs at 100% within one session). */
@@ -51,11 +75,35 @@ export async function createSession(ctx: AppContext, opts: SessionOptions): Prom
  * Load everything a game needs and create the session: song meta + bundle (server), the `Song`
  * (song worker), the guide render at the start speed, the backing link (if any), the guitar input
  * (per `extras.input`), stored section progress and the comfort tier. The guide and backing are
- * unloaded again when the session is disposed. Throws when the song cannot be loaded.
+ * unloaded again when the session is disposed, unless a newer session has loaded them since.
+ * Throws when the song cannot be loaded, and on `extras.signal` abort (checked after every step).
  */
 export async function createGameSession(ctx: AppContext, opts: SessionOptions, extras: GameSessionExtras = {}): Promise<GameSessionImpl> {
+  const token = Symbol(opts.songId);
+  let guide: GuideService | null = null;
+  let backing: BackingService | null = null;
+  try {
+    return await loadSession(ctx, opts, extras, token, (g) => (guide = g), (b) => (backing = b));
+  } catch (err) {
+    release(guide, token);
+    release(backing, token);
+    throw err;
+  }
+}
+
+async function loadSession(
+  ctx: AppContext,
+  opts: SessionOptions,
+  extras: GameSessionExtras,
+  token: symbol,
+  claimGuide: (g: GuideService) => void,
+  claimBacking: (b: BackingService) => void,
+): Promise<GameSessionImpl> {
   const progress = extras.onProgress ?? (() => undefined);
   const notice = extras.onNotice ?? (() => undefined);
+  const signal = extras.signal;
+  const check = (): void => signal?.throwIfAborted();
+  check();
   progress('Loading song', null);
   const [engine, loader, meta, bundle] = await Promise.all([
     ctx.services.get('engine'),
@@ -63,7 +111,9 @@ export async function createGameSession(ctx: AppContext, opts: SessionOptions, e
     ctx.api.song(opts.songId),
     ctx.api.songBundle(opts.songId),
   ]);
+  check();
   const song = await loader.load(bundle, opts.arrangement);
+  check();
   if (song.notes.length === 0) throw new Error('This arrangement has no playable notes.');
   const settings = ctx.settings.get();
   const difficulty = meta.difficulty[opts.arrangement] ?? meta.entry.difficulty ?? null;
@@ -72,6 +122,7 @@ export async function createGameSession(ctx: AppContext, opts: SessionOptions, e
     ctx.storage.getSectionProgress(opts.songId, opts.arrangement).catch(() => []),
     loadComfortTier(ctx, meta),
   ]);
+  check();
 
   // Start speed: explicit, else the speed trainer's speed for a looped section, else 100%.
   let speed = opts.speed ?? 1;
@@ -87,33 +138,51 @@ export async function createGameSession(ctx: AppContext, opts: SessionOptions, e
     notice(`Guide synth unavailable: ${errorText(err)}`);
     return null;
   });
+  check();
   let guideLoaded = false;
   if (guide) {
+    owners.set(guide, token);
+    claimGuide(guide);
     const off = guide.onProgress((f) => progress('Rendering guide audio', f));
     try {
       await guide.load(song, bundle, speed);
-      guideLoaded = true;
+      check();
+      // A newer load or an unload superseded ours while it rendered: the guide is not ours to play.
+      guideLoaded = owners.get(guide) === token && ((guide as GuideService & GuideHolds).holds?.(song) ?? true);
+      if (!guideLoaded) {
+        // Whoever superseded it owns it now.
+        if (owners.get(guide) === token) owners.delete(guide);
+        notice("Guide audio couldn't be prepared (another song took the guide synth).");
+      }
     } catch (err) {
+      if (signal?.aborted) throw err;
       notice(`Guide audio couldn't be rendered: ${errorText(err)}`);
     } finally {
       off();
     }
   }
   const backing = await ctx.services.get('backing').catch(() => null);
+  check();
   if (backing) {
+    owners.set(backing, token);
+    claimBacking(backing);
     try {
       const link = await ctx.storage.getAudioLink(opts.songId, opts.arrangement);
+      check();
       if (link) {
         progress('Loading backing audio', null);
         await backing.load(link);
+        check();
       } else backing.unload();
     } catch (err) {
+      if (signal?.aborted) throw err;
       notice(`Backing audio unavailable: ${errorText(err)}`);
       backing.unload();
     }
   }
 
   const input = await openGuitar(ctx, extras.input ?? (ctx.flags.e2e ? 'keyboard' : settings.game.inputMode), notice);
+  check();
 
   return new GameSessionImpl({
     song,
@@ -137,8 +206,8 @@ export async function createGameSession(ctx: AppContext, opts: SessionOptions, e
     ...(opts.loopSection !== undefined ? { loopSection: opts.loopSection } : {}),
     speedTrainer: trainerOn,
     onDispose: () => {
-      if (guideLoaded) guide?.unload();
-      backing?.unload();
+      release(guide, token);
+      release(backing, token);
     },
   });
 }

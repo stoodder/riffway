@@ -100,9 +100,27 @@ function isInteractive(target: EventTarget | null): boolean {
   return (target as Element).closest('input, textarea, select, button, [contenteditable="true"], [role="slider"], a[href]') !== null;
 }
 
+/** Input types that take no typed text: lane keys keep working while one has focus (R2-I-05). */
+const NON_TEXT_INPUTS = new Set(['range', 'checkbox', 'radio', 'button', 'submit', 'reset', 'color', 'file', 'image']);
+
 /**
- * Listen for lane keys on `target` (usually `window`). Lane keys work even while a button has
- * focus (they are digits, no control uses them); `Space`/`Enter` only when no control is focused.
+ * True when the key event targets text entry (a text-like `<input>`, `<textarea>`, `<select>` or
+ * editable content): lane keys must not play while the player types. Sliders, checkboxes, radios
+ * and buttons are not text entry (the same rule as the practice-panel shortcuts).
+ */
+export function isTextEntryTarget(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== 'function') return false;
+  const el = target as HTMLElement;
+  if (el.isContentEditable || el.closest('[contenteditable="true"], [contenteditable=""]')) return true;
+  const tag = el.tagName;
+  if (tag === 'TEXTAREA' || tag === 'SELECT') return true;
+  return tag === 'INPUT' && !NON_TEXT_INPUTS.has((el as HTMLInputElement).type);
+}
+
+/**
+ * Listen for lane keys on `target` (usually `window`). Lane keys work even while a button, slider,
+ * checkbox or radio has focus (they are digits, no such control uses them), never while typing
+ * ({@link isTextEntryTarget}); `Space`/`Enter` only when no control is focused.
  * Returns a detach function.
  */
 export function attachKeyboard(target: EventTarget, getLanes: () => KeyboardSettings, handlers: KeyboardHandlers): () => void {
@@ -112,7 +130,7 @@ export function attachKeyboard(target: EventTarget, getLanes: () => KeyboardSett
     const settings = getLanes();
     const lane = laneForCode(ev.code, settings.lanes);
     if (lane !== null) {
-      if (isInteractive(ev.target) && (ev.target as Element).closest('input, textarea, select, [contenteditable="true"]')) return;
+      if (isTextEntryTarget(ev.target)) return;
       ev.preventDefault();
       if (ev.repeat) return;
       handlers.lane({ lane, wrongPitch: ev.getModifierState(settings.wrongPitchModifier), timeStampMs: ev.timeStamp });

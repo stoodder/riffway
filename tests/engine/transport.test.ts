@@ -229,6 +229,36 @@ describe('TransportCore: speed changes', () => {
     expect(core.segments.at(-1)!.speed).toBe(0.5);
   });
 
+  it('a loop change in the bar before a pending bar-aligned speed change keeps that change (R2-I-02)', () => {
+    const { clock, core, run } = makeRig({ countInBars: 0 });
+    core.load(makeTimeline([{ bpm: 120, num: 4, bars: 8 }]));
+    core.play({ from: 0 });
+    run(0.6);
+    core.setSpeed(0.5); // lands on the bar line at song 2 (ctx 2.05)
+    run(1);
+    core.setLoop({ start: 4, end: 8, preroll: 2 });
+    run(3);
+    expect(core.speedAt(clock.t)).toBe(0.5);
+    expect(core.songTimeAt(3.05)).toBeCloseTo(2.5, 9);
+  });
+
+  it('clearing the loop before a pending speed change (bar line or loop B) keeps that change (R2-I-02)', () => {
+    for (const viaWrap of [false, true]) {
+      const { clock, core, run } = makeRig({ countInBars: 0 });
+      core.load(makeTimeline([{ bpm: 120, num: 4, bars: 8 }]));
+      // A one-bar loop: the change waits for loop B, carried by the wrap.
+      core.setLoop(viaWrap ? { start: 2, end: 4, preroll: 0 } : { start: 2, end: 8, preroll: 0 });
+      core.play({ from: 2 });
+      run(0.6);
+      core.setSpeed(0.6);
+      run(0.9);
+      core.setLoop(null);
+      run(6);
+      expect(core.speedAt(clock.t)).toBe(0.6);
+      expect(core.songTimeAt(3.05)).toBeCloseTo(4.6, 9);
+    }
+  });
+
   it('applies immediately while paused and clamps to 40–110%', () => {
     const { core } = makeRig();
     core.setSpeed(0.2);

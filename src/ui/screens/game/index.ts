@@ -4,16 +4,21 @@
  * (D6), mounts the practice + mixer panels (T-032) in a side drawer, and navigates to the results
  * screen when a run ends. Registered in `src/ui/screens/index.ts`.
  *
+ * While a run plays (or counts in) the app's top nav is hidden so the lanes get the height
+ * (`game.css`, R2-U-04); it returns on pause, on the start card and on results. Leaving while the
+ * session still loads aborts that load (R2-I-01).
+ *
  * Query params: `arr` (arrangement; default the song's default), `mode` (`play` | `practice`),
  * `section` (loop this section; practice), `speed` (fraction), `input` (`auto` | `keyboard` |
  * `guitar`; `?e2e=1` defaults to `keyboard` so a fake capture device can't add onsets).
  * @module
  */
 import type { Judgement, StrayEvent } from '@shared/judge';
-import type { Highway, SessionState } from '@shared/services';
+import type { SessionState } from '@shared/services';
 import type { AppContext, PanelHandle, ScreenHandle, ScreenMount } from '@shared/ui';
 import { computePositions } from '@core/handpos';
-import { createHighway } from '../../../game/highway';
+import { barAt } from '@core/model';
+import { createHighway, type GameHighway } from '../../../game/highway';
 import { attachKeyboard } from '../../../game/input';
 import {
   clearActiveSession,
@@ -23,10 +28,10 @@ import {
   setActiveSession,
   type SessionInputMode,
 } from '../../../game/session';
-import { button, emptyState, h } from '../../components';
+import { button, emptyState, h, openModal } from '../../components';
 import { mountPanel } from '../../panels';
-import { GameHud, highwayJudgement } from './hud';
-import { errorCard, loadingCard, pauseMenu, startCard } from './overlays';
+import { displayArtist, GameHud } from './hud';
+import { errorCard, loadingCard, notFoundCard, pauseMenu, startCard } from './overlays';
 import { SectionProgressBar } from './progress-bar';
 import './game.css';
 
@@ -41,6 +46,11 @@ function num(v: string | undefined): number | undefined {
   if (v === undefined || v === '') return undefined;
   const n = Number(v);
   return Number.isFinite(n) ? n : undefined;
+}
+
+/** True for the API's "not found" (the song id is not in the library). */
+function isNotFound(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && (err as { status?: unknown }).status === 404;
 }
 
 /** What the game needs from the app context. */
@@ -72,8 +82,9 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
   el.append(root);
 
   let disposed = false;
+  let loadAbort: AbortController | null = null;
   let session: GameSessionImpl | null = null;
-  let highway: Highway | null = null;
+  let highway: GameHighway | null = null;
   let hud: GameHud | null = null;
   let rafId = 0;
   let quitting = false;
@@ -97,6 +108,9 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
     root.replaceChildren(h('div', { class: 'gm-stage gm-stage--loading' }, stageCards));
     root.dataset.state = 'loading';
     showCard(loading.el);
+    loadAbort?.abort();
+    const abort = new AbortController();
+    loadAbort = abort;
     try {
       const arrangement = num(params.arr) ?? (await ctx.api.song(songId)).entry.defaultArrangement;
       const speed = num(params.speed);
@@ -115,6 +129,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
           ...(input ? { input } : {}),
           onProgress: (label, fraction) => loading.set(label, fraction),
           onNotice: (text) => notices.push(text),
+          signal: abort.signal,
         },
       );
       if (disposed) {
@@ -125,9 +140,20 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       setActiveSession(s);
       build(s);
     } catch (err) {
-      if (disposed) return;
-      console.error('Riffway: game failed to load', err);
+      if (disposed || abort.signal.aborted) return;
       root.dataset.state = 'error';
+      if (isNotFound(err)) {
+        const card = notFoundCard(
+          () => ctx.router.navigate(ctx.router.href('library')),
+          async () => {
+            await ctx.api.rescan();
+            if (!disposed) await load();
+          },
+        );
+        showCard(card.el, card.focus);
+        return;
+      }
+      console.error('Riffway: game failed to load', err);
       showCard(errorCard(err instanceof Error ? err.message : String(err), back, () => void load()));
     }
   };
@@ -135,22 +161,23 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
   // ---- Game view --------------------------------------------------------------------------
   const build = (s: GameSessionImpl): void => {
     const settings = ctx.settings.get();
-    const pauseBtn = button({ label: 'Pause', icon: 'pause', iconOnly: true, variant: 'ghost', title: 'Pause (Esc)', onClick: () => togglePause() });
-    const toolsBtn = button({ label: 'Practice tools', icon: 'settings', variant: 'ghost', size: 'sm', onClick: () => toggleDrawer() });
+    // A labelled pause button the same size as "Practice tools", with its key (R2-U-14).
+    const pauseBtn = button({ label: 'Pause', icon: 'pause', variant: 'secondary', size: 'sm', title: 'Pause (Esc)', onClick: () => togglePause() });
+    pauseBtn.classList.add('gm-pause-btn');
+    pauseBtn.append(h('kbd', { class: 'gm-kbd', 'aria-hidden': 'true' }, 'Esc'));
+    pauseBtn.setAttribute('aria-keyshortcuts', 'Escape');
+    const toolsBtn = button({ label: 'Practice tools', icon: 'settings', variant: 'secondary', size: 'sm', onClick: () => toggleDrawer() });
     toolsBtn.setAttribute('aria-expanded', 'false');
     const actions = h('div', { class: 'gm-actions' }, toolsBtn, pauseBtn);
-    const hudView = new GameHud({ title: s.title, artist: s.artist, mode: s.mode }, actions, () => ctx.settings.get().game.feedbackDetail);
+    const hudView = new GameHud({ title: s.title, artist: s.artist, mode: s.mode }, actions);
     hud = hudView;
     const canvas = h('canvas', { class: 'gm-canvas', role: 'img', 'aria-label': `Note highway for ${s.title}` });
     const stage = h('div', { class: 'gm-stage' }, canvas, hudView.overlays, stageCards);
     const bar = new SectionProgressBar(s.song, s.mode === 'practice' ? (t) => s.seek(t) : null);
     const drawer = h('aside', { class: 'gm-drawer', 'aria-label': 'Practice tools', hidden: true });
-    const footer = h(
-      'footer',
-      { class: 'gm-footer' },
-      bar.el,
-      h('p', { class: 'gm-footer__hint' }, s.hasGuitar ? 'Guitar + keys 1–6 · Shift = wrong note · Esc = pause' : 'Keys 1–6 play the strings (1 = high e) · Shift = wrong note · Esc = pause'),
-    );
+    // The key hint shows until the first run starts (the start card and pause menu repeat it).
+    const hint = h('p', { class: 'gm-footer__hint' }, s.hasGuitar ? 'Guitar + keys 1–6 · Shift = wrong note · Esc = pause' : 'Keys 1–6 play the strings (1 = high e) · Shift = wrong note · Esc = pause');
+    const footer = h('footer', { class: 'gm-footer' }, bar.el, hint);
     root.replaceChildren(hudView.bar, h('div', { class: 'gm-body' }, h('div', { class: 'gm-main' }, stage, footer), drawer));
 
     const hw = createHighway(canvas, s.song, s.clock, {
@@ -161,6 +188,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       loop: s.loop,
     });
     highway = hw;
+    hw.setFeedbackDetail(settings.game.feedbackDetail);
     hw.start();
     bar.setLoop(s.loop);
     hudView.setSpeed(s.speed);
@@ -190,11 +218,18 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       ciBeat = bar0 && beats > 0 ? bar0.dur / beats : 0.5;
       ciEnd = start + s.countInBars * beats * ciBeat;
     };
+    /** Beats left before loop A while a loop pass plays its pre-roll (0 outside it). */
+    const prerollBeats = (t: number): number => {
+      const loop = s.loop;
+      if (!loop || t >= loop.start || t < loop.start - loop.preroll - 1e-6) return 0;
+      const b = s.song.timing.bars[Math.max(0, barAt(s.song, Math.max(0, t)))];
+      const beat = b ? b.dur / Math.max(1, b.beats.length || b.num) : 0.5;
+      return Math.max(1, Math.ceil((loop.start - t) / beat - 1e-6));
+    };
 
     // ---- Live updates ----
     const onJudgement = (j: Judgement): void => {
-      const detail = ctx.settings.get().game.feedbackDetail;
-      hw.feedback(highwayJudgement(j, detail));
+      hw.feedback(j);
       const st = s.judgeState();
       hw.setCombo(st.combo, st.multiplier);
       hudView.setState(st);
@@ -211,7 +246,10 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       }),
     );
     cleanups.push(
-      ctx.settings.subscribe((next) => hw.setOptions({ noteSpeed: next.game.noteSpeed, handCues: next.game.handCues, fretNumbers: next.game.fretNumbers })),
+      ctx.settings.subscribe((next) => {
+        hw.setOptions({ noteSpeed: next.game.noteSpeed, handCues: next.game.handCues, fretNumbers: next.game.fretNumbers });
+        hw.setFeedbackDetail(next.game.feedbackDetail);
+      }),
     );
 
     const frame = (): void => {
@@ -222,7 +260,9 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       hudView.setSection(idx >= 0 && s.song.sections.length > 0 ? s.sectionName(idx) : '');
       hudView.setSpeed(s.speed);
       hudView.setChordNote(s.running && chordInView(t));
-      hudView.setCountIn(s.state === 'count-in' && ciEnd > t ? Math.ceil((ciEnd - t) / ciBeat - 1e-6) : 0);
+      if (s.state === 'count-in' && ciEnd > t) hudView.setCountIn(Math.ceil((ciEnd - t) / ciBeat - 1e-6));
+      else if (s.state === 'playing') hudView.setCountIn(prerollBeats(t), 'Loop');
+      else hudView.setCountIn(0);
       rafId = window.requestAnimationFrame(frame);
     };
     rafId = window.requestAnimationFrame(frame);
@@ -241,6 +281,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       }
       if (disposed) return;
       showCard(null);
+      hint.hidden = true;
       if (s.state === 'ready' || s.state === 'ended') {
         hudView.reset();
         bar.reset();
@@ -256,20 +297,51 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       const card = startCard(
         {
           title: s.title,
-          artist: s.artist,
+          artist: displayArtist(s.artist),
           mode: s.mode,
           speed: s.speed,
           loopLabel: loop ? (sec >= 0 ? s.sectionName(sec) : `bars ${loop.startBar + 1}–${loop.endBar}`) : null,
           guitarLabel: s.hasGuitar ? (ctx.services.peek('input')?.current?.device.label ?? 'connected') : null,
           keys: ctx.settings.get().keyboard,
+          tuning: s.song.meta.tuning,
           ...(notice ? { notice } : notices.length > 0 ? { notice: notices.join(' ') } : {}),
         },
         () => void start(),
         back,
+        openTuner,
       );
       showCard(card.el, card.focus);
     };
 
+    /** The tuner in a modal, set to the song's tuning (from the start card's retune reminder). */
+    let tunerOpen = false;
+    function openTuner(): void {
+      if (tunerOpen) return;
+      tunerOpen = true;
+      const host = h('div', { class: 'gm-tuner' });
+      const modal = openModal({
+        title: 'Tuner',
+        content: [h('p', { class: 'rw-muted' }, 'Play each open string and follow the needle.'), host],
+        actions: [{ label: 'Done', value: 'done', variant: 'primary' }],
+        size: 'lg',
+      });
+      let panel: PanelHandle<unknown> | null = null;
+      let closed = false;
+      void modal.result.then(() => {
+        closed = true;
+        tunerOpen = false;
+        panel?.unmount();
+      });
+      mountPanel('tuner', host, ctx, { tuning: [...s.song.meta.tuning] }).then(
+        (p) => {
+          if (closed || disposed) p.unmount();
+          else panel = p as PanelHandle<unknown>;
+        },
+        (err: unknown) => host.replaceChildren(h('p', { class: 'rw-muted' }, `The tuner couldn’t start: ${err instanceof Error ? err.message : String(err)}`)),
+      );
+    }
+
+    let pauseCard: ReturnType<typeof pauseMenu> | null = null;
     const showPause = (): void => {
       const judged = s.judgeState().judgedNotes > 0;
       const menu = pauseMenu(
@@ -292,9 +364,17 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
           },
         },
         ctx.settings.get().keyboard,
+        { notice: s.pauseNotice, tuning: s.song.meta.tuning },
       );
+      pauseCard = menu;
       showCard(menu.el, menu.focus);
     };
+    // The guitar was unplugged (the session paused) or is back: keep the pause card's notice current.
+    cleanups.push(
+      s.onInputStatus(() => {
+        if (s.state === 'paused') pauseCard?.setNotice(s.pauseNotice);
+      }),
+    );
 
     function togglePause(): void {
       if (s.state === 'playing' || s.state === 'count-in') s.pause();
@@ -369,6 +449,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
   return {
     unmount(): void {
       disposed = true;
+      loadAbort?.abort();
       window.cancelAnimationFrame(rafId);
       for (const c of cleanups.splice(0)) c();
       for (const p of panels.splice(0)) p.unmount();

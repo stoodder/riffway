@@ -367,3 +367,121 @@ describe('GameSessionImpl — practice loops', () => {
     await s.dispose();
   });
 });
+
+describe('GameSessionImpl — R2 runtime fixes', () => {
+  it('a loop pass counts at the slowest speed it actually played, not the latest requested (R2-I-03)', async () => {
+    const song = beatSong();
+    const rig = new Rig({ song, speed: 0.95, deps: { mode: 'practice', speedTrainer: false, loopSection: 1 } });
+    const s = rig.session;
+    s.play();
+    for (const n of song.notes) if (n.time >= 2 && n.time < 6) s.injectTest({ lane: 1, songTime: n.time });
+    // In the loop's first bar: 100% from the next bar line (the pass's last bar) on.
+    rig.until(() => s.state === 'playing' && s.clock.nowSong() >= 2.5, 20);
+    await s.setSpeed(1);
+    rig.until(() => rig.messages.some((m) => m.text.startsWith('Loop:')), 30);
+    expect(rig.messages.find((m) => m.text.startsWith('Loop:'))?.text).toBe('Loop: 100% · clean at 95%');
+    await s.dispose();
+  });
+
+  it('a speed change requested near the end of a pass but never played in it does not count for it (R2-I-03)', async () => {
+    const song = beatSong();
+    const rig = new Rig({ song, speed: 1, deps: { mode: 'practice', speedTrainer: false, loopSection: 1 } });
+    const s = rig.session;
+    s.play();
+    for (const n of song.notes) if (n.time >= 2 && n.time < 6) s.injectTest({ lane: 1, songTime: n.time });
+    // In the last bar: the change lands on loop B, i.e. in the next pass.
+    rig.until(() => s.state === 'playing' && s.clock.nowSong() >= 5, 20);
+    await s.setSpeed(0.7);
+    rig.until(() => rig.messages.some((m) => m.text.startsWith('Loop:')), 30);
+    expect(rig.messages.find((m) => m.text.startsWith('Loop:'))?.text).toBe('Loop: 100% · clean at 100%');
+    await s.dispose();
+  });
+
+  it('the keyboard pitch window follows the playing speed, not a pending request (R2-I-09)', async () => {
+    // Two notes on string 1 in bar 0. The window is the Good window in song time: 0.12 s at 100%,
+    // 0.048 s at 40% (then a press between them gets the open-string pitch).
+    const song = makeSong(
+      [
+        { time: 1, string: 1, fret: 0 },
+        { time: 1.15, string: 1, fret: 3 },
+      ],
+      { bars: 4 },
+    );
+    const rig = new Rig({ song });
+    const s = rig.session;
+    s.play();
+    rig.until(() => s.clock.nowSong() >= 0.5, 5);
+    void s.setSpeed(0.4); // waits for the bar line at song 2
+    // A press at song 1.08, still played at 100%: nearest note in the window is the 3rd fret (MIDI 67).
+    const ctx = rig.core.ctxTimeInPass(1.08, rig.core.pass);
+    expect(Number.isFinite(ctx)).toBe(true);
+    const ev = s.keyPress({ lane: 1, wrongPitch: false, timeStampMs: ctx * 1000 });
+    expect(ev?.midi).toBe(67);
+    await s.dispose();
+  });
+
+  it('losing the guitar mid-run pauses, says so, and the run is not saved as a guitar run (R2-I-04)', async () => {
+    const storage = await testStorage();
+    const song = beatSong();
+    const input = new FakeInput();
+    const rig = new Rig({ song, storage, deps: { input } });
+    const s = rig.session;
+    const status: boolean[] = [];
+    s.onInputStatus((connected) => status.push(connected));
+    s.play();
+    rig.until(() => s.clock.nowSong() >= 3, 10);
+    input.emit(rig.ctxOf(2), 64);
+    input.disconnect();
+    expect(s.state).toBe('paused');
+    expect(s.guitarConnected).toBe(false);
+    expect(s.pauseNotice).toMatch(/Guitar disconnected/);
+    expect(status).toEqual([false]);
+    expect(rig.messages.some((m) => /Guitar disconnected/.test(m.text))).toBe(true);
+    // Reconnected: the notice clears; play resumes normally.
+    input.reconnect();
+    expect(s.guitarConnected).toBe(true);
+    expect(s.pauseNotice).toBeNull();
+    expect(status).toEqual([false, true]);
+    s.play();
+    rig.until(() => s.state === 'ended', 20);
+    await settle();
+    expect(rig.runEnds).toHaveLength(1);
+    expect(rig.runEnds[0]!.runId).toBeNull();
+    expect(s.lastResult).toMatchObject({ runId: null });
+    expect(await storage.listRuns()).toHaveLength(0);
+    expect(rig.messages.some((m) => /wasn't saved/.test(m.text))).toBe(true);
+    await s.dispose();
+    storage.close();
+  });
+
+  it('a guitar change outside a run, or a device list change with the guitar still there, does nothing (R2-I-04)', async () => {
+    const input = new FakeInput();
+    const rig = new Rig({ song: beatSong(), deps: { input } });
+    const s = rig.session;
+    input.disconnect();
+    expect(s.state).toBe('ready');
+    input.reconnect();
+    s.play();
+    rig.advance(1);
+    input.devicesChanged();
+    expect(s.state).toBe('playing');
+    await s.dispose();
+  });
+
+  it('a suspended or interrupted AudioContext pauses the run (R2-I-06)', async () => {
+    const song = beatSong();
+    const rig = new Rig({ song });
+    const s = rig.session;
+    s.play();
+    rig.until(() => s.clock.nowSong() >= 3, 10);
+    rig.ctxState = 'suspended';
+    rig.advance(0.05);
+    expect(s.state).toBe('paused');
+    expect(s.pauseNotice).toMatch(/Audio stopped/);
+    rig.ctxState = 'running';
+    s.play();
+    expect(s.state).not.toBe('paused');
+    expect(s.pauseNotice).toBeNull();
+    await s.dispose();
+  });
+});

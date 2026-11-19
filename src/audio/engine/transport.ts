@@ -352,8 +352,10 @@ export class TransportCore implements Transport {
         this._state = 'playing';
         this.startPlaying(t, this._loop.start - this._loop.preroll, seg.pass + 1, 'loop-wrap');
       } else {
-        // Same mapping, new bound: split so sources and clicks see the new end.
-        this.startPlaying(t, pos, seg.pass, null, seg.speed);
+        // Same mapping, new bound: split so sources and clicks see the new end. The split drops
+        // later segments, so a bar-aligned speed change still pending is placed again (R2-I-02).
+        const split = this.startPlaying(t, pos, seg.pass, null, seg.speed);
+        if (split.speed !== this.playSpeed) this.placeSpeedChange(split, t, pos, true, null);
       }
       this.tick();
     });
@@ -441,14 +443,24 @@ export class TransportCore implements Transport {
       // Drop pending wraps / bar-aligned changes made at the old speed: continue unchanged from t0.
       seg = this.startPlaying(t0, pos, seg.pass, null, seg.speed);
     }
+    this.placeSpeedChange(seg, t0, pos, atNextBar, 'speed');
+    this.tick();
+  }
+
+  /**
+   * Switch the playing segment `seg` (in effect at `t0`, at song time `pos`) to `playSpeed`: at the
+   * next bar line (`atNextBar`) or at `t0`. When that bar is past the segment's end the change lands
+   * on loop B (the wrap uses `playSpeed`) or after the song end. `reason` is emitted (null: the
+   * change was announced before, e.g. when a loop change re-places a pending one).
+   */
+  private placeSpeedChange(seg: Segment, t0: number, pos: number, atNextBar: boolean, reason: 'speed' | null): void {
+    const s = this.playSpeed;
     const bar = atNextBar ? nextBarLine(this.song, pos) : pos;
     if (bar !== null && bar < segSongLimit(seg)) {
-      this.startPlaying(Math.max(t0, segCtx(seg, bar)), bar, seg.pass, 'speed', s, bar);
+      this.startPlaying(Math.max(t0, segCtx(seg, bar)), bar, seg.pass, reason, s, bar);
     } else if (bar === null && seg.bound?.kind !== 'loop') {
-      this.startPlaying(t0, pos, seg.pass, 'speed', s);
+      this.startPlaying(t0, pos, seg.pass, reason, s);
     }
-    // Otherwise the change lands on loop B (the wrap uses `playSpeed`) or after the song end.
-    this.tick();
   }
 
   /** Append due wraps; end count-in; stop at song end. */

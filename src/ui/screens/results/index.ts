@@ -2,7 +2,9 @@
  * Results screen (T-031, `#/results/:runId`; docs/game-mechanics.md § Results screen): score, stars,
  * accuracy, max combo, per-outcome counts, early ↔ late histogram with the timing tendency, section
  * heatmap with the weakest section → "Loop this" (practice, speed trainer on), personal best,
- * clean-run / mastery updates and "next up" suggestions (plus stretch picks from the library).
+ * clean-run / mastery updates and "next up" suggestions (plus stretch picks from the library). The
+ * main next actions (Play again · Loop the weakest section · Song page) sit right under the score
+ * card, above the fold at 1280×720 (R2-U-22).
  *
  * A just-played run comes from the game screen's hand-off (`recallResult`); otherwise the stored run
  * is loaded (`runId` = run id) and shown without the live-only extras. Registered in
@@ -21,10 +23,13 @@ import {
   type RunResult,
 } from '../../../game/session/results';
 import { badge, button, emptyState, h, starRating } from '../../components';
+import { displayArtist } from '../game/hud';
 import { nextStepCards, outcomeTiles, progressList, recommendationList, sectionHeatmap, timingHistogram } from './view';
 import './results.css';
 
 const REQUIRED = ['api', 'router', 'storage'] as const;
+/** What "Timing precision" means (tooltip + screen-reader description). */
+const TIMING_PRECISION_HELP = 'How close your hits were to the beat: 100% if every hit was Perfect, 75% Great, 50% Good.';
 const pct = (s: number): string => `${Math.round(s * 100)}%`;
 
 function unavailableView(el: HTMLElement, missing: readonly string[]): ScreenHandle {
@@ -89,7 +94,8 @@ async function libraryPicks(ctx: AppContext, songId: string): Promise<{ rec: Rec
     .slice(0, 3)
     .map((rec) => {
       const meta = byId.get(rec.songId);
-      return { rec, title: meta?.title ?? rec.songId, ...(meta?.artist ? { artist: meta.artist } : {}) };
+      const artist = displayArtist(meta?.artist);
+      return { rec, title: meta?.title ?? rec.songId, ...(artist ? { artist } : {}) };
     });
 }
 
@@ -110,7 +116,9 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
   const badges = h(
     'div',
     { class: 'rs-badges' },
-    r.newBest ? badge(r.previousBestScore !== null ? `New personal best (+${(r.score - r.previousBestScore).toLocaleString('en-US')})` : 'First best at this speed', { tone: 'success', icon: 'star' }) : null,
+    r.newBest
+      ? badge(`New best at ${pct(r.speed)}${r.previousBestScore !== null ? ` (+${(r.score - r.previousBestScore).toLocaleString('en-US')})` : ''}`, { tone: 'success', icon: 'star' })
+      : null,
     r.clean ? badge('Clean run', { tone: 'success', icon: 'check' }) : null,
   );
   const bestLine =
@@ -137,13 +145,35 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
       { class: 'rs-kpis' },
       h('div', { class: 'rs-kpi rs-kpi--acc' }, h('dt', null, 'Accuracy'), h('dd', { class: 'rw-num' }, `${r.accuracy.toFixed(1)}%`)),
       h('div', { class: 'rs-kpi' }, h('dt', null, 'Max combo'), h('dd', { class: 'rw-num' }, String(r.maxCombo))),
-      r.timingScore !== null ? h('div', { class: 'rs-kpi' }, h('dt', null, 'Timing'), h('dd', { class: 'rw-num' }, `${Math.round(r.timingScore * 100)}%`)) : null,
+      r.timingScore !== null
+        ? h(
+            'div',
+            { class: 'rs-kpi', title: TIMING_PRECISION_HELP },
+            h('dt', null, 'Timing precision'),
+            h('dd', { class: 'rw-num', 'aria-describedby': 'rs-timing-help' }, `${Math.round(r.timingScore * 100)}%`),
+            h('span', { class: 'rw-visually-hidden', id: 'rs-timing-help' }, TIMING_PRECISION_HELP),
+          )
+        : null,
       h('div', { class: 'rs-kpi' }, h('dt', null, 'Notes'), h('dd', { class: 'rw-num' }, String(r.judgedNotes))),
     ),
   );
 
+  const weakest = r.weakestSection !== null ? r.sections.find((x) => x.idx === r.weakestSection) : undefined;
+  const actions = h(
+    'nav',
+    { class: 'rs-actions', 'aria-label': 'Next actions' },
+    button({ label: 'Play again', icon: 'play', variant: 'primary', onClick: () => ctx.router.navigate(gameHref({ mode: r.mode, speed: r.speed })) }),
+    weakest && weakest.accuracy < 100
+      ? button({ label: `Loop ${weakest.name}`, icon: 'loop', variant: 'secondary', onClick: () => loopSection(weakest) })
+      : null,
+    button({ label: 'Song page', variant: 'secondary', onClick: () => ctx.router.navigate(ctx.router.href('song', { id: r.songId })) }),
+    button({ label: 'Library', variant: 'ghost', onClick: () => ctx.router.navigate(ctx.router.href('library')) }),
+  );
+  // "Play again" and "Loop the weakest section" are in the action row: not repeated as cards.
+  const steps = nextSteps(r).filter((st) => st.kind !== 'replay' && st.kind !== 'loop-weakest');
   const recsSlot = h('div', { class: 'rs-recs-slot' });
   const progress = progressList(r.sectionUpdates);
+  const artist = displayArtist(r.artist);
   const page = h(
     'div',
     { class: 'rs' },
@@ -151,9 +181,10 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
       'header',
       { class: 'rs-head' },
       h('p', { class: 'rs-eyebrow' }, chips.join(' · ')),
-      h('h1', { class: 'rs-title', tabindex: '-1' }, r.title, r.artist ? h('span', { class: 'rs-title__artist' }, ` — ${r.artist}`) : null),
+      h('h1', { class: 'rs-title', tabindex: '-1' }, r.title, artist ? h('span', { class: 'rs-title__artist' }, ` — ${artist}`) : null),
     ),
     hero,
+    actions,
     h('section', { class: 'rs-block', 'aria-labelledby': 'rs-notes-h' }, h('h2', { id: 'rs-notes-h' }, 'Notes'), outcomeTiles(r), r.lenientChordNotes ? h('p', { class: 'rs-muted' }, `${r.lenientChordNotes} chord notes judged leniently (timing + any chord tone).`) : null),
     h('section', { class: 'rs-block', 'aria-labelledby': 'rs-timing-h' }, h('h2', { id: 'rs-timing-h' }, 'Timing'), timingHistogram(r)),
     h('section', { class: 'rs-block rs-block--wide', 'aria-labelledby': 'rs-sec-h' }, h('h2', { id: 'rs-sec-h' }, 'Sections'), sectionHeatmap(r, loopSection)),
@@ -162,15 +193,8 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
       'section',
       { class: 'rs-block rs-block--wide', 'aria-labelledby': 'rs-next-h' },
       h('h2', { id: 'rs-next-h' }, 'Next up'),
-      nextStepCards(nextSteps(r), (s: NextStep) => gameHref(s.game)),
+      steps.length > 0 ? nextStepCards(steps, (s: NextStep) => gameHref(s.game)) : null,
       recsSlot,
-    ),
-    h(
-      'footer',
-      { class: 'rs-actions' },
-      button({ label: 'Play again', icon: 'play', variant: 'primary', onClick: () => ctx.router.navigate(gameHref({ mode: r.mode, speed: r.speed })) }),
-      button({ label: 'Song page', variant: 'secondary', onClick: () => ctx.router.navigate(ctx.router.href('song', { id: r.songId })) }),
-      button({ label: 'Library', variant: 'ghost', onClick: () => ctx.router.navigate(ctx.router.href('library')) }),
     ),
   );
   void libraryPicks(ctx, r.songId)

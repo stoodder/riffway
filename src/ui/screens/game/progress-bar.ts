@@ -1,7 +1,8 @@
 /**
- * Section progress bar (T-031): the song's sections as proportional segments, the playhead, the
- * loop region, and each section's live accuracy (colour of its underline). Clicking a section seeks
- * to it when `onSeek` is given (practice mode).
+ * Section progress bar (T-031): the song's sections as proportional segments, the playhead (on the
+ * underline, clear of the section names) with the played part, the loop region, and each section's
+ * live accuracy (colour of its underline). Clicking a section seeks to it when `onSeek` is given
+ * (practice mode).
  * @module
  */
 import type { TransportLoop } from '@shared/clock';
@@ -26,6 +27,7 @@ export class SectionProgressBar {
   readonly el: HTMLElement;
   private readonly segments: HTMLElement[];
   private readonly playhead = h('span', { class: 'gm-progress__playhead' });
+  private readonly played = h('span', { class: 'gm-progress__played' });
   private readonly loopBox = h('span', { class: 'gm-progress__loop', hidden: true });
   private readonly time = h('span', { class: 'gm-progress__time rw-num' }, '0:00');
   private readonly duration: number;
@@ -59,7 +61,7 @@ export class SectionProgressBar {
     this.el = h(
       'div',
       { class: 'gm-progress' },
-      h('div', { class: 'gm-progress__track' }, this.segments, this.loopBox, this.playhead),
+      h('div', { class: 'gm-progress__track' }, this.segments, this.loopBox, this.played, this.playhead),
       h('div', { class: 'gm-progress__clock' }, this.time, h('span', { class: 'gm-progress__dur rw-num' }, ` / ${fmtClock(song.meta.durationSec)}`)),
     );
   }
@@ -70,6 +72,7 @@ export class SectionProgressBar {
     if (p !== this.lastPct) {
       this.lastPct = p;
       this.playhead.style.left = `${p}%`;
+      this.played.style.width = `${p}%`;
     }
     const sec = Math.floor(Math.max(0, songTime));
     if (sec !== this.lastSec) {

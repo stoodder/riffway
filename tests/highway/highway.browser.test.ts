@@ -8,7 +8,8 @@ import type { ClockChange, SongClock } from '@shared/clock';
 import type { Judgement, Outcome } from '@shared/judge';
 import type { Highway } from '@shared/services';
 import type { Note, Song, StringNumber } from '@shared/song';
-import { createHighway } from '../../src/game/highway';
+import { beatLengthAt } from '@core/handpos';
+import { createHighway, CUE_LEAD_BEATS, CUE_LEAD_REAL_SEC } from '../../src/game/highway';
 import { PARTICLE_CAP } from '../../src/game/highway/fx';
 import { computeLayout, timeToX } from '../../src/game/highway/layout';
 import { HighwayRenderer } from '../../src/game/highway/renderer';
@@ -174,17 +175,35 @@ describe('createHighway', () => {
     expect(diff(withNumbers, centre())).toBeLessThan(0.5);
   });
 
-  it('only reads heardSongTime (with the frame time), speed and onChange from the clock', () => {
+  it('only reads heardSongTime (with the frame time), heardSpeed/speed and onChange from the clock', () => {
     const canvas = mountCanvas();
     const { clock, touched, perfArgs } = testClock({ now: 1 });
     highway = createHighway(canvas, glyphFixtureSong(), clock, { noteSpeed: 1, handCues: true });
     highway.drawFrame(1234.5);
     highway.drawFrame(1251.2);
     expect(perfArgs).toEqual([1234.5, 1251.2]);
-    expect([...touched].sort()).toEqual(['heardSongTime', 'onChange', 'speed']);
+    expect([...touched].sort()).toEqual(['heardSongTime', 'heardSpeed', 'onChange', 'speed']);
   });
 
-  it('greys a missed gem, reddens a wrong one and consumes a hit one', () => {
+  it('maps x with the speed being heard, not a requested one still waiting for its bar line (R2-I-09)', () => {
+    const canvas = mountCanvas();
+    const { clock, state } = testClock({ now: 1.5, speed: 0.5 });
+    const heard: number[] = [];
+    // The engine's clock: `speed` is the request (0.5), `heardSpeed` what is playing (100%).
+    (clock as unknown as { heardSpeed(perfNow?: number): number }).heardSpeed = (perfNow) => {
+      heard.push(perfNow ?? Number.NaN);
+      return 1;
+    };
+    highway = createHighway(canvas, tinySong(), clock, { noteSpeed: 1, handCues: false });
+    highway.drawFrame(1000);
+    expect(heard).toEqual([1000]);
+    const L = computeLayout(W, H, devicePixelRatio, 1);
+    const [lr, lg, lb] = pixel(canvas, ...gemProbe(L, timeToX(L, tt(6), state.now, 1), 6));
+    expect(lr).toBeGreaterThan(lg + 60);
+    expect(lr).toBeGreaterThan(lb + 40);
+  });
+
+  it('greys a missed gem, turns a wrong one magenta and consumes a hit one', () => {
     const canvas = mountCanvas();
     const { clock } = testClock({ now: 1.7 });
     highway = createHighway(canvas, tinySong(), clock, { noteSpeed: 1, handCues: false });
@@ -195,10 +214,11 @@ describe('createHighway', () => {
     highway.feedback(judgement([3], 'Perfect'));
     highway.drawFrame(2000);
     expect(isGrey(pixel(canvas, ...gemProbe(L, x(6), 6)))).toBe(true);
+    // Wrong is magenta, never a lane colour (R2-U-02).
     const [wr, wg, wb] = pixel(canvas, ...gemProbe(L, x(1), 1));
     expect(wr).toBeGreaterThan(200);
     expect(wr).toBeGreaterThan(wg + 80);
-    expect(wr).toBeGreaterThan(wb + 40);
+    expect(wb).toBeGreaterThan(wg + 60);
     expect(isDark(pixel(canvas, ...gemProbe(L, x(4), 4)))).toBe(true);
     // Untouched string 2 stays green.
     const [gr, gg, gb] = pixel(canvas, ...gemProbe(L, x(2), 2));
@@ -300,23 +320,29 @@ describe('hand-position cues', () => {
   }
   const isCueOrange = ([r, g, b]: number[]): boolean => r! > 180 && g! > 80 && g! < 180 && b! < 100;
 
-  it('shows a cue from cueShowAt: at least 0.75 real seconds ahead, also above 100% speed (R1-C-10)', () => {
+  it('shows a cue ≥ 2 beats and ≥ 1.5 real seconds ahead, also above 100% speed (R2-U-03, R1-C-10)', () => {
     const canvas = mountCanvas();
     const { song, positions } = cueSong();
-    const { clock, state } = testClock({ now: 3.4, speed: 1.1 });
-    highway = createHighway(canvas, song, clock, { noteSpeed: 1, handCues: true, positions });
-    const L = computeLayout(W, H, canvas.width / W, 1);
-    const probe = (): [number, number, number] => {
-      const x = Math.round(timeToX(L, 4, state.now, state.speed) - L.gemR - 10);
-      return pixel(canvas, x, (L.laneY[3]! + L.laneY[4]!) / 2);
-    };
-    // Raw showAt (3.9) would hide it; cueShowAt = 4 − 0.75 × 1.1 = 3.175, so at 3.4 it is drawn.
-    highway.drawFrame(1000);
-    expect(isCueOrange(probe())).toBe(true);
-    // Before 3.175 it is not drawn yet.
-    state.now = 3.1;
-    highway.drawFrame(1016);
-    expect(isCueOrange(probe())).toBe(false);
+    const beat = beatLengthAt(song, 4);
+    for (const speed of [1.1, 0.5]) {
+      const show = 4 - Math.max(CUE_LEAD_BEATS * beat, CUE_LEAD_REAL_SEC * speed);
+      // At least 1.5 real seconds and 2 beats ahead, whatever the raw showAt (3.9) says.
+      expect((4 - show) / speed).toBeGreaterThanOrEqual(1.5 - 1e-9);
+      expect(4 - show).toBeGreaterThanOrEqual(2 * beat - 1e-9);
+      const { clock, state } = testClock({ now: show + 0.3, speed });
+      highway?.dispose();
+      highway = createHighway(canvas, song, clock, { noteSpeed: 1, handCues: true, positions });
+      const L = computeLayout(W, H, canvas.width / W, 1);
+      const probe = (): [number, number, number] => {
+        const x = Math.round(timeToX(L, 4, state.now, state.speed) - L.gemR - 10);
+        return pixel(canvas, x, (L.laneY[3]! + L.laneY[4]!) / 2);
+      };
+      highway.drawFrame(1000);
+      expect(isCueOrange(probe()), `speed ${speed}: drawn after it appears`).toBe(true);
+      state.now = show - 0.05;
+      highway.drawFrame(1016);
+      expect(isCueOrange(probe()), `speed ${speed}: not before`).toBe(false);
+    }
   });
 });
 

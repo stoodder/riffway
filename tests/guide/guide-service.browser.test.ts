@@ -201,11 +201,19 @@ describe('guide service render plan', () => {
     await expect(pending).rejects.toBeInstanceOf(GuideSupersededError);
     expect(fake.sources).toEqual([]);
     await expect(guide.setSpeed(1)).rejects.toThrow(/No guide song/);
-    // A load superseded by another load resolves quietly.
-    const first = guide.load(makeSong(), { fileName: 'plan.atex', data: new Uint8Array(1) }, 1);
-    const second = guide.load(makeSong(), { fileName: 'plan.atex', data: new Uint8Array(1) }, 1);
+    // A load superseded by another load (or an unload) resolves quietly; `holds` tells (R2-I-01).
+    const songA = makeSong();
+    const songB = makeSong();
+    const first = guide.load(songA, { fileName: 'plan.atex', data: new Uint8Array(1) }, 1);
+    const second = guide.load(songB, { fileName: 'plan.atex', data: new Uint8Array(1) }, 1);
     await expect(first).resolves.toBeUndefined();
     await expect(second).resolves.toBeUndefined();
+    expect(guide.holds(songA)).toBe(false);
+    expect(guide.holds(songB)).toBe(true);
+    const third = guide.load(songA, { fileName: 'plan.atex', data: new Uint8Array(1) }, 1);
+    guide.unload();
+    await expect(third).resolves.toBeUndefined();
+    expect(guide.holds(songA)).toBe(false);
     guide.dispose();
   });
 });

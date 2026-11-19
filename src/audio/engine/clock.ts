@@ -295,11 +295,24 @@ export interface ClockSource {
 }
 
 /**
+ * The playing speed at the heard time, an extra of the engine's clock beyond {@link SongClock}
+ * (whose `speed` is the *requested* speed). The renderer maps x with it (R2-I-09).
+ */
+export interface HeardSpeedClock {
+  /**
+   * Speed of the segment being **heard** at `perfNow` (default now): a requested change waiting
+   * for its bar line (or guide render) does not count yet. The requested speed while paused.
+   */
+  heardSpeed(perfNow?: number): number;
+}
+
+/**
  * The read-only {@link SongClock}. `heardSongTime(perfNow)` =
  * `songTimeAt(heardCtxTime(perfNow)) − visualOffset × speed` (docs/timing.md § Rendering time).
- * It is also a {@link PassClockMapping}, so the judge resolves note times per loop pass.
+ * It is also a {@link PassClockMapping}, so the judge resolves note times per loop pass, and a
+ * {@link HeardSpeedClock}.
  */
-export function createSongClock(src: ClockSource, out: OutputClock, visualOffsetMs: () => number): SongClock & PassClockMapping {
+export function createSongClock(src: ClockSource, out: OutputClock, visualOffsetMs: () => number): SongClock & PassClockMapping & HeardSpeedClock {
   return {
     get state() {
       return src.state;
@@ -318,6 +331,10 @@ export function createSongClock(src: ClockSource, out: OutputClock, visualOffset
     heardSongTime(perfNow = out.perfNow()) {
       const ctx = heardCtxTime(out, perfNow);
       return src.songTimeAt(ctx) - (visualOffsetMs() / 1000) * src.speedAt(ctx);
+    },
+    heardSpeed(perfNow = out.perfNow()) {
+      const speed = src.speedAt(heardCtxTime(out, perfNow));
+      return speed > 0 ? speed : src.speed;
     },
     onChange: (cb) => src.onChange(cb),
   };

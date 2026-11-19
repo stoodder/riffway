@@ -1,7 +1,8 @@
 /**
  * The highway renderer: owns layout, static layers, sprite atlas, per-note judgement state and the
  * effect pools, and draws one frame for a given heard song time. It never advances time: each frame
- * reads `clock.heardSongTime(perfNow)` and `clock.speed`, nothing else.
+ * reads `clock.heardSongTime(perfNow)` and the heard speed (`clock.heardSpeed(perfNow)` when the
+ * clock has it, else `clock.speed`), nothing else.
  *
  * Hot-loop rules (60 fps on long, dense songs): the visible window is found by binary search over the
  * prepared typed arrays; static layers and sprites are blitted; no objects, arrays, closures or strings
@@ -11,9 +12,9 @@
 import type { SongClock } from '@shared/clock';
 import type { Judgement, StrayEvent } from '@shared/judge';
 import type { HighwayOptions } from '@shared/services';
+import type { FeedbackDetail } from '@shared/settings';
 import type { Song } from '@shared/song';
-import { computePositions, cueShowAt } from '@core/handpos';
-import { midiToName } from '@core/model';
+import { computePositions } from '@core/handpos';
 import {
   GemAtlas,
   SHAPE_DEAD,
@@ -26,6 +27,7 @@ import {
   roundRectPath,
   type Surface,
 } from './atlas';
+import { feedbackText } from './feedback';
 import { FeedbackFx, fxFonts, type FxFonts } from './fx';
 import { ComboHud, hudFonts, type HudFonts } from './hud';
 import { buildBackground, buildForeground, type Foreground } from './layers';
@@ -50,10 +52,12 @@ import {
   type PreparedSong,
 } from './prepare';
 import {
+  EARLY_COLOR,
   FONT_DISPLAY,
   FONT_TEXT,
   HW_COLORS,
   LANE_COLORS,
+  LATE_COLOR,
   MULTIPLIER_COLORS,
   OUTCOME_CODE,
   TAIL_COLORS,
@@ -68,15 +72,21 @@ const DASH_BRACKET: number[] = [4, 4];
 const NO_DASH: number[] = [];
 /** Ghost notes are drawn at this scale. */
 const GHOST_SCALE = 0.74;
-/** A cue bracket fades in over this many song seconds after `showAt`. */
+/** A cue bracket fades in over this many song seconds after it appears. */
 const CUE_FADE_SEC = 0.25;
-const SUB_EARLY = 'EARLY';
-const SUB_LATE = 'LATE';
+/**
+ * A hand-position cue appears this many beats before its shift, and at least {@link CUE_LEAD_REAL_SEC}
+ * real seconds before it (whichever is earlier; R2-U-03). Slower practice speeds only lengthen it.
+ */
+export const CUE_LEAD_BEATS = 2;
+export const CUE_LEAD_REAL_SEC = 1.5;
+/** The position pill on the hit line pulses this long (real s) when a shift lands. */
+const SHIFT_PULSE_SEC = 0.6;
 const LOOP_A = 'A';
 const LOOP_B = 'B';
 const PM_TEXT = 'PM';
-/** Colour of the early/late hint under a Good. */
-const TIMING_COLOR = '#ffb46b';
+/** Colour of a wrong note's second line. */
+const WRONG_SUB_COLOR = '#ffb8f0';
 
 /** Text fonts used by the world pass (built on resize). */
 interface WorldFonts {
@@ -86,7 +96,13 @@ interface WorldFonts {
   glyph: string;
   bend: string;
   cue: string;
+  cueBig: string;
   strip: string;
+}
+
+/** The engine clock's playing speed at the heard time (`HeardSpeedClock` in `src/audio/engine/clock.ts`). */
+interface HeardSpeed {
+  heardSpeed?(perfNow?: number): number;
 }
 
 /** Options with defaults applied. */
@@ -111,9 +127,11 @@ export class HighwayRenderer {
   private sectionW = new Float32Array(0);
   private chordNameW = new Float32Array(0);
   private cueW = new Float32Array(0);
+  private shiftW = new Float32Array(0);
   private positionW = new Float32Array(0);
-  /** Reused argument for `cueShowAt` (no per-frame allocation). */
-  private readonly cueArg = { showAt: 0, time: 0 };
+  private detail: FeedbackDetail = 'standard';
+  /** Cue band gradient from x = 0 to its width (translated per cue; built on resize). */
+  private cueBand: CanvasGradient | null = null;
 
   /** Per-note outcome code (0 = none) valid while `noteEpoch[i] === epoch`. */
   private readonly noteState: Uint8Array;
@@ -156,7 +174,7 @@ export class HighwayRenderer {
     };
     if (positionsChanged || (cuesTurnedOn && !this.prep.hand)) {
       const analysis = this.handAnalysis();
-      this.prep.hand = analysis ? prepareHandPositions(analysis) : null;
+      this.prep.hand = analysis ? prepareHandPositions(analysis, this.song) : null;
       this.measureLabels();
     }
     if (patch.noteSpeed !== undefined) this.relayout(this.layout.width, this.layout.height, this.layout.dpr, false);
@@ -197,10 +215,14 @@ export class HighwayRenderer {
       glyph: `800 italic ${Math.max(11, Math.round(L.gemR * 0.66))}px ${FONT_DISPLAY}`,
       bend: `800 ${Math.max(10, Math.round(L.gemR * 0.58))}px ${FONT_DISPLAY}`,
       cue: `800 ${Math.max(10, small)}px ${FONT_DISPLAY}`,
+      cueBig: `900 ${Math.max(13, Math.round(L.gemR * 0.66))}px ${FONT_DISPLAY}`,
       strip: `600 ${Math.max(10, small - 1)}px ${FONT_TEXT}`,
     };
     this.fxFont = fxFonts(L.gemR);
     this.hudFont = hudFonts(L.badgeR);
+    this.cueBand = this.ctx.createLinearGradient(0, 0, L.gemR * 5, 0);
+    this.cueBand.addColorStop(0, HW_COLORS.cueBand);
+    this.cueBand.addColorStop(1, HW_COLORS.cueBandEnd);
     this.measureLabels();
   }
 
@@ -214,9 +236,11 @@ export class HighwayRenderer {
     ctx.font = f.section;
     this.sectionW = Float32Array.from(this.prep.sections.label, (l) => ctx.measureText(l).width);
     ctx.letterSpacing = '0px';
-    ctx.font = f.cue;
+    ctx.font = f.cueBig;
     const hand = this.prep.hand;
     this.cueW = Float32Array.from(hand ? hand.cues.label : [], (l) => ctx.measureText(l).width);
+    this.shiftW = Float32Array.from(hand ? hand.cues.shift : [], (l) => ctx.measureText(l).width);
+    ctx.font = f.cue;
     this.positionW = Float32Array.from(hand ? hand.positions.label : [], (l) => ctx.measureText(l).width);
     ctx.font = f.chord;
     this.chordNameW = Float32Array.from(this.prep.chords.name, (l) => ctx.measureText(l).width);
@@ -274,22 +298,23 @@ export class HighwayRenderer {
     // A provisional WrongNote is emitted again when fixed: colour only, no second burst.
     if (strings === 0 || (repeat && code === OUTCOME_CODE.WrongNote)) return;
     const L = this.layout;
+    const text = feedbackText(j, this.detail);
+    const side = text.timing === 'early' ? 1 : text.timing === 'late' ? -1 : 0;
+    const timingColor = side > 0 ? EARLY_COLOR : LATE_COLOR;
     for (let k = 0; k < ids.length; k++) {
       const id = ids[k]!;
       if (id < 0 || id >= p.n) continue;
       const s = p.string[id]!;
       this.fx.burst(s, code, L.hitX, L.laneY[s]!, 1 / Math.sqrt(strings));
+      this.fx.mark(s, code, side, timingColor);
     }
-    let sub = '';
-    let subColor: string = HW_COLORS.textMuted;
-    if (code === OUTCOME_CODE.WrongNote && j.playedMidi !== undefined) {
-      sub = `played ${midiToName(j.playedMidi)}`;
-      subColor = '#ffb3c2';
-    } else if (isHitCode(code) && j.timing) {
-      sub = j.timing === 'early' ? SUB_EARLY : SUB_LATE;
-      subColor = TIMING_COLOR;
-    }
-    this.fx.popup(top, code, sub, subColor);
+    const subColor = text.timing ? timingColor : code === OUTCOME_CODE.WrongNote ? WRONG_SUB_COLOR : HW_COLORS.textMuted;
+    this.fx.popup(top, code, text.word, text.sub, subColor);
+  }
+
+  /** Feedback detail (settings `game.feedbackDetail`): what the gutter text says. */
+  setFeedbackDetail(detail: FeedbackDetail): void {
+    this.detail = detail;
   }
 
   /** Faint tick for a stray onset. */
@@ -320,7 +345,9 @@ export class HighwayRenderer {
     ctx.drawImage(this.bg, 0, 0, L.width, L.height);
 
     const now = this.clock.heardSongTime(perfNow);
-    const speed = safeSpeed(this.clock.speed);
+    // The speed being heard (a requested change waits for its bar line); `speed` without it.
+    const heardSpeed = (this.clock as SongClock & HeardSpeed).heardSpeed;
+    const speed = safeSpeed(heardSpeed ? heardSpeed.call(this.clock, perfNow) : this.clock.speed);
     const live = Number.isFinite(now);
     if (live) {
       this.lastNow = now;
@@ -333,9 +360,10 @@ export class HighwayRenderer {
     ctx.drawImage(fg.edge, L.width - fg.edgeW, 0, fg.edgeW, L.height);
     this.drawHitPulse(ctx, perfNow);
     this.fx.drawFlashes(ctx, L, atlas, perfNow);
+    this.fx.drawMarks(ctx, L, perfNow);
     this.hud.draw(ctx, L, this.hudFont, perfNow);
     this.fx.drawPopups(ctx, L, this.fxFont, perfNow);
-    if (live) this.drawStatus(ctx, now);
+    if (live) this.drawStatus(ctx, now, speed);
   }
 
   /** Grid, sections, cues, notes, glyphs and the loop region. */
@@ -460,62 +488,80 @@ export class HighwayRenderer {
     ctx.fillText(this.prep.sections.label[i]!, x, y + 0.5);
   }
 
+  /** Song time from which cue `i` is shown at `speed` (see {@link CUE_LEAD_BEATS}). */
+  private cueShowTime(i: number, speed: number): number {
+    const cues = this.prep.hand!.cues;
+    return cues.time[i]! - Math.max(CUE_LEAD_BEATS * cues.beat[i]!, CUE_LEAD_REAL_SEC * speed);
+  }
+
   /**
-   * Hand-position shift cues: a fret-labelled bracket ahead of the first note in the new position,
-   * shown from `cueShowAt(cue, speed)` (≥ 0.75 real seconds ahead, also above 100% speed).
+   * Hand-position shift cues: a fret-labelled bracket with a tinted band across all lanes ahead of
+   * the first note in the new position, shown from {@link cueShowTime} (≥ 2 beats and ≥ 1.5 real
+   * seconds ahead). The position pill on the hit line announces the same shift (drawStatus).
    */
   private drawCues(ctx: CanvasRenderingContext2D, f: WorldFonts, now: number, speed: number, k: number, from: number, to: number): void {
     const L = this.layout;
     const cues = this.prep.hand!.cues;
     const c0 = lowerBound(cues.time, from);
-    const top = L.lanesTop + 3;
-    const bottom = L.lanesBottom - 3;
+    const top = L.lanesTop + 2;
+    const bottom = L.lanesBottom - 2;
     const stripY = L.lanesTop / 2 + 1;
-    ctx.font = f.cue;
+    const bandW = L.gemR * 5;
+    ctx.font = f.cueBig;
     ctx.textAlign = 'left';
     ctx.textBaseline = 'middle';
     for (let i = c0; i < cues.n && cues.time[i]! < to; i++) {
-      this.cueArg.showAt = cues.showAt[i]!;
-      this.cueArg.time = cues.time[i]!;
-      const shown = now - cueShowAt(this.cueArg, speed);
+      const shown = now - this.cueShowTime(i, speed);
       if (shown < 0) continue;
       const x = Math.round(L.hitX + (cues.time[i]! - now) * k - L.gemR - 10);
-      // Fade in after `showAt`. The label pill fades out before it reaches the position pill on the
+      // Fade in after it appears. The label pill fades out before it reaches the position pill on the
       // hit line (which then shows the new position); the bracket rides on into the gutter fade.
       const alpha = Math.min(1, shown / CUE_FADE_SEC);
-      const pillAlpha = Math.min(alpha, (x - L.hitX - 26) / 16);
+      const pillAlpha = Math.min(alpha, (x - L.hitX - 40) / 16);
       const bracketAlpha = Math.min(alpha, 1 + (x - (L.hitX - L.gemR - 10)) / (L.gemR * 1.5));
       if (bracketAlpha <= 0) continue;
+      // Tinted band: the new position's zone, across all six lanes (gradient built on resize).
       ctx.globalAlpha = bracketAlpha;
+      if (this.cueBand) {
+        ctx.translate(x, 0);
+        ctx.fillStyle = this.cueBand;
+        ctx.fillRect(0, top, bandW, bottom - top);
+        ctx.translate(-x, 0);
+      }
       // Bracket "[" spanning all lanes.
       ctx.strokeStyle = HW_COLORS.cue;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.lineJoin = 'round';
       ctx.beginPath();
-      ctx.moveTo(x + 8, top);
+      ctx.moveTo(x + 10, top);
       ctx.lineTo(x, top);
       ctx.lineTo(x, bottom);
-      ctx.lineTo(x + 8, bottom);
+      ctx.lineTo(x + 10, bottom);
       ctx.stroke();
       if (pillAlpha <= 0) continue;
       ctx.globalAlpha = pillAlpha;
-      // Label pill with a direction arrow.
-      const w = this.cueW[i]! + 22;
-      roundRectPath(ctx, x - 2, stripY - 10, w, 20, 10);
+      // Label pill with a direction arrow, filling most of the top strip.
+      const h = Math.min(26, L.lanesTop - 4);
+      const w = this.cueW[i]! + 30;
+      roundRectPath(ctx, x - 2, stripY - h / 2, w, h, h / 2);
       ctx.fillStyle = HW_COLORS.cue;
       ctx.fill();
-      const ax = x + 8;
-      const up = cues.up[i] === 1;
+      this.cueArrow(ctx, x + 11, stripY, cues.up[i] === 1, 5);
       ctx.fillStyle = HW_COLORS.ink;
-      ctx.beginPath();
-      ctx.moveTo(ax - 4, up ? stripY + 3 : stripY - 3);
-      ctx.lineTo(ax + 4, up ? stripY + 3 : stripY - 3);
-      ctx.lineTo(ax, up ? stripY - 4 : stripY + 4);
-      ctx.closePath();
-      ctx.fill();
-      ctx.fillText(cues.label[i]!, x + 15, stripY + 0.5);
+      ctx.fillText(cues.label[i]!, x + 21, stripY + 0.5);
     }
     ctx.globalAlpha = 1;
+  }
+
+  /** A filled up / down triangle (ink) centred at (x, y). */
+  private cueArrow(ctx: CanvasRenderingContext2D, x: number, y: number, up: boolean, r: number): void {
+    ctx.fillStyle = HW_COLORS.ink;
+    ctx.beginPath();
+    ctx.moveTo(x - r, up ? y + r * 0.7 : y - r * 0.7);
+    ctx.lineTo(x + r, up ? y + r * 0.7 : y - r * 0.7);
+    ctx.lineTo(x, up ? y - r : y + r);
+    ctx.closePath();
+    ctx.fill();
   }
 
   /** Tails of long sustains that started before the main scan window. */
@@ -893,38 +939,73 @@ export class HighwayRenderer {
     ctx.globalCompositeOperation = 'source-over';
   }
 
-  /** Current section (gutter) and current hand position (pill on the hit line). */
-  private drawStatus(ctx: CanvasRenderingContext2D, now: number): void {
+  /**
+   * Current section (gutter) and current hand position (pill on the hit line). During a loop's
+   * pre-roll they show what the loop starts with (R2-U-21). While a shift cue is showing, the pill
+   * announces it ("5fr ▲ 7fr", accent-filled); when the shift lands it pulses (R2-U-03).
+   */
+  private drawStatus(ctx: CanvasRenderingContext2D, now: number, speed: number): void {
     const L = this.layout;
     const f = this.worldFonts!;
-    const sec = this.prep.sections;
-    const cur = lastAtOrBefore(sec.start, now);
-    if (cur >= 0 && now < sec.end[cur]!) {
+    const p = this.prep;
+    const sec = p.sections;
+    const loop = this.opts.loop;
+    const preroll = loop !== null && loop !== undefined && now < loop.start && now >= loop.start - loop.preroll - 0.05;
+    // In the pre-roll: the loop's first note decides the section and position shown.
+    const at = preroll ? Math.max(loop.start, p.time[lowerBound(p.time, loop.start - 1e-6)] ?? loop.start) : now;
+    const cur = lastAtOrBefore(sec.start, at + (preroll ? 1e-6 : 0));
+    const y = L.lanesTop / 2 + 1;
+    if (cur >= 0 && at < sec.end[cur]!) {
       ctx.font = f.section;
       ctx.letterSpacing = '1px';
       ctx.textAlign = 'left';
       ctx.textBaseline = 'middle';
-      this.sectionPill(ctx, cur, 19, L.lanesTop / 2 + 1, true);
+      this.sectionPill(ctx, cur, 19, y, true);
       ctx.letterSpacing = '0px';
     }
-    const hand = this.prep.hand;
-    if (this.opts.handCues && hand && hand.positions.n > 0) {
-      const i = lastAtOrBefore(hand.positions.start, now + 0.02);
-      if (i >= 0) {
-        const w = this.positionW[i]! + 14;
-        const y = L.lanesTop / 2 + 1;
-        roundRectPath(ctx, L.hitX - w / 2, y - 10, w, 20, 10);
-        ctx.fillStyle = HW_COLORS.strip;
-        ctx.fill();
-        ctx.strokeStyle = rgba(HW_COLORS.accent, 0.7);
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-        ctx.font = f.cue;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = HW_COLORS.accentStrong;
-        ctx.fillText(hand.positions.label[i]!, L.hitX, y + 0.5);
-      }
+    const hand = p.hand;
+    if (!this.opts.handCues || !hand || hand.positions.n === 0) return;
+    // Before the first position (count-in): show the one the song starts in.
+    const i = Math.max(0, lastAtOrBefore(hand.positions.start, at + 0.02));
+    const cues = hand.cues;
+    // A shift cue already showing and not reached yet: announce it on the pill.
+    const next = preroll ? -1 : lowerBound(cues.time, now + 0.02);
+    const pending = next >= 0 && next < cues.n && now >= this.cueShowTime(next, speed);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (pending) {
+      ctx.font = f.cueBig;
+      const w = this.shiftW[next]! + 22;
+      const h = Math.min(26, L.lanesTop - 4);
+      roundRectPath(ctx, L.hitX - w / 2, y - h / 2, w, h, h / 2);
+      ctx.fillStyle = HW_COLORS.cue;
+      ctx.fill();
+      ctx.fillStyle = HW_COLORS.ink;
+      ctx.fillText(cues.shift[next]!, L.hitX, y + 0.5);
+      return;
     }
+    const w = this.positionW[i]! + 14;
+    roundRectPath(ctx, L.hitX - w / 2, y - 10, w, 20, 10);
+    ctx.fillStyle = HW_COLORS.strip;
+    ctx.fill();
+    ctx.strokeStyle = rgba(HW_COLORS.accent, 0.7);
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    // Pulse when a shift has just landed (real seconds since its note).
+    const landed = preroll ? -1 : next - 1;
+    const age = landed >= 0 ? (now - cues.time[landed]!) / safeSpeed(speed) : Infinity;
+    if (age >= 0 && age < SHIFT_PULSE_SEC) {
+      const k = age / SHIFT_PULSE_SEC;
+      ctx.globalAlpha = 1 - k;
+      ctx.strokeStyle = HW_COLORS.cue;
+      ctx.lineWidth = 3;
+      const grow = 3 + 6 * k;
+      roundRectPath(ctx, L.hitX - w / 2 - grow, y - 10 - grow / 2, w + 2 * grow, 20 + grow, 10 + grow / 2);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.font = f.cue;
+    ctx.fillStyle = HW_COLORS.accentStrong;
+    ctx.fillText(hand.positions.label[i]!, L.hitX, y + 0.5);
   }
 }

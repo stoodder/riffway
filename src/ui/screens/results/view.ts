@@ -127,9 +127,12 @@ export function progressList(updates: readonly SectionUpdate[]): HTMLElement | n
       text = sectionEventText(update.name, big);
       tone = big === 'check-failed' ? 'info' : 'win';
     } else if (cleanCount > 0) {
-      text = `${update.name}: ${cleanCount > 1 ? `${cleanCount} clean runs` : 'clean run'} (${update.cleanRuns} total${
-        update.sessionCleanAt100 > 0 ? `, ${update.sessionCleanAt100}/2 at 100% this session` : ''
-      })`;
+      // Plain words for the mastery rule (2 clean runs at full speed in one sitting).
+      const clean = cleanCount > 1 ? `${cleanCount} clean runs` : 'Clean run';
+      text =
+        update.sessionCleanAt100 > 0
+          ? `${clean} — ${Math.min(2, update.sessionCleanAt100)} of 2 clean runs at full speed toward mastering ${update.name}`
+          : `${clean} at ${Math.round(update.speed * 100)}% in ${update.name} — ${update.cleanRuns} so far`;
       tone = 'clean';
     } else {
       text =

@@ -2,7 +2,9 @@
  * Analysis worklet (T-022): a thin shell around {@link AnalysisCore} (`src/audio/input/analysis-core.ts`,
  * which wraps the T-015 DSP in `@core/dsp`). Posts `AnalysisEvent`s and receives `AnalysisCommand`s
  * (`@shared/audio-events`); `processorOptions` are `AnalysisProcessorOptions`. Frames are context
- * frames (`currentFrame`). No allocation in `process()` beyond the posted message objects.
+ * frames (`currentFrame`). No allocation in `process()` beyond the posted message objects. A node
+ * whose input stays disconnected for {@link RETIRE_AFTER_SEC} after having had one stops (`process()`
+ * returns false), so retired graphs do not keep analysing silence on the audio thread.
  */
 import {
   PROCESSOR_NAMES,
@@ -18,9 +20,18 @@ interface ProcessorConstructorOptions {
 }
 
 const NO_CHANNELS: Float32Array[] = [];
+/**
+ * A node whose input has had no connection for this long after having had one is retired (its
+ * graph was disposed: the source is disconnected) and stops processing (R2-I-08). The shared
+ * `AnalysisCommand` contract has no `stop` command, so the disconnect itself is the signal.
+ */
+const RETIRE_AFTER_SEC = 0.5;
 
 class AnalysisProcessor extends AudioWorkletProcessor {
   private readonly core: AnalysisCore;
+  private readonly retireAfter = Math.ceil((RETIRE_AFTER_SEC * sampleRate) / 128);
+  private sawInput = false;
+  private idleQuanta = 0;
 
   constructor(options?: ProcessorConstructorOptions) {
     super();
@@ -34,7 +45,15 @@ class AnalysisProcessor extends AudioWorkletProcessor {
   }
 
   process(inputs: Float32Array[][]): boolean {
-    this.core.process(inputs[0] ?? NO_CHANNELS, currentFrame);
+    const input = inputs[0] ?? NO_CHANNELS;
+    // No channels = nothing connected (before the source is connected, or after a disconnect).
+    if (input.length > 0) {
+      this.sawInput = true;
+      this.idleQuanta = 0;
+    } else if (this.sawInput && ++this.idleQuanta >= this.retireAfter) {
+      return false;
+    }
+    this.core.process(input, currentFrame);
     return true;
   }
 }

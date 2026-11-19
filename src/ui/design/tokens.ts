@@ -39,13 +39,27 @@ export const STRING_COLORS: Readonly<Record<StringNumber, string>> = {
   6: '#ff5a64',
 };
 
-/** Feedback colour per judge outcome (`--judge-perfect` …). Neon; use with a glow on dark. */
+/**
+ * Feedback colour per judge outcome (`--judge-perfect` …). Neon; use with a glow on dark. None of
+ * them is a lane colour (CIE76 ΔE ≥ 30 from every string colour; R2-U-02): hits run white → cyan →
+ * mint, a wrong note is magenta (with a ✕), a miss grey (with a hollow ring), so an outcome never
+ * reads as "the A string" or "the low E".
+ */
 export const JUDGEMENT_COLORS: Readonly<Record<Outcome, string>> = {
-  Perfect: '#ffd84a',
-  Great: '#4cf5a6',
-  Good: '#52bfff',
-  WrongNote: '#ff4f73',
+  Perfect: '#ffffff',
+  Great: '#6ff4ff',
+  Good: '#a7ffeb',
+  WrongNote: '#ff2bd6',
   Miss: '#7d889b',
+};
+
+/**
+ * Early / late hint colours (`--judge-early`, `--judge-late`): icy blue for early, peach for late,
+ * always with a direction arrow (early ▸ toward the incoming notes, ◂ late behind the hit line).
+ */
+export const TIMING_COLORS: Readonly<Record<'early' | 'late', string>> = {
+  early: '#8fe3ff',
+  late: '#ffd1a8',
 };
 
 /** CSS custom-property suffix per outcome (`--judge-<suffix>`, `data-outcome="<suffix>"`). */

@@ -232,7 +232,7 @@ function drawGem(g: CanvasRenderingContext2D, cx: number, cy: number, r: number,
   shapePath();
   g.lineWidth = Math.max(1.5, r * 0.12);
   g.strokeStyle =
-    state === STATE_MISS ? HW_COLORS.missEdge : shape === SHAPE_DEAD ? base : state === STATE_WRONG ? '#ffd0da' : mix(base, '#ffffff', 0.6);
+    state === STATE_MISS ? HW_COLORS.missEdge : shape === SHAPE_DEAD ? base : state === STATE_WRONG ? '#ffc8f4' : mix(base, '#ffffff', 0.6);
   g.stroke();
 
   if (shape === SHAPE_DEAD) {

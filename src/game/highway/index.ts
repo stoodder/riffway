@@ -11,13 +11,22 @@
  */
 import type { SongClock } from '@shared/clock';
 import type { Highway, HighwayOptions } from '@shared/services';
+import type { FeedbackDetail } from '@shared/settings';
 import type { Song } from '@shared/song';
 import { prefersReducedMotion } from '../../ui/design/tokens';
 import { HighwayRenderer } from './renderer';
 
 export { HighwayRenderer } from './renderer';
 export { BASE_PX_PER_SEC, computeLayout, timeToX, xToTime, type HighwayLayout } from './layout';
-export { bendLabel, prepareSong, type PreparedSong } from './prepare';
+export { bendLabel, laneNames, prepareSong, type PreparedSong } from './prepare';
+export { feedbackText, OUTCOME_WORD, TIMING_LABEL, wrongNoteOffset, type FeedbackText } from './feedback';
+export { CUE_LEAD_BEATS, CUE_LEAD_REAL_SEC } from './renderer';
+
+/** The game's highway: the frozen {@link Highway} plus game-only extras. */
+export interface GameHighway extends Highway {
+  /** What the gutter outcome text says (settings `game.feedbackDetail`; default `standard`). */
+  setFeedbackDetail(detail: FeedbackDetail): void;
+}
 
 /** CSS size of the canvas: its laid-out box, else its attributes (detached canvases in tests). */
 function cssSize(canvas: HTMLCanvasElement, dpr: number): { w: number; h: number } {
@@ -29,11 +38,12 @@ function cssSize(canvas: HTMLCanvasElement, dpr: number): { w: number; h: number
 
 /**
  * Create a highway on `canvas` for `song`. The renderer never advances time: each frame reads
- * `clock.heardSongTime(perfNow)` (and `clock.speed` for the x mapping). Call `start()` for the rAF
- * loop or `drawFrame(perfNow)` to step manually. Resizes are picked up automatically
- * (`ResizeObserver`) and on `resize()`.
+ * `clock.heardSongTime(perfNow)` (and the heard speed — `clock.heardSpeed(perfNow)` when the clock
+ * has it, else `clock.speed` — for the x mapping). Call `start()` for the rAF loop or
+ * `drawFrame(perfNow)` to step manually. Resizes are picked up automatically (`ResizeObserver`) and
+ * on `resize()`.
  */
-export function createHighway(canvas: HTMLCanvasElement, song: Song, clock: SongClock, opts: HighwayOptions): Highway {
+export function createHighway(canvas: HTMLCanvasElement, song: Song, clock: SongClock, opts: HighwayOptions): GameHighway {
   const renderer = new HighwayRenderer(canvas, song, clock, opts);
   const win = canvas.ownerDocument.defaultView ?? window;
   let rafId = 0;
@@ -78,6 +88,7 @@ export function createHighway(canvas: HTMLCanvasElement, song: Song, clock: Song
     stray: (s) => renderer.stray(s),
     setCombo: (combo, multiplier) => renderer.setCombo(combo, multiplier),
     setOptions: (patch) => renderer.setOptions(patch),
+    setFeedbackDetail: (detail) => renderer.setFeedbackDetail(detail),
     resize,
     dispose(): void {
       if (disposed) return;

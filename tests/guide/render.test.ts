@@ -99,7 +99,13 @@ function classTabSong(): Song {
   });
 }
 
-describe('GuideSynth onsets', () => {
+/**
+ * Offline synthesis is CPU-bound (seconds for the starter set): with parallel suites on a busy
+ * machine the 5 s default timeout flakes, so these tests get a generous one.
+ */
+const RENDER_TIMEOUT_MS = 60_000;
+
+describe('GuideSynth onsets', { timeout: RENDER_TIMEOUT_MS }, () => {
   const cases = (): Case[] => {
     const isolated = alphaTabCase(texBundle(ISOLATED_TEX));
     const ascii = classTabSong();
@@ -123,7 +129,7 @@ describe('GuideSynth onsets', () => {
   }
 });
 
-describe('GuideSynth pitch', () => {
+describe('GuideSynth pitch', { timeout: RENDER_TIMEOUT_MS }, () => {
   it('rendered pitch equals each note at 50% speed (alphaTab and DEC-21 recipes)', () => {
     const { song, recipe } = alphaTabCase(texBundle(ISOLATED_TEX));
     const speed = 0.5;
@@ -137,7 +143,7 @@ describe('GuideSynth pitch', () => {
   });
 });
 
-describe('GuideSynth ranges and chunks', () => {
+describe('GuideSynth ranges and chunks', { timeout: RENDER_TIMEOUT_MS }, () => {
   it('renders the song length scaled by 1/speed in 5 s chunks', () => {
     const { song, recipe } = alphaTabCase(texBundle(ISOLATED_TEX));
     for (const speed of [1, 0.5]) {

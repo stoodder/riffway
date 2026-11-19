@@ -76,8 +76,29 @@ export interface SessionEngine {
   readonly transport: Transport;
   /** `performance.now()` ms → context time in the heard domain (keyboard events). */
   perfToCtxTime(perfTimeMs: number): number;
-  readonly ctx: { readonly currentTime: number; readonly outputLatency?: number };
+  /**
+   * The context. `state` (`AudioContextState`, plus Safari's `'interrupted'`) is polled: a run whose
+   * context leaves `running` is paused (R2-I-06). Absent in tests that do not model it.
+   */
+  readonly ctx: { readonly currentTime: number; readonly outputLatency?: number; readonly state?: string };
 }
+
+/** Transport extras the real `TransportCore` has (feature-detected; tests may use plain transports). */
+interface TransportExtras {
+  /** Pass of the segment in effect now. */
+  readonly pass?: number;
+  /** Speed of the segment in effect at `ctxTime` (0 while paused). */
+  speedAt?(ctxTime: number): number;
+}
+
+/** Why the session paused itself (shown on the pause card); null after a user pause. */
+type PauseCause = 'guitar-lost' | 'audio-interrupted';
+
+/** Pause-card text per {@link PauseCause}. */
+const PAUSE_NOTICES: Readonly<Record<PauseCause, string>> = {
+  'guitar-lost': 'Guitar disconnected — plug it back in, or press Resume to continue with the keys.',
+  'audio-interrupted': 'Audio stopped (the system paused it) — press Resume to continue.',
+};
 
 /** Periodic driver (default: `setInterval` every {@link SESSION_TICK_MS}). */
 export interface SessionTicker {
@@ -101,8 +122,11 @@ export interface SessionDeps {
   guide: Pick<GuideService, 'setSpeed' | 'setMuted'> | null;
   /** Backing service (its `link` decides guide muting), or null. */
   backing: Pick<BackingService, 'link'> | null;
-  /** Open guitar input, or null (keyboard only). */
-  input: Pick<InputService, 'onInput' | 'expect'> | null;
+  /**
+   * Open guitar input, or null (keyboard only). With `current` and `onDevicesChanged` the session
+   * notices an unplugged guitar (R2-I-04).
+   */
+  input: (Pick<InputService, 'onInput' | 'expect'> & Partial<Pick<InputService, 'current' | 'onDevicesChanged'>>) | null;
   difficulty: DifficultyReport | null;
   entry: IndexEntry | null;
   comfortTier: number;
@@ -146,8 +170,10 @@ interface Run {
   /** Slowest speed played (a run counts at its slowest speed). */
   minSpeed: number;
   hadLoop: boolean;
-  /** Latest playing speed per pass. */
+  /** Slowest speed each pass actually played (segments that started; R2-I-03). */
   readonly passSpeed: Map<number, number>;
+  /** The guitar was unplugged during the run: it is not saved (R2-I-04). */
+  guitarLost: boolean;
   /** Bar loop in effect when each pass started. */
   readonly passLoop: Map<number, BarLoop | null>;
   /** Passes to evaluate (speed trainer, section progress) once their notes are final. */
@@ -211,7 +237,10 @@ export class GameSessionImpl implements GameSession {
   private readonly messageListeners = new Set<(m: PracticeMessage) => void>();
   private readonly stateListeners = new Set<(s: SessionState) => void>();
   private readonly runEndListeners = new Set<(summary: RunSummary, runId: number | null) => void>();
+  private readonly inputStatusListeners = new Set<(connected: boolean) => void>();
   private _state: SessionState = 'ready';
+  private _guitarConnected = true;
+  private pauseCause: PauseCause | null = null;
   private run: Run | null = null;
   private lastJudgeState: JudgeState = EMPTY_STATE;
   /** Judgements of the current (or last) run, for the test hook. */
@@ -276,7 +305,11 @@ export class GameSessionImpl implements GameSession {
         this.applyGuideMute();
       }),
     );
-    if (deps.input) this.unsubs.push(deps.input.onInput((ev) => this.input(ev)));
+    if (deps.input) {
+      this.unsubs.push(deps.input.onInput((ev) => this.input(ev)));
+      const devices = deps.input.onDevicesChanged?.bind(deps.input);
+      if (devices) this.unsubs.push(devices(() => this.onInputDevices()));
+    }
     this.applyGuideMute();
     this.ticker.start(() => this.tick());
   }
@@ -336,6 +369,16 @@ export class GameSessionImpl implements GameSession {
     return { ...this.trainer };
   }
 
+  /** False while the guitar input is unplugged (true without a guitar). */
+  get guitarConnected(): boolean {
+    return this._guitarConnected;
+  }
+
+  /** Why the session paused itself (guitar unplugged, audio stopped), for the pause card; else null. */
+  get pauseNotice(): string | null {
+    return this.pauseCause ? PAUSE_NOTICES[this.pauseCause] : null;
+  }
+
   judgeState(): JudgeState {
     return this.run ? this.run.judge.state() : this.lastJudgeState;
   }
@@ -356,6 +399,7 @@ export class GameSessionImpl implements GameSession {
       return;
     }
     if (this._state === 'paused') {
+      this.pauseCause = null;
       this.engine.transport.play({ countInBars: this._countInBars });
       this.syncState();
     }
@@ -472,6 +516,12 @@ export class GameSessionImpl implements GameSession {
     return () => this.runEndListeners.delete(cb);
   }
 
+  /** The guitar input was unplugged (false) or is back (true). */
+  onInputStatus(cb: (connected: boolean) => void): Unsubscribe {
+    this.inputStatusListeners.add(cb);
+    return () => this.inputStatusListeners.delete(cb);
+  }
+
   // -------------------------------------------------------------------------------------------
   // Input
   // -------------------------------------------------------------------------------------------
@@ -494,7 +544,7 @@ export class GameSessionImpl implements GameSession {
     const offsetMs = this.deps.settings.get().calibration.keyboardOffsetMs;
     const ctxTime = this.engine.perfToCtxTime(press.timeStampMs) - offsetMs / 1000;
     const songTime = this.engine.clock.songTimeAt(ctxTime);
-    const midi = laneMidi(this.song, this.lanes, press.lane, songTime, this.run.windows.good * this.speed, press.wrongPitch);
+    const midi = laneMidi(this.song, this.lanes, press.lane, songTime, this.run.windows.good * this.playingSpeed(ctxTime), press.wrongPitch);
     const ev: InputEvent = { ctxTime, kind: 'onset', midi, cents: 0, clarity: 1, source: 'keyboard' };
     this.input(ev);
     return ev;
@@ -540,6 +590,7 @@ export class GameSessionImpl implements GameSession {
     this.messageListeners.clear();
     this.stateListeners.clear();
     this.runEndListeners.clear();
+    this.inputStatusListeners.clear();
     await this.deps.onDispose?.();
   }
 
@@ -551,7 +602,12 @@ export class GameSessionImpl implements GameSession {
     const run = this.run;
     if (run && !run.done) {
       const ts = this.engine.transport.state;
-      if (ts === 'playing' || ts === 'count-in') run.activeSec += Math.min(0.5, Math.max(0, now - run.lastCtx));
+      if (ts === 'playing' || ts === 'count-in') {
+        run.activeSec += Math.min(0.5, Math.max(0, now - run.lastCtx));
+        this.trackPassSpeed(run, now);
+        const cs = this.engine.ctx.state;
+        if (cs !== undefined && cs !== 'running') this.pauseFor('audio-interrupted');
+      }
       run.lastCtx = now;
       const horizon = this.horizon(now);
       this.dispatch(run, run.judge.advance(horizon));
@@ -586,7 +642,8 @@ export class GameSessionImpl implements GameSession {
       lastCtx: now,
       minSpeed: t.speed,
       hadLoop: this.barLoop !== null,
-      passSpeed: new Map([[0, t.speed]]),
+      passSpeed: new Map(),
+      guitarLost: false,
       passLoop: new Map([[0, this.barLoop]]),
       pendingEvals: [],
       endCtx: null,
@@ -632,6 +689,7 @@ export class GameSessionImpl implements GameSession {
     this.lastJudgeState = run.judge.state();
     this.run = null;
     this.hasEnded = true;
+    this.pauseCause = null;
     if (kind !== 'completed') this.engine.transport.stop();
     this.syncState();
     if (kind === 'quit' || summary.judgedNotes === 0) {
@@ -639,8 +697,14 @@ export class GameSessionImpl implements GameSession {
       this.emitRunEnd(summary, null);
       return null;
     }
+    // A run that lost its guitar is shown but not saved: its misses are the cable's, not the player's.
+    const save = this.deps.storage !== null && !run.guitarLost;
+    if (run.guitarLost) {
+      this.recordTimeOnly(run);
+      this.emitMessage({ kind: 'info', text: "This run wasn't saved: the guitar disconnected during it." });
+    }
     const completed = kind === 'completed' && !run.hadLoop;
-    if (!run.hadLoop) {
+    if (!run.hadLoop && !run.guitarLost) {
       for (const s of completedSections(this.song, run.judgements)) {
         run.sectionUpdates.push(this.book.apply({ sectionIdx: s.idx, accuracy: s.accuracy, clean: s.clean, speed: run.minSpeed, at: this.now() }));
       }
@@ -648,7 +712,7 @@ export class GameSessionImpl implements GameSession {
     const endedAt = this.now();
     const inputSource = (['guitar', 'keyboard', 'test'] as const).reduce((a, b) => (run.sourceCounts[b] > run.sourceCounts[a] ? b : a), 'keyboard' as InputSource);
     let saved: SavedRun | null = null;
-    if (this.deps.storage) {
+    if (save && this.deps.storage) {
       try {
         saved = await persistRun(this.deps.storage, {
           songId: this.songId,
@@ -724,13 +788,71 @@ export class GameSessionImpl implements GameSession {
           run.pendingEvals.push({ pass: prev, at: change.anchor.anchorCtxTime + run.windows.good + SETTLE_MARGIN_SEC });
         }
       }
+      // Without `speedAt` (plain transports) a change's speed counts from when it is announced.
       const speed = change.anchor.speed;
-      if (speed > 0 && change.state !== 'paused' && change.state !== 'stopped') {
-        run.passSpeed.set(change.pass, speed);
-        run.minSpeed = Math.min(run.minSpeed, speed);
+      if (!this.transportExtras.speedAt && speed > 0 && change.state !== 'paused' && change.state !== 'stopped') {
+        this.recordSpeed(run, change.pass, speed);
       }
     }
     this.syncState();
+  }
+
+  /**
+   * Record the speed playing now for the pass playing now (every tick while running), while the
+   * judged part plays: the loop region `[A, B)`, else song time ≥ 0 (not the pre-roll or count-in).
+   * Only segments that have started count, so a bar-aligned change announced in a pass's last bar
+   * but played in the next one does not count for it (R2-I-03).
+   */
+  private trackPassSpeed(run: Run, now: number): void {
+    const speedAt = this.transportExtras.speedAt;
+    if (!speedAt) return;
+    const speed = speedAt.call(this.engine.transport, now);
+    if (!(speed > 0)) return;
+    const songTime = this.engine.clock.songTimeAt(now);
+    const loop = this.engine.transport.loop;
+    if (loop ? songTime < loop.start || songTime >= loop.end : songTime < 0) return;
+    this.recordSpeed(run, this.playingPass(run), speed);
+  }
+
+  private recordSpeed(run: Run, pass: number, speed: number): void {
+    run.passSpeed.set(pass, Math.min(run.passSpeed.get(pass) ?? Infinity, speed));
+    run.minSpeed = Math.min(run.minSpeed, speed);
+  }
+
+  /** Speed playing at `ctxTime` (the requested one while paused or when the transport can't say). */
+  private playingSpeed(ctxTime: number): number {
+    const speed = this.transportExtras.speedAt?.call(this.engine.transport, ctxTime) ?? 0;
+    return speed > 0 ? speed : this.speed;
+  }
+
+  private get transportExtras(): TransportExtras {
+    return this.engine.transport as Transport & TransportExtras;
+  }
+
+  /** Pause the run on the session's own account (shown on the pause card). */
+  private pauseFor(cause: PauseCause): void {
+    if (!this.run || this.run.done) return;
+    const ts = this.engine.transport.state;
+    if (ts !== 'playing' && ts !== 'count-in') return;
+    this.pauseCause = cause;
+    this.emitMessage({ kind: 'info', text: PAUSE_NOTICES[cause] });
+    this.pause();
+  }
+
+  /** The input's devices changed: notice an unplugged guitar (and its return). */
+  private onInputDevices(): void {
+    const input = this.deps.input;
+    if (!input || !('current' in input)) return;
+    const connected = input.current !== null && input.current !== undefined;
+    if (connected === this._guitarConnected) return;
+    this._guitarConnected = connected;
+    const run = this.run;
+    if (!connected && run && !run.done) {
+      run.guitarLost = true;
+      this.pauseFor('guitar-lost');
+    }
+    if (connected && this.pauseCause === 'guitar-lost') this.pauseCause = null;
+    for (const cb of [...this.inputStatusListeners]) cb(connected);
   }
 
   private onEnded(): void {
@@ -846,7 +968,7 @@ export class GameSessionImpl implements GameSession {
    * the wrap is announced and the judge switches.
    */
   private playingPass(run: Run): number {
-    const p = (this.engine.transport as Transport & { readonly pass?: unknown }).pass;
+    const p = this.transportExtras.pass;
     return typeof p === 'number' ? Math.max(p, run.judgePass) : run.judgePass;
   }
 
@@ -867,7 +989,7 @@ export class GameSessionImpl implements GameSession {
       }
       if (!Number.isFinite(t) || t > now) return;
       this.testQueue.shift();
-      const midi = laneMidi(this.song, this.lanes, next.lane, next.songTime, run.windows.good * this.speed, next.wrongPitch ?? false);
+      const midi = laneMidi(this.song, this.lanes, next.lane, next.songTime, run.windows.good * this.playingSpeed(t), next.wrongPitch ?? false);
       this.input({ ctxTime: t, kind: 'onset', midi, cents: 0, clarity: 1, source: 'test' });
     }
   }

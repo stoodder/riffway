@@ -102,6 +102,13 @@ running, timestamp older than 1 s) the fallback is `currentTime − baseLatency 
   exactly). If that bar line is loop B, the wrap carries the new speed. While paused it applies
   immediately. A newer `setSpeed` supersedes a pending one; a rejected `ready` keeps the old speed.
   `transport.speed` is the requested speed; speeds are clamped to 40–110%.
+- A loop change (set, nudge, clear, or a pre-roll refresh when the speed crosses 60%) splits the
+  running segment, which drops the segments after it. A bar-aligned speed change still pending is
+  then placed again at the next bar line (or loop B), so it is never lost (R2-I-02).
+- What *plays* is `speedAt(ctx)`, the speed of the segment in effect. The engine's clock also has
+  `heardSpeed(perfNow)`: the speed at the heard time (the requested speed while paused). The
+  highway maps x with it, so gem spacing changes when the new speed is heard, not when it is
+  requested; the keyboard / test-hook pitch window and the per-pass speed use `speedAt` too.
 - Backing audio uses signalsmith-stretch `rate = speed × warpSlope` (see backing alignment).
 
 ## Count-in, loops and pre-roll
@@ -235,6 +242,9 @@ spanning two added buffers once playback passes the first, so chunked/streamed l
   levels below threshold, which would add latency to monitoring and shift clicks.
 - `setSampleRate()` recreates the context: the transport pauses at the current song time on the new
   clock, the mixer is rebuilt with the same levels, `onContextChange` fires; sources reconnect.
+- A context the OS or a device suspends or interrupts mid-run freezes the clock: the game session
+  polls `ctx.state` every tick and pauses the run with a notice; Resume goes through the audio
+  gesture, which resumes the context (game-mechanics.md § Game session).
 
 ## Test targets
 - Scheduled click vs `OfflineAudioContext` render: error ≤ 1 sample — across a tempo/meter change, a
@@ -242,6 +252,8 @@ spanning two added buffers once playback passes the first, so chunked/streamed l
   the transport is ticked at render-time `suspend()` points like the live timer).
 - Clock round trip `songTimeAt(ctxTimeAt(t)) = t` across speed changes and loop wraps (≤ 1 µs), and
   throttled ticks (1 s gaps) never play a click late (`tests/engine/*.test.ts`, fake clock).
+- A pending bar-aligned speed change survives a loop set/clear in the bar before it
+  (`tests/engine/transport.test.ts`).
 - Pass numbering, `ctxTimeInPass`, one `loop-wrap` per pass (`tests/engine/transport.test.ts`), and the
   judge driven through the real transport: 1–4-bar loops at 40–100%, hidden-tab horizon, pause/resume,
   seeks, speed and loop changes just before B (`tests/judge/transport-integration.test.ts`).

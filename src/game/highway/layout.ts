@@ -90,7 +90,8 @@ export function computeLayout(width: number, height: number, dpr: number, noteSp
   const ns = clamp(Number.isFinite(noteSpeed) ? noteSpeed : 1, NOTE_SPEED_MIN, NOTE_SPEED_MAX);
   out.pxPerSec = BASE_PX_PER_SEC * ns;
   out.fadeW = Math.round(out.gemR * 4.5);
-  out.popupRight = out.hitX - out.gemR - 12;
+  // Clear of the target well and of a late tick just left of it (fx.ts).
+  out.popupRight = out.hitX - out.gemR - 20;
   out.badgeR = Math.round(clamp(out.laneH * 0.62, 22, 36));
   out.comboX = out.badgeR + 18;
   out.comboY = Math.round((out.lanesTop + out.lanesBottom) / 2 - out.badgeR * 0.35);

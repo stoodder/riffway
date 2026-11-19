@@ -8,6 +8,7 @@
  */
 import type { HandPositionAnalysis, SlideType, Song } from '@shared/song';
 import { midiToName, onsetGroups } from '@core/model';
+import { beatLengthAt } from '@core/handpos';
 
 /** Per-note technique / role flags (`PreparedSong.flags`). */
 export const F_HAMMER = 1 << 0;
@@ -99,6 +100,10 @@ export interface PreparedHandPositions {
     up: Uint8Array;
     /** `'7fr'`. */
     label: string[];
+    /** `'5fr ▸ 7fr'`: the shift, for the position pill on the hit line while the cue is pending. */
+    shift: string[];
+    /** Metronome beat length at the cue (song s), for the beat-based lead. */
+    beat: Float64Array;
   };
   positions: {
     n: number;
@@ -185,8 +190,11 @@ export function longScanStart(p: PreparedSong, from: number): number {
   return lowerBound(p.longMaxEnd, from);
 }
 
-/** Build hand-position draw data from a `computePositions` result. */
-export function prepareHandPositions(a: HandPositionAnalysis): PreparedHandPositions {
+/**
+ * Build hand-position draw data from a `computePositions` result. `song` gives each cue's beat
+ * length (0.5 s without it).
+ */
+export function prepareHandPositions(a: HandPositionAnalysis, song?: Pick<Song, 'timing'>): PreparedHandPositions {
   const cues = [...a.cues].sort((x, y) => x.time - y.time);
   const positions = [...a.positions].sort((x, y) => x.start - y.start);
   return {
@@ -196,6 +204,8 @@ export function prepareHandPositions(a: HandPositionAnalysis): PreparedHandPosit
       time: Float64Array.from(cues, (c) => c.time),
       up: Uint8Array.from(cues, (c) => (c.lo > c.fromLo ? 1 : 0)),
       label: cues.map((c) => `${c.lo}fr`),
+      shift: cues.map((c) => `${c.fromLo}fr ${c.lo > c.fromLo ? '▲' : '▼'} ${c.lo}fr`),
+      beat: Float64Array.from(cues, (c) => (song ? beatLengthAt(song, c.time) : 0.5)),
     },
     positions: {
       n: positions.length,
@@ -357,14 +367,15 @@ export function prepareSong(song: Song, hand?: HandPositionAnalysis | null): Pre
       chordAt: sectionChord,
     },
     palmMute: { n: pmStart.length, start: Float64Array.from(pmStart), end: Float64Array.from(pmEnd) },
-    hand: hand ? prepareHandPositions(hand) : null,
+    hand: hand ? prepareHandPositions(hand, song) : null,
     duration: Math.max(song.meta.durationSec, lastNoteEnd),
   };
 }
 
 /**
  * Lane letters from the tuning (index = string number; index 0 unused): `['', 'e', 'B', 'G', 'D', 'A', 'E']`
- * for standard. String 1 is lower-cased when it shares its letter name with string 6 (tab convention).
+ * for standard, `['', 'e', 'B', 'G', 'D', 'A', 'D']` for Drop D. String 1's letter is always lower
+ * case (tab convention: the high string), so it never reads as the low string (R2-U-06).
  */
 export function laneNames(tuning: readonly number[]): string[] {
   const out = [''];
@@ -372,6 +383,6 @@ export function laneNames(tuning: readonly number[]): string[] {
     const midi = tuning[s - 1];
     out.push(midi === undefined ? '' : midiToName(midi).replace(/-?\d+$/, ''));
   }
-  if (out[1] && out[1] === out[6]) out[1] = out[1].toLowerCase();
+  if (out[1]) out[1] = out[1].charAt(0).toLowerCase() + out[1].slice(1);
   return out;
 }

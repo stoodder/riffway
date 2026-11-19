@@ -74,6 +74,35 @@ describe('analysis worklet (OfflineAudioContext)', () => {
   });
 });
 
+describe('analysis worklet lifetime (R2-I-08)', () => {
+  it('a node whose input is disconnected (a retired graph) stops processing', async () => {
+    const length = 4 * SR;
+    const ctx = new OfflineAudioContext({ numberOfChannels: 1, length, sampleRate: SR });
+    const node = await createAnalysisNode(ctx, { channel: 0, tuner: false });
+    const levels: number[] = [];
+    node.port.onmessage = (e: MessageEvent<AnalysisEvent>) => {
+      if (e.data.type === 'level') levels.push(e.data.frame);
+    };
+    const tone = ctx.createBuffer(1, length, SR);
+    tone.getChannelData(0).forEach((_, i, a) => (a[i] = 0.2 * Math.sin((2 * Math.PI * 220 * i) / SR)));
+    const src = ctx.createBufferSource();
+    src.buffer = tone;
+    src.connect(node);
+    src.start(0);
+    // Retire the graph at 1 s, like `dispose()` does (the source is disconnected).
+    void ctx.suspend(1).then(() => {
+      src.disconnect();
+      void ctx.resume();
+    });
+    await ctx.startRendering();
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 20));
+    expect(levels.length).toBeGreaterThan(10);
+    // Still analysing right after the disconnect, stopped well before the render ends.
+    expect(Math.max(...levels)).toBeGreaterThan(1.05 * SR);
+    expect(Math.max(...levels)).toBeLessThan(2 * SR);
+  });
+});
+
 describe('input service with Chrome’s fake capture device', () => {
   let engine: AudioEngine | null = null;
 

@@ -126,10 +126,30 @@ export class FakeGuide {
   }
 }
 
-/** Fake guitar input: emit calibrated events, record `expect` hints. */
+/** Fake guitar input: emit calibrated events, record `expect` hints, unplug / replug. */
 export class FakeInput {
   readonly hints: ({ minMidi: number; maxMidi: number } | null)[] = [];
+  current: InputService['current'] = { device: { deviceId: 'usb', label: 'USB Guitar', kind: 'audioinput' } } as InputService['current'];
   private cb: Parameters<InputService['onInput']>[0] | null = null;
+  private readonly deviceListeners = new Set<() => void>();
+  private readonly device = this.current;
+  onDevicesChanged(cb: () => void): () => void {
+    this.deviceListeners.add(cb);
+    return () => this.deviceListeners.delete(cb);
+  }
+  /** The track ended (unplugged): the input tears down and announces it. */
+  disconnect(): void {
+    this.current = null;
+    this.devicesChanged();
+  }
+  /** The input re-opened. */
+  reconnect(): void {
+    this.current = this.device;
+    this.devicesChanged();
+  }
+  devicesChanged(): void {
+    for (const cb of [...this.deviceListeners]) cb();
+  }
   onInput(cb: Parameters<InputService['onInput']>[0]): () => void {
     this.cb = cb;
     return () => {
@@ -155,6 +175,8 @@ export interface RigOptions {
 /** A session on a real transport with a fake context clock. */
 export class Rig {
   readonly clock = { t: 100 };
+  /** `AudioContext.state` the session sees. */
+  ctxState: string = 'running';
   readonly core: TransportCore;
   readonly songClock: SongClock;
   readonly ticker = new ManualTicker();
@@ -178,6 +200,7 @@ export class Rig {
       () => 0,
     );
     const clock = this.clock;
+    const ctxState = (): string => this.ctxState;
     const engine = {
       clock: this.songClock,
       transport: this.core,
@@ -185,6 +208,9 @@ export class Rig {
       ctx: {
         get currentTime() {
           return clock.t;
+        },
+        get state() {
+          return ctxState();
         },
         outputLatency: 0,
       },

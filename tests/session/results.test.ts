@@ -14,7 +14,8 @@ import {
   sectionTargetCounts,
 } from '../../src/game/session/progress';
 import { nextSteps, recallResult, rememberResult, resultFromRecord, resultKey, timingTendency, weakestOf, type RunResult } from '../../src/game/session/results';
-import { highwayJudgement, outcomeDetail } from '../../src/ui/screens/game/hud';
+import { feedbackText, wrongNoteOffset } from '../../src/game/highway/feedback';
+import { displayArtist, liveAccuracy, MIN_NOTES_FOR_ACCURACY, ProvisionalWrongs } from '../../src/ui/screens/game/hud';
 import { makeSong } from './helpers';
 
 function hist(entries: [number, number][]): TimingHistogram {
@@ -159,16 +160,54 @@ describe('run bookkeeping', () => {
 });
 
 describe('HUD feedback detail', () => {
-  it('minimal hides sub-labels, standard shows early/late and the played note, detailed adds ms', () => {
+  it('minimal shows the word only; standard adds early/late with its arrow and frets off; detailed adds ms and the note', () => {
     const late = j({ outcome: 'Good', deltaMs: 92, timing: 'late' });
-    const wrong = j({ outcome: 'WrongNote', playedMidi: 67 });
-    expect(outcomeDetail(late, 'minimal')).toBe('');
-    expect(outcomeDetail(late, 'standard')).toBe('late');
-    expect(outcomeDetail(late, 'detailed')).toBe('late · +92 ms');
-    expect(outcomeDetail(j({ deltaMs: -12 }), 'detailed')).toBe('-12 ms');
-    expect(outcomeDetail(wrong, 'standard')).toBe('played G4');
-    expect(highwayJudgement(wrong, 'minimal').playedMidi).toBeUndefined();
-    expect(highwayJudgement(late, 'minimal').timing).toBeNull();
-    expect(highwayJudgement(late, 'standard')).toBe(late);
+    const early = j({ outcome: 'Good', deltaMs: -95, timing: 'early' });
+    const wrong = j({ outcome: 'WrongNote', playedMidi: 65 });
+    expect(feedbackText(late, 'minimal')).toEqual({ word: 'GOOD', sub: '', timing: null });
+    expect(feedbackText(late, 'standard')).toEqual({ word: 'GOOD', sub: '◂ LATE', timing: 'late' });
+    expect(feedbackText(early, 'standard')).toEqual({ word: 'GOOD', sub: 'EARLY ▸', timing: 'early' });
+    expect(feedbackText(late, 'detailed').sub).toBe('◂ LATE +92 ms');
+    expect(feedbackText(j({ deltaMs: -12 }), 'detailed').sub).toBe('−12 ms');
+    // A wrong note in a tab reader's terms (R2-U-17); the pitch name only in detailed mode.
+    expect(feedbackText(wrong, 'standard')).toEqual({ word: 'WRONG NOTE', sub: '1 fret high', timing: null });
+    expect(feedbackText(wrong, 'detailed').sub).toBe('played F4 · 1 fret high');
+    expect(feedbackText(wrong, 'minimal').sub).toBe('');
+    expect(feedbackText(j({ outcome: 'Miss', deltaMs: null }), 'detailed')).toEqual({ word: 'MISS', sub: '', timing: null });
+  });
+
+  it('describes wrong notes in frets and octaves', () => {
+    expect(wrongNoteOffset({ playedMidi: 62, expectedMidi: 64, chord: false })).toBe('2 frets low');
+    expect(wrongNoteOffset({ playedMidi: 76, expectedMidi: 64, chord: false })).toBe('an octave high');
+    expect(wrongNoteOffset({ playedMidi: 40, expectedMidi: 64, chord: false })).toBe('2 octaves low');
+    expect(wrongNoteOffset({ playedMidi: 61, expectedMidi: 64, chord: true })).toBe('not a chord tone');
+    expect(wrongNoteOffset({ expectedMidi: 64, chord: false })).toBeNull();
+  });
+});
+
+describe('HUD live accuracy (R2-U-16)', () => {
+  it('counts provisional wrong notes at once and shows nothing until a few notes are judged', () => {
+    const wrongs = new ProvisionalWrongs();
+    expect(liveAccuracy({ accuracy: 0, judgedNotes: 0 }, 0)).toBeNull();
+    // One early miss is not "0 %".
+    expect(liveAccuracy({ accuracy: 0, judgedNotes: 1 }, 0)).toBeNull();
+    // Four hits and a provisional wrong note: 80 %, not 100 %.
+    wrongs.judgement(j({ outcome: 'WrongNote', final: false, noteIds: [4] }));
+    expect(wrongs.count).toBe(1);
+    expect(liveAccuracy({ accuracy: 100, judgedNotes: MIN_NOTES_FOR_ACCURACY - 1 }, wrongs.count)).toBeCloseTo(80, 9);
+    // Upgraded to a hit (or fixed as wrong): it is no longer provisional.
+    wrongs.judgement(j({ outcome: 'Perfect', final: true, noteIds: [4] }));
+    expect(wrongs.count).toBe(0);
+    wrongs.judgement(j({ outcome: 'WrongNote', final: false, noteIds: [7, 8] }));
+    expect(wrongs.count).toBe(2);
+    wrongs.reset();
+    expect(wrongs.count).toBe(0);
+  });
+
+  it('hides "Riffway" as the artist of starter originals (T-041 note 6)', () => {
+    expect(displayArtist('Riffway')).toBeNull();
+    expect(displayArtist(' riffway ')).toBeNull();
+    expect(displayArtist('Traditional')).toBe('Traditional');
+    expect(displayArtist(null)).toBeNull();
   });
 });

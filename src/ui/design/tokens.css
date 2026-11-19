@@ -40,11 +40,14 @@
   --string-6: #ff5a64;
 
   /* ---- Judgements -------------------------------------------------------------------------- */
-  --judge-perfect: #ffd84a;
-  --judge-great: #4cf5a6;
-  --judge-good: #52bfff;
-  --judge-wrong: #ff4f73;
+  /* Never a lane colour (R2-U-02): hits white → cyan → mint, wrong magenta, miss grey. */
+  --judge-perfect: #ffffff;
+  --judge-great: #6ff4ff;
+  --judge-good: #a7ffeb;
+  --judge-wrong: #ff2bd6;
   --judge-miss: #7d889b;
+  --judge-early: #8fe3ff;
+  --judge-late: #ffd1a8;
 
   /* ---- Difficulty tiers 1–10 --------------------------------------------------------------- */
   --tier-1: #3ee283;

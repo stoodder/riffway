@@ -92,6 +92,37 @@ describe('keyboard mapping', () => {
     fire({ code: 'Digit1' });
     expect(lane).toHaveBeenCalledTimes(3);
   });
+
+  it('a focused slider, checkbox or radio never swallows lane keys; text fields do (R2-I-05)', () => {
+    const lane = vi.fn();
+    const detach = attachKeyboard(window, () => KEYS, { lane, escape: vi.fn(), start: vi.fn() });
+    const fire = (target: EventTarget): KeyboardEvent => {
+      const ev = new KeyboardEvent('keydown', { bubbles: true, cancelable: true, code: 'Digit3' });
+      target.dispatchEvent(ev);
+      return ev;
+    };
+    for (const type of ['range', 'checkbox', 'radio', 'button']) {
+      const el = document.createElement('input');
+      el.type = type;
+      document.body.append(el);
+      expect(fire(el).defaultPrevented).toBe(true);
+    }
+    expect(lane).toHaveBeenCalledTimes(4);
+    for (const type of ['text', 'number', 'search']) {
+      const el = document.createElement('input');
+      el.type = type;
+      document.body.append(el);
+      fire(el);
+    }
+    fire(document.body.appendChild(document.createElement('textarea')));
+    const editable = document.body.appendChild(document.createElement('div'));
+    editable.contentEditable = 'true';
+    fire(editable);
+    const select = document.body.appendChild(document.createElement('select'));
+    fire(select);
+    expect(lane).toHaveBeenCalledTimes(4);
+    detach();
+  });
 });
 
 describe('expect hints', () => {

@@ -11,6 +11,7 @@ import {
   STRING_COLORS,
   SURFACE_COLORS,
   TIER_COLORS,
+  TIMING_COLORS,
   tierBandName,
 } from '../../src/ui/design/tokens';
 
@@ -58,6 +59,7 @@ describe('design tokens', () => {
   it('mirrors the TS palettes exactly in tokens.css', () => {
     for (const [s, c] of Object.entries(STRING_COLORS)) expect(vars.get(`--string-${s}`)).toBe(c);
     for (const o of OUTCOMES) expect(vars.get(`--judge-${OUTCOME_SLUG[o]}`)).toBe(JUDGEMENT_COLORS[o]);
+    expect([vars.get('--judge-early'), vars.get('--judge-late')]).toEqual([TIMING_COLORS.early, TIMING_COLORS.late]);
     for (const [t, c] of Object.entries(TIER_COLORS)) expect(vars.get(`--tier-${t}`)).toBe(c);
     const surfaceVar: Record<keyof typeof SURFACE_COLORS, string> = {
       bg: '--color-bg',
@@ -85,7 +87,14 @@ describe('design tokens', () => {
 
   it('keeps text, string and judgement colours readable (≥ 4.5:1) on every surface', () => {
     const surfaces = [SURFACE_COLORS.bg, SURFACE_COLORS.surface1, SURFACE_COLORS.surface2];
-    const fg = [SURFACE_COLORS.text, SURFACE_COLORS.textMuted, ...Object.values(STRING_COLORS), ...Object.values(JUDGEMENT_COLORS), ...Object.values(TIER_COLORS)];
+    const fg = [
+      SURFACE_COLORS.text,
+      SURFACE_COLORS.textMuted,
+      ...Object.values(STRING_COLORS),
+      ...Object.values(JUDGEMENT_COLORS),
+      ...Object.values(TIMING_COLORS),
+      ...Object.values(TIER_COLORS),
+    ];
     for (const bg of surfaces) for (const c of fg) expect(contrast(c, bg), `${c} on ${bg}`).toBeGreaterThanOrEqual(4.5);
     for (const bg of surfaces) expect(contrast(SURFACE_COLORS.textSubtle, bg)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(SURFACE_COLORS.focus, SURFACE_COLORS.bg)).toBeGreaterThanOrEqual(3);
@@ -98,6 +107,20 @@ describe('design tokens', () => {
         const d = Math.hypot(...(labs[i] as number[]).map((v, k) => v - ((labs[j] as number[])[k] as number)));
         expect(d).toBeGreaterThanOrEqual(30);
       }
+    }
+  });
+
+  it('keeps outcome and early/late colours apart from every lane colour, and early from late (R2-U-02)', () => {
+    const dE = (a: string, b: string): number => Math.hypot(...lab(a).map((v, k) => v - (lab(b)[k] as number)));
+    const feedback = { ...JUDGEMENT_COLORS, early: TIMING_COLORS.early, late: TIMING_COLORS.late };
+    for (const [name, c] of Object.entries(feedback)) {
+      for (const [s, lane] of Object.entries(STRING_COLORS)) expect(dE(c, lane), `${name} vs string ${s}`).toBeGreaterThanOrEqual(30);
+    }
+    expect(dE(TIMING_COLORS.early, TIMING_COLORS.late)).toBeGreaterThanOrEqual(30);
+    // Hits, wrong notes and misses are told apart by colour too.
+    for (const hit of [JUDGEMENT_COLORS.Perfect, JUDGEMENT_COLORS.Great, JUDGEMENT_COLORS.Good]) {
+      expect(dE(hit, JUDGEMENT_COLORS.WrongNote)).toBeGreaterThanOrEqual(30);
+      expect(dE(hit, JUDGEMENT_COLORS.Miss)).toBeGreaterThanOrEqual(30);
     }
   });
 

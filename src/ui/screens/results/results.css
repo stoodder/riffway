@@ -260,7 +260,8 @@
 }
 
 .rs-heat__cell {
-  --c: var(--judge-wrong);
+  /* Section accuracy is progress, not an outcome: semantic colours. */
+  --c: var(--color-danger);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -273,11 +274,11 @@
 }
 
 .rs-heat__cell[data-heat='hot'] {
-  --c: var(--judge-great);
+  --c: var(--color-success);
 }
 
 .rs-heat__cell[data-heat='warm'] {
-  --c: var(--judge-perfect);
+  --c: var(--color-warning);
 }
 
 .rs-heat__cell.is-weakest {
@@ -447,7 +448,9 @@
 
 .rs-actions {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--space-3);
+  margin-top: calc(-1 * var(--space-1));
 }
 
 @media (width < 900px) {

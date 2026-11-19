@@ -9,12 +9,32 @@
   padding: var(--space-3) var(--space-4) var(--space-3);
 }
 
+/*
+ * While a run plays or counts in, the app's top nav steps aside so the lanes get its height and
+ * nothing clickable competes with the highway (R2-U-04). Pause, the start card and results bring
+ * it back.
+ */
+.rw-app:has(.gm[data-state='playing'], .gm[data-state='count-in']) .rw-topbar {
+  display: none;
+}
+
+.rw-app:has(.gm[data-state='playing'], .gm[data-state='count-in']) .rw-main {
+  min-height: 100vh;
+}
+
 .gm {
+  --gm-chrome: var(--topbar-height);
+
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  height: calc(100vh - var(--topbar-height) - 2 * var(--space-3));
+  height: calc(100vh - var(--gm-chrome) - 2 * var(--space-3));
   min-height: 520px;
+}
+
+.gm[data-state='playing'],
+.gm[data-state='count-in'] {
+  --gm-chrome: 0px;
 }
 
 /* ---- HUD bar ------------------------------------------------------------------------------- */
@@ -111,12 +131,6 @@
   line-height: 1.15;
 }
 
-.gm-stat__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
 .gm-stat--score {
   min-width: 120px;
 }
@@ -124,10 +138,6 @@
 .gm-score {
   font-size: var(--text-xl);
   font-variant-numeric: tabular-nums;
-}
-
-.gm-combo .rw-combo {
-  height: 28px;
 }
 
 .gm-speed {
@@ -181,6 +191,18 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
+}
+
+.gm-pause-btn .gm-kbd {
+  padding: 0 5px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-1);
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: var(--weight-semibold);
+  line-height: 16px;
 }
 
 /* ---- Body: stage + footer + drawer ---------------------------------------------------------- */
@@ -248,92 +270,76 @@
   pointer-events: none;
 }
 
-.gm-pop {
-  position: absolute;
-  top: 9%;
-  left: 50%;
-  transform: translateX(-50%);
-  transition: opacity var(--dur-slow) var(--ease-in);
-}
-
-.gm-pop.is-out {
-  opacity: 0;
-}
-
-.gm-pop .rw-judge--lg {
-  font-size: 46px;
-}
-
-.gm-pop[data-outcome='Miss'] .rw-judge--lg {
-  font-size: 30px;
-  opacity: 0.8;
-}
-
-.gm-pop .rw-judge.is-flashing .rw-judge__label {
-  animation: gm-pop-in 300ms var(--ease-pop);
-}
-
-.gm-mult-pop {
-  position: absolute;
-  top: 34%;
-  left: 50%;
-  color: var(--neon-flame-hot);
-  font-family: var(--font-display);
-  font-size: 120px;
-  font-style: italic;
-  font-weight: 900;
-  opacity: 0;
-  text-shadow:
-    0 0 18px rgb(255 160 40 / 0.8),
-    0 0 48px rgb(255 61 94 / 0.5);
-  transform: translate(-50%, -50%);
-}
-
-.gm-mult-pop[data-mult='2'] {
-  color: var(--neon-flame-cool);
-}
-
-.gm-mult-pop[data-mult='3'] {
-  color: var(--neon-flame-mid);
-}
-
-.gm-mult-pop.is-flashing {
-  animation: gm-mult 900ms var(--ease-out);
-}
-
+/*
+ * Count-in / loop pre-roll countdown: over the gutter (left of the hit line, whose x is the
+ * renderer's clamp(24% of the width, 220, 340) px), above the combo cluster, never over the notes.
+ */
 .gm-countin {
   position: absolute;
-  top: 50%;
-  left: 50%;
+  top: 34px;
+  left: clamp(110px, 12%, 170px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   color: var(--color-text);
-  font-family: var(--font-display);
-  font-size: 140px;
-  font-weight: 900;
-  opacity: 0.9;
-  text-shadow: 0 0 30px rgb(255 138 43 / 0.55);
-  transform: translate(-50%, -50%);
+  transform: translateX(-50%);
 }
 
-.gm-countin.is-flashing {
+.gm-countin[hidden] {
+  display: none;
+}
+
+.gm-countin__n {
+  font-family: var(--font-display);
+  font-size: 96px;
+  font-weight: 900;
+  line-height: 1;
+  opacity: 0.92;
+  text-shadow: 0 0 30px rgb(255 138 43 / 0.55);
+}
+
+.gm-countin[data-kind='preroll'] .gm-countin__n {
+  font-size: 64px;
+}
+
+.gm-countin__n.is-flashing {
   animation: gm-count 450ms var(--ease-out);
 }
 
+.gm-countin__caption {
+  color: var(--color-accent-strong);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+}
+
+.gm-countin__caption:empty {
+  display: none;
+}
+
+/* Coach lines sit in the highway's top strip (30 px above the lanes), never over a lane. */
 .gm-coach {
   position: absolute;
-  top: var(--space-3);
-  right: var(--space-3);
-  max-width: 46%;
+  top: 3px;
+  right: var(--space-2);
+  max-width: 55%;
 }
 
 .gm-coach__line {
-  padding: var(--space-2) var(--space-3);
+  overflow: hidden;
+  height: 24px;
+  padding: 0 var(--space-3);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: rgb(14 18 24 / 0.88);
+  border-radius: var(--radius-pill);
+  background: rgb(14 18 24 / 0.94);
   box-shadow: var(--shadow-2);
   color: var(--color-text);
-  font-size: var(--text-sm);
+  font-size: 12px;
   font-weight: var(--weight-semibold);
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   animation: rw-fade-in var(--dur-base) var(--ease-standard);
   transition: opacity var(--dur-slow) var(--ease-in);
 }
@@ -352,21 +358,25 @@
   opacity: 0;
 }
 
+/* In the gutter's bottom strip (26 px under the lanes, left of the hit line): never on a lane (R2-U-05). */
 .gm-chord-note {
   position: absolute;
-  bottom: var(--space-3);
-  left: 50%;
+  bottom: 2px;
+  left: var(--space-2);
   display: inline-flex;
+  overflow: hidden;
   align-items: center;
-  gap: var(--space-2);
-  padding: 4px var(--space-3);
+  gap: 6px;
+  max-width: calc(clamp(220px, 24%, 340px) - 48px);
+  max-height: 22px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-sm);
   background: rgb(14 18 24 / 0.85);
   color: var(--color-text-muted);
-  font-size: var(--text-xs);
+  font-size: 10.5px;
   font-weight: var(--weight-semibold);
-  transform: translateX(-50%);
+  line-height: 10.5px;
 }
 
 .gm-chord-note[hidden] {
@@ -451,6 +461,26 @@
   background: rgb(255 200 61 / 0.1);
   color: var(--color-warning);
   text-align: left;
+}
+
+.gm-card__notice[hidden] {
+  display: none;
+}
+
+/* Retune reminder for a non-standard tuning (R2-U-06). */
+.gm-card__tuning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgb(255 200 61 / 0.35);
+  border-radius: var(--radius-md);
+  background: rgb(255 200 61 / 0.1);
+  color: var(--color-warning);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
 }
 
 .gm-card__actions {
@@ -560,7 +590,7 @@
 .gm-footer {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 8px;
 }
 
 .gm-footer__hint {
@@ -591,14 +621,14 @@
   display: flex;
   align-items: center;
   overflow: hidden;
-  padding: 0 6px;
+  padding: 0 8px 3px;
   border: 0;
   border-right: 2px solid var(--color-bg);
   border-bottom: 3px solid var(--color-surface-3);
   background: var(--color-surface-2);
-  color: var(--color-text-subtle);
+  color: var(--color-text-muted);
   font: inherit;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: var(--weight-semibold);
   text-align: left;
   white-space: nowrap;
@@ -617,16 +647,17 @@ button.gm-progress__seg:hover {
   color: var(--color-text);
 }
 
+/* Live section accuracy: progress semantics, not outcome colours. */
 .gm-progress__seg[data-heat='hot'] {
-  border-bottom-color: var(--judge-great);
+  border-bottom-color: var(--color-success);
 }
 
 .gm-progress__seg[data-heat='warm'] {
-  border-bottom-color: var(--judge-perfect);
+  border-bottom-color: var(--color-warning);
 }
 
 .gm-progress__seg[data-heat='cold'] {
-  border-bottom-color: var(--judge-wrong);
+  border-bottom-color: var(--color-danger);
 }
 
 .gm-progress__name {
@@ -648,15 +679,26 @@ button.gm-progress__seg:hover {
   display: none;
 }
 
+/* The playhead marks the underline (and a little below), so it never covers a section name (R2-U-18). */
 .gm-progress__playhead {
   position: absolute;
-  top: -4px;
-  bottom: -4px;
+  bottom: -5px;
   width: 3px;
+  height: 11px;
   margin-left: -1px;
   border-radius: 2px;
   background: var(--color-text);
   box-shadow: 0 0 8px rgb(255 255 255 / 0.5);
+  pointer-events: none;
+}
+
+.gm-progress__played {
+  position: absolute;
+  bottom: -5px;
+  left: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: rgb(233 237 243 / 0.55);
   pointer-events: none;
 }
 
@@ -667,61 +709,23 @@ button.gm-progress__seg:hover {
   text-align: right;
 }
 
-@keyframes gm-pop-in {
+@keyframes gm-count {
   0% {
-    opacity: 0.4;
-    transform: scale(1.45);
+    transform: scale(1.35);
   }
   100% {
-    opacity: 1;
     transform: scale(1);
   }
 }
 
-@keyframes gm-mult {
-  0% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(0.6);
-  }
-  25% {
-    opacity: 1;
-    transform: translate(-50%, -50%) scale(1.1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.25);
-  }
-}
-
-@keyframes gm-count {
-  0% {
-    transform: translate(-50%, -50%) scale(1.35);
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1);
-  }
-}
-
 /* Reduced motion (OS or ?e2e=1): keep the information, drop the movement. */
-:root[data-motion='reduced'] .gm-pop .rw-judge.is-flashing .rw-judge__label,
-:root[data-motion='reduced'] .gm-countin.is-flashing {
+:root[data-motion='reduced'] .gm-countin__n.is-flashing {
   animation: none;
-}
-
-:root[data-motion='reduced'] .gm-mult-pop.is-flashing {
-  animation: none;
-  opacity: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gm-pop .rw-judge.is-flashing .rw-judge__label,
-  .gm-countin.is-flashing {
+  .gm-countin__n.is-flashing {
     animation: none;
-  }
-
-  .gm-mult-pop.is-flashing {
-    animation: none;
-    opacity: 0;
   }
 }
 .gm--unavailable { height: auto; min-height: 0; }

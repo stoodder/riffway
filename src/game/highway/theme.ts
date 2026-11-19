@@ -6,7 +6,7 @@
  */
 import type { Outcome } from '@shared/judge';
 import type { StringNumber } from '@shared/song';
-import { JUDGEMENT_COLORS, NEON, STRING_COLORS, SURFACE_COLORS } from '../../ui/design/tokens';
+import { JUDGEMENT_COLORS, NEON, STRING_COLORS, SURFACE_COLORS, TIMING_COLORS } from '../../ui/design/tokens';
 
 /** String numbers top → bottom (1 = high e on top). */
 export const STRINGS: readonly StringNumber[] = [1, 2, 3, 4, 5, 6];
@@ -55,7 +55,7 @@ export function mix(a: string, b: string, t: number): string {
 }
 
 /** Colour of each multiplier (index = multiplier; ×1 calm white, ×2 blue, ×3 green, ×4 flame gold). */
-export const MULTIPLIER_COLORS: readonly string[] = ['#e9edf3', '#e9edf3', JUDGEMENT_COLORS.Good, JUDGEMENT_COLORS.Great, NEON.flameHot];
+export const MULTIPLIER_COLORS: readonly string[] = ['#e9edf3', '#e9edf3', '#52bfff', '#4cf5a6', NEON.flameHot];
 
 /** All canvas colours, keyed by role. */
 export const HW_COLORS = {
@@ -79,6 +79,8 @@ export const HW_COLORS = {
   chordFill: 'rgba(233, 237, 243, 0.06)',
   chordStroke: 'rgba(233, 237, 243, 0.42)',
   cue: SURFACE_COLORS.accent,
+  cueBand: 'rgba(255, 138, 43, 0.2)',
+  cueBandEnd: 'rgba(255, 138, 43, 0)',
   loopTint: 'rgba(255, 138, 43, 0.045)',
   loopDim: 'rgba(7, 9, 13, 0.6)',
   loopMarker: SURFACE_COLORS.accentStrong,
@@ -100,8 +102,9 @@ export const STRING_LINE_COLORS: readonly string[] = ['', ...STRINGS.map((s) => 
 /** Feedback colour per outcome code (index 0 unused). */
 export const OUTCOME_COLORS: readonly string[] = ['', ...OUTCOME_BY_CODE.slice(1).map((o) => JUDGEMENT_COLORS[o!])];
 
-/** Big outcome word per outcome code (Guitar-Hero punch, upper case). */
-export const OUTCOME_WORDS: readonly string[] = ['', 'PERFECT', 'GREAT', 'GOOD', 'WRONG NOTE', 'MISS'];
+/** Early / late hint colours (tokens `--judge-early` / `--judge-late`). */
+export const EARLY_COLOR = TIMING_COLORS.early;
+export const LATE_COLOR = TIMING_COLORS.late;
 
 /** Flame colours, outer → inner. */
 export const FLAME_COLORS: readonly string[] = [NEON.flameCool, NEON.flameMid, NEON.flameHot];

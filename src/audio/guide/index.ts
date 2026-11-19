@@ -121,9 +121,18 @@ export class GuideImpl implements GuideService {
     try {
       await ready;
     } catch (err) {
-      // A newer load/unload superseded this one: nothing to report.
+      // A newer load/unload superseded this one: resolve quietly (callers that unload on any error
+      // would tear down the newer load); callers that must know check {@link holds}.
       if (gen === this.generation) throw err;
     }
+  }
+
+  /**
+   * True while `song` is the loaded song (its `load` was not superseded by a newer load or an
+   * unload). A game session checks it after `load` resolves (R2-I-01).
+   */
+  holds(song: Song): boolean {
+    return this.song === song;
   }
 
   setSpeed(speed: number): Promise<void> {

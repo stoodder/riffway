@@ -22,6 +22,9 @@ guide / backing / metronome ─▶ their buses ─▶ master ─▶ safety limit
   with a 10 ms fade. The cab is crossfaded (`cabGain`/`dryGain`), never rewired, so preset changes don't click.
 - Mixer buses (engine): `monitor`, `backing`, `guide`, `metronome` → `master`. Mute = gain 0 (`mixerMute`), never disconnect.
 - No `AnalyserNode`, `ScriptProcessor` or `DynamicsCompressorNode` in series on the monitor path.
+- Each input re-wire (device switch, unplug/replug, re-open) builds a new analysis node and
+  disconnects the old one's source; a node whose input stays disconnected for 0.5 s stops processing
+  (`process()` returns false), so retired nodes add no audio-thread load (R2-I-08).
 - `index.ts` (`createMonitor`) builds the chain on the engine's context, rebuilds it on
   `onContextChange`, re-attaches `input.getInputNode()` on `onDevicesChanged`, and follows settings.
   `setEnabled(true)` opens the input if it is closed.

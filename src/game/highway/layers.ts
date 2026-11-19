@@ -57,14 +57,15 @@ export function buildBackground(layout: HighwayLayout, laneNames: readonly strin
   // Target wells under the hit line (gems slide into them), labelled with the string name.
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = `800 ${Math.round(Math.max(11, gemR * 0.85))}px ${FONT_DISPLAY}`;
+  g.font = `800 ${Math.round(Math.max(11, gemR * 0.72))}px ${FONT_DISPLAY}`;
   for (let s = 1; s <= 6; s++) {
     const y = layout.laneY[s]!;
     roundRectPath(g, hitX - gemR - 3, y - gemR - 3, gemR * 2 + 6, gemR * 2 + 6, gemR * 0.5);
     g.fillStyle = rgba(LANE_COLORS[s]!, 0.12);
     g.fill();
-    g.fillStyle = rgba(LANE_COLORS[s]!, 0.75);
-    g.fillText(laneNames[s] ?? '', hitX + gemR * 0.42, y + 0.5);
+    // In the right half of the well, clear of the hit line and its pulse (T-041 note 2).
+    g.fillStyle = rgba(LANE_COLORS[s]!, 0.8);
+    g.fillText(laneNames[s] ?? '', hitX + gemR * 0.6, y + 0.5);
   }
   return surf;
 }

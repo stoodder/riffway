@@ -29,6 +29,13 @@ sets the song-end settle, the loop-pass evaluation delay and the keyboard pitch 
 appear only when |Δ| > Great window (bandwidth feedback, learning research row 7); the full timing
 histogram is on the results screen.
 
+The guitar horizon covers held onsets too: the onset detector may hold a suspect trigger (contact
+noise, a soft note after a loud one, a re-pick on a ringing string) for up to 70 ms, and every onset
+message — held or not, at 44.1 or 48 kHz, either pitch window — is still posted within
+`GUITAR_ANALYSIS_DELAY_SEC` (74.3 ms; measured worst 74.1 ms at 44.1 kHz). With the worst measured
+main-thread delay (29.3 ms under 30 ms jank) a late Good at +115 ms stays a Good
+(`tests/judge/held-onset-budget.test.ts`).
+
 ## Judge algorithm (`src/core/judge/`)
 Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
 `{ctxTime, kind: 'onset'|'pitch-change', midi?: number, cents?, clarity?, source: 'guitar'|'keyboard'|'test', refines?}`
@@ -130,8 +137,9 @@ stretch task (T-070).
   "best at speed" record ([progress.md](progress.md)).
 
 ## Results screen
-Score, stars, accuracy, max combo, counts per outcome (per note), timing histogram (early ↔ late, 10 ms
-bins from −120 to +120 ms, one entry per hit or WrongNote group),
+Score, stars, accuracy, max combo, **timing precision** (the timing score, with a tooltip), counts per
+outcome (per note), timing histogram (early ↔ late, 10 ms bins from −120 to +120 ms, one entry per
+hit or WrongNote group),
 section heatmap (accuracy per section), **weakest section** with a one-click "Loop this" (opens
 practice with that section, speed trainer on), clean-run flag, and personal-best badges. Copy is
 informational, never guilt-based. Implemented in `src/ui/screens/results/` (`#/results/:runId`):
@@ -139,9 +147,15 @@ informational, never guilt-based. Implemented in `src/ui/screens/results/` (`#/r
   ±10 ms → centred; else "You tend to play early/late — about N ms".
 - **Progress** lists this run's section-progress changes: clean runs (with the 2-at-100%-per-session
   mastery count), mastered, locked in, failed next-day check, plateau nudge.
+- **Action row** right under the score card (above the fold at 1280×720): Play again · Loop
+  <weakest section> (when below 100%) · Song page · Library. A new best reads "New best at 70%".
+- **Progress** lines use plain words: "Clean run — 1 of 2 clean runs at full speed toward mastering
+  Box Run", "Clean run at 75% in Box Run — 3 so far".
 - **Next up** (`nextSteps`, at most 3): loop the weakest section when it is below 90%; after a clean
   run below 100% "Try it at +5%", at 100% "Go for mastery"; below 70% "Play it at −10%"; always "Play
-  again". Plus up to 3 stretch picks from the library (`recommend()`).
+  again". The cards leave out what the action row already offers (Play again, Loop weakest). Plus up
+  to 3 stretch picks from the library (`recommend()`).
+- A starter original credited to "Riffway" is shown without an artist (results, game HUD, start card).
 - A just-played run is handed over in memory; a results URL opened later is rebuilt from the stored
   run (no timing score, chord count or progress lines). Unsaved runs use the key `unsaved-<endedAt>`.
 
@@ -165,6 +179,23 @@ start speed, loads the backing link (guide muted per `guideShouldMute`), opens t
   other bar ranges use an in-memory trainer. Mastery / lock-in / plateau post `info` / `plateau`
   messages. Mastery counts clean runs at 100% within one practice session = one page load.
 - **Quit** records only the active time (no run); **restart** discards the run the same way.
+- **Pass speed:** each tick records the speed actually playing (`transport.speedAt(now)`) for the
+  pass playing, while its judged part plays (loop region, else song time ≥ 0). A loop pass counts at
+  the slowest speed it played; a bar-aligned change announced in a pass but heard only in the next
+  pass does not count for it.
+- **Guitar unplugged:** the session listens to `input.onDevicesChanged`. When `input.current` turns
+  null during a run it pauses with "Guitar disconnected — plug it back in, or press Resume to
+  continue with the keys." (also on the pause card, `pauseNotice`). The run is still shown on
+  results but **not saved** (its misses are the cable's): only its active time is recorded.
+  `onInputStatus` reports the guitar coming back; the notice then clears.
+- **Audio stopped:** a context that leaves `running` mid-run (OS, device or power events) pauses
+  the run with "Audio stopped … press Resume"; Resume goes through `requireAudioGesture`.
+- **Loading** takes an `AbortSignal` (`extras.signal`): the play screen aborts it when left, and an
+  aborted load never builds a session, touches the shared transport or opens input. The guide and
+  backing are app-wide singletons: the load that last claimed one owns it, and only the owner
+  unloads it (on dispose or a failed load), so a stale game never tears down the next game's guide
+  or backing. A guide load superseded while rendering (`GuideImpl.holds(song)` false) leaves the
+  session without the guide and says so.
 - Practice start speed: explicit `speed`, else for a looped section with the trainer on the stored
   trainer speed (or 70% / 60% by tier), else 100%. Speeds clamp to 40–110%; crossing 60% re-applies the
   loop with its 1- or 2-bar pre-roll.
@@ -182,16 +213,31 @@ start speed, loads the backing link (guide muted per `guideShouldMute`), opens t
   0.2 s when the range changes, and `expect(null)` on dispose.
 
 ## Game screen (`src/ui/screens/game/`, `#/play/:id`)
-Query: `arr`, `mode` (`play` | `practice`), `section` (loop it), `speed`, `input`. HUD: song, mode,
-current section, score, combo + multiplier badge, accuracy, live star meter (stars + progress to the
-next threshold), speed. Stage: the highway, a central outcome pop (outcome + detail per the
-*feedback detail* setting: minimal = outcome only; standard = early/late outside Great and "played
-G3"; detailed = also ±ms), a "×N" burst when the multiplier steps up, the count-in number, coach
-messages, and the note "Chords: judged on timing + any chord tone" while chords are in view. Footer:
-section progress bar (live per-section accuracy colour, loop region, playhead; click to jump in
-practice mode). Start card (mode, speed, loop, input, key legend), pause menu (Resume, Restart,
-Practice tools, End run & see results, Quit to song); the tab going hidden pauses. Practice tools
-(drawer, open by default in practice mode on wide screens) mount the `practice` and `mixer` panels.
+Query: `arr`, `mode` (`play` | `practice`), `section` (loop it), `speed`, `input`.
+- **Layout.** While a run plays or counts in, the app's top nav is hidden (it returns on pause, the
+  start card and results), so the lanes get its height. HUD bar: song, mode, current section, score,
+  accuracy, live star meter (stars + progress to the next threshold), speed, "Practice tools" and a
+  labelled **Pause · Esc** button of the same size.
+- **One outcome display**, on the highway: the gutter text left of the hit line (see § Highway) —
+  nothing is drawn over the notes still to come, and the combo shows once (the canvas cluster in the
+  gutter; the HUD has no combo). Live accuracy and stars count a provisional WrongNote at once and
+  show "—" until 5 notes are judged.
+- **Overlays**: the count-in number over the gutter (and, during every loop pass's pre-roll, a beat
+  countdown captioned "Loop" while the highway shows the loop's section and hand position); coach
+  messages as a pill in the highway's top strip; the note "Chords: judged on timing + any chord
+  tone" in the gutter's bottom strip while chords are in view. None of them covers a lane.
+- **Footer**: section progress bar (live per-section accuracy as the underline colour, loop region,
+  a playhead on the underline that never covers a name, the played part; click to jump in practice
+  mode) and a key hint shown until the first run starts.
+- **Start card**: mode, speed, loop, input, key legend named from the song's tuning (string 1 always
+  lower case: Drop D reads e B G D A D) and, for a non-standard tuning, a retune reminder ("Drop D —
+  tune string 6 down to D") with **Open tuner** (the tuner panel in a modal).
+- **Pause menu**: Resume, Restart, Practice tools, End run & see results, Quit to song; when the
+  session paused itself it says why (guitar unplugged, audio stopped). The tab going hidden pauses.
+- **Errors**: a song not in the library (404) shows "This song isn't in your library" with **Back to
+  library** and **Rescan library** (no raw id, no retry); other load errors keep Try again / Back.
+- Practice tools (drawer, open by default in practice mode on wide screens) mount the `practice` and
+  `mixer` panels.
 
 ## Practice logic (`src/core/practice/`)
 - **Speed trainer** (D8, parameters in `TRAINER`): start 70% (60% when the section is ≥ 2 tiers above
@@ -216,11 +262,16 @@ window `[lo, hi]`: `hi = lo + 3` (4 frets), or `lo + 4` (5 frets) when `lo ≥ 7
 - Each position records `start` (its first group's time), `end` (the next position's start; the last
   one ends with the last sounding note) and its first/last note ids.
 - Every `lo` change is a shift (difficulty counts 1-fret ones too). A **cue** is shown only when
-  |Δlo| ≥ 2: a fret-labelled bracket ("7fr") on the highway at `time` = the new position's start,
-  appearing at `showAt = time − max(1.5 beats, 0.75 s)`. The beat is the containing bar's
-  `dur / beats` (else 60 / BPM from the tempo map, else 0.5 s), in song seconds at 100% speed; at
-  slower practice speeds the real lead only grows. Above 100% the renderer shows a cue at
-  `cueShowAt(cue, speed)` = `min(showAt, time − 0.75 × speed)`, which keeps ≥ 0.75 real seconds.
+  |Δlo| ≥ 2 at `time` = the new position's start. The analysis records
+  `showAt = time − max(1.5 beats, 0.75 s)` (`cueShowAt` keeps ≥ 0.75 real s above 100%); the game
+  shows cues earlier: from `time − max(2 beats, 1.5 s × speed)` (`CUE_LEAD_BEATS`,
+  `CUE_LEAD_REAL_SEC` in `src/game/highway/renderer.ts`), i.e. at least 2 beats and 1.5 real seconds
+  ahead at any speed. The beat is the containing bar's `dur / beats` (else 60 / BPM from the tempo
+  map, else 0.5 s), in song seconds.
+- The cue on the highway: a thick fret bracket across all six lanes with a tinted band over the new
+  position's zone and a large "▲ 7fr" pill in the top strip. At the same time the position pill on
+  the hit line turns accent-filled and announces the shift ("5fr ▲ 7fr"), so it is visible where the
+  player looks; when the shift lands it pulses once and shows the new position.
 Shifts also feed [difficulty.md](difficulty.md).
 
 ## Highway and technique glyphs
@@ -243,15 +294,30 @@ hit line.
 | Vibrato | `~` on the tail |
 | Harmonic | diamond gem |
 | Dead note | `×` gem |
-Hit feedback: gem flash + particle burst + outcome text at the hit line; WrongNote shows red with
-"played G3"; Miss greys the gem. Combo flame grows with the multiplier.
+x uses the speed being **heard** (`clock.heardSpeed`), so a requested change that waits for its bar
+line changes gem spacing only when it plays. Lane letters sit in the right half of each target well,
+clear of the hit line.
+
+**Hit feedback** (the game's only outcome display; never over the notes still to come):
+- Outcome colours are never lane colours (CIE76 ΔE ≥ 30 from every string colour; tokens
+  `--judge-*`): Perfect white, Great cyan, Good mint, WrongNote magenta, Miss grey.
+- The gutter text, right-aligned left of the judged lane's well (a chord's on its top string), says
+  per the *feedback detail* setting: minimal = the word; standard = plus **EARLY ▸** (icy blue) /
+  **◂ LATE** (peach) outside the Great window and, for a wrong note, how far off in frets ("1 fret
+  high", "an octave low", "not a chord tone"); detailed = plus the signed ms and the played note
+  ("played F4 · 1 fret high"). Text: `feedbackText` in `src/game/highway/feedback.ts`.
+- On the well: a magenta ✕ for a wrong note, a hollow grey ring for a miss, and an early/late tick
+  on that side of the hit line (early right, where the note still was; late left).
+- Gem flash + a short particle spray straight up over the hit line; a wrong gem turns magenta, a
+  missed one grey. The combo flame in the gutter grows with the multiplier.
 
 ## Keyboard input mode (D6)
 - Default keys `1`–`6`: `1` = high e … `6` = low E (remappable in settings, `keyboard.lanes`).
 - A key press yields an onset with the pitch of the nearest note on that lane within the Good
   window (`0.12 s × speed` in song time), or the lane's open-string pitch (tuning + capo). **Shift +
   key** adds +1 semitone → a deliberate WrongNote. Key repeats are ignored; lane keys also work while a
-  button has focus, never while typing in a field; Ctrl/Alt/Meta combos are left alone.
+  button, slider, checkbox or radio has focus, never while typing in a text field, select or
+  editable content (R2-I-05); Ctrl/Alt/Meta combos are left alone.
 - Events go through the same judge path as guitar events with `source: 'keyboard'`, timed in the heard
   domain (`engine.perfToCtxTime(event.timeStamp)`) minus `keyboardOffsetMs`. `Esc` pauses / resumes;
   `Space` / `Enter` (no control focused) start or resume.

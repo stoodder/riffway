@@ -70,6 +70,25 @@ describe('heardCtxTime / SongClock', () => {
     expect(heardCtxTime(out({ outputTimestamp: () => ({ contextTime: 1, performanceTime: 100 }) }), 5016)).toBeCloseTo(9.97, 12);
   });
 
+  it('heardSpeed is the speed playing at the heard time; the requested one while paused (R2-I-09)', () => {
+    let playing = 1;
+    const src: ClockSource = {
+      state: 'playing',
+      speed: 0.5,
+      anchor: { anchorCtxTime: 9, anchorSongTime: 20, speed: 1 },
+      songTimeAt: (c) => 20 + (c - 9),
+      ctxTimeAt: (s) => 9 + (s - 20),
+      ctxTimeInPass: () => NaN,
+      speedAt: (c) => (c >= 9.966 - 1e-9 ? playing : 0),
+      onChange: () => () => undefined,
+    };
+    const clock = createSongClock(src, out(), () => 0);
+    expect(clock.speed).toBe(0.5);
+    expect(clock.heardSpeed(5016)).toBe(1);
+    playing = 0;
+    expect(clock.heardSpeed(5016)).toBe(0.5);
+  });
+
   it('heardSongTime subtracts the visual offset scaled by speed', () => {
     const listeners: ((c: ClockChange) => void)[] = [];
     const src: ClockSource = {
