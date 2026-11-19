@@ -1,0 +1,333 @@
+/* Audio setup screen (T-035). Tokens from src/ui/design/tokens.css; component classes from the kit. */
+
+.as {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Kit buttons set `display`; `hidden` must still win. */
+.as [hidden] {
+  display: none !important;
+}
+
+.as a.rw-btn {
+  text-decoration: none;
+}
+
+.as-head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.as-layout {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-6);
+}
+
+/* ---- Step rail -------------------------------------------------------------------------------- */
+.as-rail {
+  position: sticky;
+  top: var(--space-5);
+}
+
+.as-rail__list {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* The line joining the step numbers. */
+.as-rail__list::before {
+  content: '';
+  position: absolute;
+  top: 22px;
+  bottom: 22px;
+  left: 25px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-border);
+}
+
+.as-rail__step {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.as-rail__step:hover {
+  background: var(--color-surface-1);
+  color: var(--color-text);
+}
+
+.as-rail__step[aria-current='step'] {
+  border-color: var(--color-border);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.as-rail__num {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--color-border-strong);
+  border-radius: 50%;
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+
+.as-rail__step[data-tone='done'] .as-rail__num {
+  border-color: var(--color-success);
+  background: rgb(76 245 166 / 0.12);
+  color: var(--color-success);
+}
+
+.as-rail__step[data-tone='warning'] .as-rail__num {
+  border-color: var(--color-warning);
+  color: var(--color-warning);
+}
+
+.as-rail__step[aria-current='step'] .as-rail__num {
+  border-color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.as-rail__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.as-rail__label {
+  font-weight: var(--weight-semibold);
+}
+
+.as-rail__status {
+  overflow: hidden;
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-rail__step[data-tone='done'] .as-rail__status {
+  color: var(--color-text-muted);
+}
+
+.as-rail__step[data-tone='warning'] .as-rail__status {
+  color: var(--color-warning);
+}
+
+/* ---- Step ------------------------------------------------------------------------------------- */
+.as-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.as-step__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.as-step__title {
+  font-size: var(--text-xl);
+}
+
+.as-step__lead {
+  max-width: 68ch;
+  color: var(--color-text-muted);
+}
+
+.as-step__extra:empty {
+  display: none;
+}
+
+.as-step__body {
+  min-height: 160px;
+}
+
+.as-step__loading {
+  padding: var(--space-5) 0;
+}
+
+.as-step__error {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid rgb(255 79 115 / 0.5);
+  border-radius: var(--radius-md);
+  background: rgb(255 79 115 / 0.06);
+}
+
+.as-step__error > svg {
+  flex: none;
+  color: var(--color-danger);
+}
+
+.as-step__error > span {
+  flex: 1;
+}
+
+.as-step__foot {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.as-step__foot > .rw-btn--primary {
+  margin-left: auto;
+}
+
+.as-flip {
+  transform: scaleX(-1);
+}
+
+/* Headphone tip (monitoring step). */
+.as-tip {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  max-width: 68ch;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgb(82 191 255 / 0.35);
+  border-radius: var(--radius-md);
+  background: rgb(82 191 255 / 0.07);
+  font-size: var(--text-sm);
+}
+
+.as-tip > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--color-info);
+}
+
+/* ---- Summary ---------------------------------------------------------------------------------- */
+.as-summary {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+}
+
+.as-summary__row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.as-summary__row:first-child {
+  border-top: 0;
+}
+
+.as-summary__row dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.as-summary__row dt::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-border-strong);
+}
+
+.as-summary__row[data-tone='done'] dt::before {
+  background: var(--color-success);
+}
+
+.as-summary__row[data-tone='todo'] dt::before,
+.as-summary__row[data-tone='warning'] dt::before {
+  background: var(--color-warning);
+}
+
+.as-summary__row dd {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+}
+
+.as-summary__value {
+  overflow: hidden;
+  font-weight: var(--weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.as-summary__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+/* ---- Narrow windows: the rail becomes a horizontal strip ------------------------------------- */
+@media (max-width: 860px) {
+  .as-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .as-rail {
+    position: static;
+  }
+
+  .as-rail__list {
+    flex-direction: row;
+    overflow-x: auto;
+  }
+
+  .as-rail__list::before {
+    content: none;
+  }
+
+  .as-rail__step {
+    width: auto;
+  }
+
+  .as-rail__status {
+    display: none;
+  }
+
+  .as-summary__row {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
