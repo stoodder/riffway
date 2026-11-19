@@ -1,0 +1,14 @@
+node_modules/
+dist/
+dist-server/
+.vite/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store
+# Local song library & downloaded source data are never committed
+library/
+.riffway/
+data/classtab/
+!e2e/screenshots/
