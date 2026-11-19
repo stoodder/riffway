@@ -282,6 +282,11 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Owns:** `src/core/import/` , `src/core/progress/`, `src/storage/`, `src/core/model/`, `server/` except Wave 2-owned files (`server/sources/{classtab,linkout}/`, `server/routes/{classtab,audio,sidecars}.ts`), `src/ui/{shell,design,components}/`, `starter/`, their tests, `docs/progress.md`, `docs/reviews/R1-platform.md` (status column)
 - **Acceptance:** every R1-P finding except R1-P-01 fixed or explicitly rejected with reasoning; regression test per fix; doc changes for docs/song-formats.md (owned by T-028 this wave) listed in the report instead of edited. R1-P-01 stays open for the owner (wrap-up). Full suite green.
 
+### T-103 · ClassTab rhythm recall + composer fallback + failed-file visibility
+- **Status:** in-progress · **Deps:** T-025, T-102 · **Parallel:** y · **Agent:** `impl-fix-platform`
+- **Owns:** `src/core/import/ascii/`, `src/core/import/align/`, `src/core/import/midi/`, `server/indexer/`, `tests/ascii/`, `tests/align/`, `tests/server/`, `tests/fixtures/classtab-synthetic/`
+- **Acceptance:** beat-ruler detection recall raised toward the survey estimate (~2,127 tabs with rulers vs 432 detected) measured on the scratch reference set + one real-refresh run (no ClassTab content committed); investigate the 354 paired tabs failing strict MIDI match (true negatives vs fixable); composer fallback from ClassTab filename (`composer_title` convention); unparsable files in the library listed with a visible "failed to import" state instead of silently skipped. Report before/after counts. Full suite green for owned areas.
+
 ## Wave 2 (parallel)
 
 ### T-021 · Guide synth renderer + song worker
