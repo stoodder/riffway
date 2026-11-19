@@ -90,6 +90,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-023 | Monitoring + amp/cab sim + latency display + feedback guard | impl | done 8f8ee10: 48 node + 22 browser; amp+cab adds <0.5 ms; feedback guard |
 | T-027 | Backing audio: attach, align, time-stretch | impl | done cafef53: 47 node + 7 browser; clicks within 2.3 ms at 100/70% through wrap/seek/speed |
 | T-021 | Guide synth renderer + song worker | impl | done 3ddb919: 27 node + 20 browser; notes ±10 ms; 3-min song renders in 449 ms; DEC-21 resolved (MIDI from Song works) |
+| T-024 | Highway renderer (canvas) | impl | done 6734ee6: 23 node + 13 browser; 19.2k notes draw p95 ~0.6 ms |
 
 ---
 
@@ -335,7 +336,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Notes:** Takes the input node from T-022's `getInputNode()` contract.
 
 ### T-024 · Highway renderer (canvas)
-- **Status:** in-progress · **Deps:** T-011, T-013, T-016 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** done · **Deps:** T-011, T-013, T-016 · **Parallel:** y · **Agent:** `impl-game`
 - **Owns:** `src/game/highway/`, `src/ui/screens/dev-highway/`, `tests/highway/`
 - **Acceptance:**
   - `createHighway(canvas, song, clock, opts)`: six lanes (high e on top), fret-number gems, sustains,
