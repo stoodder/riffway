@@ -1,0 +1,45 @@
+// Riffway starter library: Drop-D Palm-Mute Chug
+// Original exercise, composed for Riffway. Arrangement original to Riffway.
+// Drop D: one-finger power chords, palm-muted eighth chugs, gallops, dead-note scratches.
+// riffway: tags=pick,metal,exercise
+// riffway: melody section="Verse Chug" select=low notes="D2 D2 D2 D2 F2 D2 G2 D2 D2 D2 D2 D2 G2 F2 D#2 D2 D2 D2 D2 D2 F2 D2 G2 D2 D2 D2 A#2 A2 G2 F2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 F2 G2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 D2 A#2 A2 G2 F2"
+\title "Drop-D Palm-Mute Chug"
+\artist "Riffway"
+\music "Riffway (original exercise)"
+\tab "Riffway"
+\tempo 112
+\track "Guitar"
+\staff {tabs}
+\instrument distortionguitar
+\tuning (E4 B3 G3 D3 A2 D2)
+\ts (4 4)
+
+\section "Intro"
+(0.6{lr} 0.5{lr} 0.4{lr}).1 |
+(3.6 3.5 3.4).2 (5.6 5.5 5.4).2 |
+(0.6{lr} 0.5{lr} 0.4{lr}).1 |
+(8.6 8.5 8.4).2 (7.6 7.5 7.4).2 |
+
+\section "Verse Chug"
+:8 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} (3.6 3.5 3.4) 0.6{pm} (5.6 5.5 5.4) 0.6{pm} |
+0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} (5.6 5.5 5.4) (3.6 3.5 3.4) (1.6 1.5 1.4) (0.6 0.5 0.4) |
+0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} (3.6 3.5 3.4) 0.6{pm} (5.6 5.5 5.4) 0.6{pm} |
+0.6{pm} 0.6{pm} (8.6 8.5 8.4).4 (7.6 7.5 7.4).4 (5.6 5.5 5.4).8 (3.6 3.5 3.4).8 |
+0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 |
+0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 (3.6 3.5 3.4).4 (5.6 5.5 5.4).4 |
+0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 |
+0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 0.6{pm}.8 0.6{pm}.16 0.6{pm}.16 (8.6 8.5 8.4).8 (7.6 7.5 7.4).8 (5.6 5.5 5.4).8 (3.6 3.5 3.4).8 |
+
+\section "Chorus"
+(0.6 0.5 0.4).2 (3.6 3.5 3.4).2 |
+(5.6 5.5 5.4).4{d} (3.6 3.5 3.4).8 (0.6 0.5 0.4).2 |
+(0.6 0.5 0.4).2 (3.6 3.5 3.4).2 |
+(8.6 8.5 8.4).4{d} (7.6 7.5 7.4).8 (5.6 5.5 5.4).2 |
+(0.6 0.5 0.4).2 (3.6 3.5 3.4).2 |
+(5.6 5.5 5.4).4{d} (3.6 3.5 3.4).8 (0.6 0.5 0.4).2 |
+(0.6 0.5 0.4).2 (3.6 3.5 3.4).2 |
+(7.6 7.5 7.4).4 (x.6 x.5 x.4).8 (x.6 x.5 x.4).8 (7.6 7.5 7.4).2 |
+
+\section "Outro"
+:8 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} 0.6{pm} (3.6 3.5 3.4) (5.6 5.5 5.4) |
+(0.6{lr} 0.5{lr} 0.4{lr}).1 |

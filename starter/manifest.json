@@ -1,0 +1,259 @@
+{
+  "schema": 1,
+  "items": [
+    {
+      "slug": "open-strings-first-frets",
+      "title": "Open Strings & First Frets",
+      "credit": "Original exercise by Riffway. Arrangement original to Riffway.",
+      "publicDomainNote": "Original exercise written for Riffway; no third-party melody.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "exercise",
+          "rock"
+        ]
+      },
+      "targetTier": 1,
+      "bpm": 72
+    },
+    {
+      "slug": "ode-to-joy",
+      "title": "Ode to Joy",
+      "composer": "Ludwig van Beethoven",
+      "credit": "Melody by Ludwig van Beethoven. Arrangement original to Riffway.",
+      "publicDomainNote": "Beethoven died in 1827; the melody (Symphony No. 9, 1824) is in the public domain worldwide.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "classical",
+          "recognizable"
+        ]
+      },
+      "targetTier": 2,
+      "bpm": 100
+    },
+    {
+      "slug": "power-chord-drive",
+      "title": "Power Chord Drive",
+      "credit": "Original exercise by Riffway. Arrangement original to Riffway.",
+      "publicDomainNote": "Original exercise written for Riffway; no third-party melody.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "rock",
+          "punk",
+          "exercise"
+        ]
+      },
+      "targetTier": 3,
+      "bpm": 104
+    },
+    {
+      "slug": "greensleeves",
+      "title": "Greensleeves",
+      "composer": "Traditional",
+      "credit": "Traditional English melody. Arrangement original to Riffway.",
+      "publicDomainNote": "Anonymous English tune from the 16th century (registered and printed in the 1580s); public domain worldwide.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "folk",
+          "recognizable"
+        ]
+      },
+      "targetTier": 3,
+      "bpm": 96
+    },
+    {
+      "slug": "scarborough-fair",
+      "title": "Scarborough Fair",
+      "composer": "Traditional",
+      "credit": "Traditional English melody. Arrangement original to Riffway.",
+      "publicDomainNote": "Traditional English ballad tune (Child Ballad 2); the folk melody is public domain. This arrangement is not based on any recorded or published arrangement.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "folk",
+          "recognizable"
+        ]
+      },
+      "targetTier": 3,
+      "bpm": 92
+    },
+    {
+      "slug": "drop-d-palm-mute-chug",
+      "title": "Drop-D Palm-Mute Chug",
+      "credit": "Original exercise by Riffway. Arrangement original to Riffway.",
+      "publicDomainNote": "Original exercise written for Riffway; no third-party melody.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "metal",
+          "exercise"
+        ]
+      },
+      "targetTier": 4,
+      "bpm": 112
+    },
+    {
+      "slug": "house-of-the-rising-sun",
+      "title": "House of the Rising Sun",
+      "composer": "Traditional",
+      "credit": "Traditional American folk song. Arrangement original to Riffway.",
+      "publicDomainNote": "Traditional American folk song of unknown authorship; the song is public domain. Only the commonly used chord progression is used, with picking patterns written for Riffway; no recorded arrangement is copied.",
+      "tags": {
+        "style": [
+          "pick",
+          "fingerstyle"
+        ],
+        "genre": [
+          "folk",
+          "rock",
+          "recognizable"
+        ]
+      },
+      "targetTier": 4,
+      "bpm": 100
+    },
+    {
+      "slug": "hall-of-the-mountain-king",
+      "title": "In the Hall of the Mountain King",
+      "composer": "Edvard Grieg",
+      "credit": "Melody by Edvard Grieg. Arrangement original to Riffway.",
+      "publicDomainNote": "Grieg died in 1907; Peer Gynt (1875) is in the public domain worldwide.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "metal",
+          "classical",
+          "recognizable"
+        ]
+      },
+      "targetTier": 5,
+      "bpm": 84
+    },
+    {
+      "slug": "pentatonic-box-lick",
+      "title": "Pentatonic Box Lick",
+      "credit": "Original exercise by Riffway. Arrangement original to Riffway.",
+      "publicDomainNote": "Original exercise written for Riffway; no third-party melody.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "rock",
+          "blues",
+          "exercise"
+        ]
+      },
+      "targetTier": 5,
+      "bpm": 88
+    },
+    {
+      "slug": "alternate-picking-builder",
+      "title": "Alternate Picking Builder",
+      "credit": "Original exercise by Riffway. Arrangement original to Riffway.",
+      "publicDomainNote": "Original exercise written for Riffway; no third-party melody.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "metal",
+          "exercise"
+        ]
+      },
+      "targetTier": 5,
+      "bpm": 92
+    },
+    {
+      "slug": "carol-of-the-bells",
+      "title": "Carol of the Bells",
+      "composer": "Mykola Leontovych",
+      "credit": "Melody by Mykola Leontovych (Shchedryk). Arrangement original to Riffway.",
+      "publicDomainNote": "Leontovych died in 1921 and Shchedryk was published in 1916, so the melody is public domain. The copyrighted 1936 English lyrics and choral arrangement are not used.",
+      "tags": {
+        "style": [
+          "pick"
+        ],
+        "genre": [
+          "metal",
+          "holiday",
+          "recognizable"
+        ]
+      },
+      "targetTier": 5,
+      "bpm": 126
+    },
+    {
+      "slug": "fur-elise-theme",
+      "title": "Für Elise (Theme)",
+      "composer": "Ludwig van Beethoven",
+      "credit": "Melody by Ludwig van Beethoven. Arrangement original to Riffway.",
+      "publicDomainNote": "Beethoven died in 1827; Für Elise (WoO 59, c. 1810) is in the public domain worldwide.",
+      "tags": {
+        "style": [
+          "pick",
+          "fingerstyle"
+        ],
+        "genre": [
+          "classical",
+          "recognizable"
+        ]
+      },
+      "targetTier": 5,
+      "bpm": 66
+    },
+    {
+      "slug": "spanish-romance",
+      "title": "Spanish Romance",
+      "composer": "Anonymous",
+      "credit": "Anonymous Spanish guitar piece. Arrangement original to Riffway.",
+      "publicDomainNote": "Anonymous Spanish guitar piece of the late 19th century (earliest sources around 1900); the composition is public domain. Later claims cover specific arrangements, none of which is used here.",
+      "tags": {
+        "style": [
+          "fingerstyle"
+        ],
+        "genre": [
+          "classical",
+          "recognizable"
+        ]
+      },
+      "targetTier": 6,
+      "bpm": 80
+    },
+    {
+      "slug": "bourree-in-e-minor",
+      "title": "Bourrée in E minor",
+      "composer": "Johann Sebastian Bach",
+      "credit": "Music by Johann Sebastian Bach (BWV 996). Arrangement original to Riffway.",
+      "publicDomainNote": "Bach died in 1750; the Suite in E minor BWV 996 is in the public domain worldwide.",
+      "tags": {
+        "style": [
+          "fingerstyle"
+        ],
+        "genre": [
+          "classical",
+          "recognizable"
+        ]
+      },
+      "targetTier": 6,
+      "bpm": 104
+    }
+  ]
+}

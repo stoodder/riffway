@@ -1,0 +1,49 @@
+// Riffway starter library: In the Hall of the Mountain King
+// Melody: Edvard Grieg (1843-1907), Peer Gynt, Op. 23 (1875). Public domain.
+// Arrangement original to Riffway: transposed to E minor; palm-muted low theme, octave-up theme, the
+// second phrase, then both in power chords. The tempo map speeds up every bar (84 -> 129 BPM), then holds at 132.
+// riffway: tags=pick,metal,classical,recognizable
+// riffway: melody section="Theme (Low)" select=low notes="E2 F#2 G2 A2 B2 G2 B2 A#2 F#2 A#2 A2 F2 A2 E2 F#2 G2 A2 B2 G2 B2 E3 D3 B2 G2 B2 D3"
+\title "In the Hall of the Mountain King"
+\artist "Edvard Grieg"
+\music "Edvard Grieg"
+\tab "Riffway"
+\track "Guitar"
+\staff {tabs}
+\instrument distortionguitar
+\tuning (E4 B3 G3 D3 A2 E2)
+\ts (4 4)
+
+\section "Theme (Low)"
+\tempo 84 :8 0.6{pm} 2.6{pm} 3.6{pm} 0.5{pm} 2.5{pm} 3.6{pm} 2.5.4 |
+\tempo 87 :8 1.5{pm} 2.6{pm} 1.5.4 0.5{pm}.8 1.6{pm}.8 0.5.4 |
+\tempo 90 :8 0.6{pm} 2.6{pm} 3.6{pm} 0.5{pm} 2.5{pm} 3.6{pm} 2.5{pm} 2.4 |
+\tempo 93 :8 0.4{pm} 2.5{pm} 3.6{pm} 2.5{pm} 0.4.2 |
+
+\section "Theme (Octave Up)"
+\tempo 96 :8 2.4 4.4 5.4 2.3 4.3 5.4 4.3.4 |
+\tempo 99 :8 3.3 4.4 3.3.4 2.3.8 3.4.8 2.3.4 |
+\tempo 102 :8 2.4 4.4 5.4 2.3 4.3 5.4 4.3 5.2 |
+\tempo 105 :8 3.2 4.3 5.4 4.3 3.2{v}.2 |
+
+\section "Second Phrase"
+\tempo 108 :8 2.5{pm} 4.5{pm} 1.4{pm} 2.4{pm} 4.4{pm} 1.4{pm} 4.4.4 |
+\tempo 111 :8 0.3{pm} 1.4{pm} 0.3.4 4.4{pm}.8 1.4{pm}.8 4.4.4 |
+\tempo 114 :8 2.5{pm} 4.5{pm} 1.4{pm} 2.4{pm} 4.4{pm} 1.4{pm} 4.4.4 |
+\tempo 117 :8 0.3{pm} 1.4{pm} 0.3.4 4.4{v}.2 |
+
+\section "Power Chords"
+\tempo 120 :8 (0.6{pm} 2.5{pm}) (2.6{pm} 4.5{pm}) (3.6{pm} 5.5{pm}) (5.6{pm} 7.5{pm}) (7.6{pm} 9.5{pm}) (3.6{pm} 5.5{pm}) (7.6 9.5).4 |
+\tempo 123 :8 (6.6{pm} 8.5{pm}) (2.6{pm} 4.5{pm}) (6.6 8.5).4 (5.6{pm} 7.5{pm}).8 (1.6{pm} 3.5{pm}).8 (5.6 7.5).4 |
+\tempo 126 :8 (0.6{pm} 2.5{pm}) (2.6{pm} 4.5{pm}) (3.6{pm} 5.5{pm}) (5.6{pm} 7.5{pm}) (7.6{pm} 9.5{pm}) (3.6{pm} 5.5{pm}) (7.6{pm} 9.5{pm}) (7.5 9.4) |
+\tempo 129 :8 (5.5{pm} 7.4{pm}) (7.6{pm} 9.5{pm}) (3.6{pm} 5.5{pm}) (7.6{pm} 9.5{pm}) (5.5 7.4).2 |
+
+\section "Power Chords II"
+\tempo 132 :8 (2.5{pm} 4.4{pm}) (4.5{pm} 6.4{pm}) (6.5{pm} 8.4{pm}) (7.5{pm} 9.4{pm}) (9.5{pm} 11.4{pm}) (6.5{pm} 8.4{pm}) (9.5 11.4).4 |
+\tempo 132 :8 (10.5{pm} 12.4{pm}) (6.5{pm} 8.4{pm}) (10.5 12.4).4 (9.5{pm} 11.4{pm}).8 (6.5{pm} 8.4{pm}).8 (9.5 11.4).4 |
+\tempo 132 :8 (2.5{pm} 4.4{pm}) (4.5{pm} 6.4{pm}) (6.5{pm} 8.4{pm}) (7.5{pm} 9.4{pm}) (9.5{pm} 11.4{pm}) (6.5{pm} 8.4{pm}) (9.5 11.4).4 |
+\tempo 132 :8 (10.5{pm} 12.4{pm}) (6.5{pm} 8.4{pm}) (10.5 12.4).4 (9.5{v} 11.4{v}).2 |
+
+\section "Finale"
+\tempo 132 (0.6 2.5 2.4).4 (0.6 2.5 2.4).4 (0.6 2.5 2.4).4 r.4 |
+\tempo 132 (0.6{lr} 2.5{lr} 2.4{lr}).1 |

@@ -1,0 +1,41 @@
+// Riffway starter library: Alternate Picking Builder
+// Original exercise, composed for Riffway. Arrangement original to Riffway.
+// Strict down-up sixteenths in E minor: one string, pedal-point string crossing, three-notes-per-string
+// scale runs, then a palm-muted low-E gallop.
+// riffway: tags=pick,metal,exercise
+// riffway: melody section="Pedal Point" select=top notes="E5 B4 F#5 B4 G5 B4 F#5 B4 E5 B4 F#5 B4 G5 B4 A5 B4 B5 B4 A5 B4 G5 B4 F#5 B4 G5 B4 F#5 B4 E5 B4 D#5 B4 E5 B4 F#5 B4 G5 B4 F#5 B4 E5 B4 F#5 B4 G5 B4 A5 B4 E5 B4 D#5 B4 E5"
+\title "Alternate Picking Builder"
+\artist "Riffway"
+\music "Riffway (original exercise)"
+\tab "Riffway"
+\tempo 92
+\track "Guitar"
+\staff {tabs}
+\instrument overdrivenguitar
+\tuning (E4 B3 G3 D3 A2 E2)
+\ts (4 4)
+
+\section "Single String"
+:16 12.1{sd} 10.1{su} 8.1{sd} 10.1{su} 12.1 10.1 8.1 10.1 12.1 10.1 8.1 10.1 12.1 15.1 12.1 10.1 |
+10.1 8.1 7.1 8.1 10.1 8.1 7.1 8.1 10.1 8.1 7.1 8.1 10.1 12.1 10.1 8.1 |
+12.1 10.1 8.1 10.1 12.1 10.1 8.1 10.1 12.1 10.1 8.1 10.1 12.1 15.1 12.1 10.1 |
+10.1 8.1 7.1 8.1 10.1 12.1 10.1 8.1 7.1{v}.2 |
+
+\section "Pedal Point"
+:16 12.1 12.2 14.1 12.2 15.1 12.2 14.1 12.2 12.1 12.2 14.1 12.2 15.1 12.2 17.1 12.2 |
+19.1 12.2 17.1 12.2 15.1 12.2 14.1 12.2 15.1 12.2 14.1 12.2 12.1 12.2 11.1 12.2 |
+12.1 12.2 14.1 12.2 15.1 12.2 14.1 12.2 12.1 12.2 14.1 12.2 15.1 12.2 17.1 12.2 |
+12.1 12.2 11.1 12.2 12.1.4 r.2 |
+
+\section "String Crossing"
+:16 9.4 10.4 12.4 9.3 11.3 12.3 10.2 12.2 13.2 10.1 12.1 14.1 15.1 14.1 12.1 10.1 |
+13.2 12.2 10.2 12.3 11.3 9.3 12.4 10.4 9.4 12.5 10.5 9.5 7.5.4 |
+:16 9.4 10.4 12.4 9.3 11.3 12.3 10.2 12.2 13.2 10.1 12.1 14.1 15.1 14.1 12.1 10.1 |
+13.2 12.2 10.2 12.3 11.3 9.3 12.4 10.4 (7.5 9.4).2 |
+
+\section "Gallop Chug"
+:16 0.6{pm} 0.6{pm} 3.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} 6.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} 3.6 0.6{pm} |
+0.6{pm} 0.6{pm} 3.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} 7.6 5.6 3.6 5.6 7.6 8.6 7.6 5.6 |
+0.6{pm} 0.6{pm} 3.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} 6.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} 3.6 0.6{pm} |
+0.6{pm} 0.6{pm} 3.6 0.6{pm} 0.6{pm} 5.6 0.6{pm} 0.6{pm} (7.6 9.5 9.4).2 |
+(0.6{lr} 2.5{lr} 2.4{lr}).1 |

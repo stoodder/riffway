@@ -1,0 +1,73 @@
+// Riffway starter library: Spanish Romance
+// Music: anonymous, "Romance" / "Estudio en Mi" (Spain, late 19th century; earliest sources c. 1900). Public domain.
+// Arrangement original to Riffway: the E minor section, written as melody (voice 1) over a triplet
+// arpeggio (voice 2), plus an original natural-harmonics interlude and a short reprise.
+// riffway: tags=fingerstyle,classical,recognizable
+// riffway: melody section="Theme" select=voice1 notes="B4 B4 B4 B4 A4 G4 G4 F#4 E4 E4 G4 B4 E5 E5 E5 E5 D5 C5 C5 B4 A4 A4 B4 C5 B4 C5 B4 D#5 C5 B4 B4 A4 G4 G4 F#4 E4 F#4 F#4 F#4 F#4 G4 F#4 E4 E4 E4 E4"
+\title "Spanish Romance"
+\artist "Anonymous"
+\music "Anonymous (Spain, 19th century)"
+\tab "Riffway"
+\tempo 80
+\track "Guitar"
+\staff {tabs}
+\instrument acousticguitarnylon
+\tuning (E4 B3 G3 D3 A2 E2)
+\ts (3 4)
+
+\voice
+\section "Theme"
+7.1.4 7.1.4 7.1.4 |
+7.1.4 5.1.4 3.1.4 |
+3.1.4 2.1.4 0.1.4 |
+0.1.4 3.1.4 7.1.4 |
+12.1.4 12.1.4 12.1.4 |
+12.1.4 10.1.4 8.1.4 |
+8.1.4 7.1.4 5.1.4 |
+5.1.4 7.1.4 8.1.4 |
+7.1.4 8.1.4 7.1.4 |
+11.1.4 8.1.4 7.1.4 |
+7.1.4 5.1.4 3.1.4 |
+3.1.4 2.1.4 0.1.4 |
+2.1.4 2.1.4 2.1.4 |
+2.1.4 3.1.4 2.1.4 |
+0.1.4 0.1.4 0.1.4 |
+(0.6 0.1).2 r.4 |
+\section "Interlude (Harmonics)"
+12.1{nh lr}.4 12.2{nh lr}.4 12.3{nh lr}.4 |
+7.1{nh lr}.4 7.2{nh lr}.4 12.2{nh lr}.4 |
+5.3{nh lr}.4 12.3{nh lr}.4 7.3{nh lr}.4 |
+(12.6{nh lr} 12.3{nh lr} 12.2{nh lr} 12.1{nh lr}).2{d} |
+\section "Reprise"
+7.1.4 7.1.4 7.1.4 |
+7.1.4 5.1.4 3.1.4 |
+3.1.4 2.1.4 0.1.4 |
+0.1.4 0.1.4 0.1.4 |
+(0.6{lr} 2.5{lr} 2.4{lr} 0.3{lr} 0.2{lr} 0.1{v lr}).2{d} |
+
+\voice
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.5.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} r.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} r.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} |
+0.5.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} r.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} r.8{tu 3} 5.2.8{tu 3} 5.3.8{tu 3} |
+7.6.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} r.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} r.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} |
+7.6.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} r.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} r.8{tu 3} 7.2.8{tu 3} 8.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+2.5.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} |
+1.4.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 2.3.8{tu 3} |
+2.4.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} 2.5.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} 3.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+r.2{d} |
+r.2{d} |
+r.2{d} |
+r.2{d} |
+r.2{d} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+0.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} r.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+2.4.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} 2.5.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} 3.6.8{tu 3} 0.2.8{tu 3} 0.3.8{tu 3} |
+r.2{d} |

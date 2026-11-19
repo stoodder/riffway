@@ -1,0 +1,38 @@
+// Riffway starter library: Pentatonic Box Lick
+// Original exercise, composed for Riffway. Arrangement original to Riffway.
+// A minor pentatonic, box 1 at the 5th fret: legato run, bends (full, half, bend-and-release),
+// vibrato, a triplet pull-off run, a shift slide into box 2 and a dead-note rake.
+// riffway: tags=pick,rock,blues,exercise
+// riffway: melody section="Box Run" select=top notes="A2 C3 D3 E3 G3 A3 C4 D4 E4 G4 A4 C5 C5 A4 G4 E4 D4 C4 A3 G3 E3 D3 C3 A2 A2 A3"
+\title "Pentatonic Box Lick"
+\artist "Riffway"
+\music "Riffway (original exercise)"
+\tab "Riffway"
+\tempo 88
+\track "Guitar"
+\staff {tabs}
+\instrument overdrivenguitar
+\tuning (E4 B3 G3 D3 A2 E2)
+\ts (4 4)
+
+\section "Box Run"
+:8 5.6{h} 8.6 5.5{h} 7.5 5.4{h} 7.4 5.3{h} 7.3 |
+5.2{h} 8.2 5.1{h} 8.1 8.1{h} 5.1 8.2{h} 5.2 |
+7.3{h} 5.3 7.4{h} 5.4 7.5{h} 5.5 8.6{h} 5.6 |
+5.6{v}.2 (5.6 7.5 7.4).2 |
+
+\section "Bend Lick"
+7.3{b (0 4)}.4 5.2.8 8.2{h}.8 5.2.8 7.3.8 5.1{v}.4 |
+8.2{b (0 4)}.8 5.1.8 8.1{h}.8 5.1.8 8.2.8 5.2.8 7.3{b (0 2)}.4 |
+7.3{b (0 4 4 0)}.4 5.3.8 7.4{h}.8 5.4.8 7.5.8 5.5.8 7.5.8 |
+7.4{v}.2{d} r.4 |
+
+\section "Triplet Run"
+8.1{h}.8{tu 3} 5.1.8{tu 3} 8.2{h}.8{tu 3} 5.2.8{tu 3} 7.3{h}.8{tu 3} 5.3.8{tu 3} 7.4{h}.8{tu 3} 5.4.8{tu 3} 7.5{h}.8{tu 3} 5.5.8{tu 3} 8.6{h}.8{tu 3} 5.6.8{tu 3} |
+5.6{h}.16 8.6.16 5.5{h}.16 7.5.16 5.4{h}.16 7.4.16 5.3{h}.16 7.3.16 5.2{h}.16 8.2.16 5.1{h}.16 8.1{ss}.16 10.1{b (0 4)}.4 |
+10.1.8 8.1.8 10.2{b (0 4)}.4 8.2.8 10.2.8 9.3{v}.4 |
+9.3{sl}.8 7.3.8 5.3.8 7.4{h}.8 5.4.8 7.4.8 5.6.4 |
+
+\section "Outro"
+(x.6 x.5 x.4).8 (x.6 x.5 x.4).8 5.6{h}.8 8.6.8 5.5{h}.8 7.5.8 7.4{b (0 2)}.4 |
+(5.6{lr} 7.5{lr} 7.4{lr}).1 |

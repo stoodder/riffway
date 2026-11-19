@@ -1,0 +1,64 @@
+// Riffway starter library: Scarborough Fair
+// Melody: traditional English ballad (Child 2, "The Elfin Knight"), in the form commonly sung today. Public domain.
+// Arrangement original to Riffway (not based on any recorded or published arrangement): E Dorian, verse
+// with legato and in/out slides around 7th position, then the verse an octave lower with shift slides.
+// riffway: tags=pick,folk,recognizable
+// riffway: melody section="Verse" select=top notes="E4 E4 B4 B4 B4 F#4 G4 F#4 E4 B4 D5 E5 D5 B4 C#5 A4 B4 E5 E5 E5 D5 B4 B4 A4 G4 F#4 E4 B4 A4 G4 F#4 E4 D4 E4"
+\title "Scarborough Fair"
+\artist "Traditional"
+\music "Traditional (England)"
+\tab "Riffway"
+\tempo 92
+\track "Guitar"
+\staff {tabs}
+\instrument acousticguitarsteel
+\tuning (E4 B3 G3 D3 A2 E2)
+\ts (3 4)
+
+\section "Intro"
+0.6.4 2.4.4 0.3.4 |
+0.4.4 2.3.4 3.2.4 |
+0.6.4 2.4.4 0.3.4 |
+(0.6{lr} 2.5{lr} 2.4{lr} 0.3{lr}).2{d} |
+
+\section "Verse"
+5.2.2 5.2.4 |
+7.1{sib}.8 7.1.4{d} 7.1.4 |
+7.2{sl}.4{d} 8.2{h}.8 7.2{sl}.4 |
+5.2{v}.2{d} |
+r.4 7.1{sl}.4 10.1{sl}.4 |
+12.1.2 10.1.4 |
+7.1.4 9.1.4 5.1.4 |
+7.1{v}.2 12.1{sib}.4 |
+12.1.2 12.1.4 |
+10.1{sl}.2 7.1.4 |
+7.1.4 5.1.4 8.2.4 |
+7.2{v}.2{d} |
+5.2.2 7.1.4 |
+5.1.2 8.2.4 |
+7.2.4 5.2.4 3.2{sl}.4 |
+5.2{v}.2{d} |
+
+\section "Verse (Low Octave)"
+2.4.2 2.4.4 |
+4.3.8 4.3.4{d} 4.3.4 |
+4.4{sl}.4{d} 5.4{h}.8 4.4{sl}.4 |
+2.4{v}.2{d} |
+r.4 4.3{ss}.4 7.3.4 |
+9.3.2 7.3{ss}.4 |
+4.3.4 6.3.4 2.3.4 |
+4.3{v}.2 9.3{sib}.4 |
+9.3.2 9.3.4 |
+7.3{ss}.2 4.3.4 |
+4.3.4 2.3.4 0.3.4 |
+4.4{v}.2{d} |
+2.4.2 4.3.4 |
+2.3.2 0.3.4 |
+4.4.4 2.4.4 0.4.4 |
+2.4.2{d} |
+
+\section "Outro"
+0.6.4 2.4.4 0.3.4 |
+0.4.4 2.3.4 3.2.4 |
+(0.6{lr} 2.5{lr} 2.4{lr} 0.3{lr} 0.2{lr} 0.1{lr}).2{d} |
+7.1{sib}.4 12.1{sod}.2 |
