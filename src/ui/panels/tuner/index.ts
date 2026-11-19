@@ -42,7 +42,7 @@ const IDLE_AFTER_MS = 1500;
 
 export const mount: PanelMount<Props> = async (el, ctx, props) => {
   const services = await audioPanelServices(ctx);
-  if ('error' in services) return unavailablePanel<Props>(el, { title: 'Tuner', eyebrow: 'Step 2', panel: 'tuner', message: services.error });
+  if ('error' in services) return unavailablePanel<Props>(el, { title: 'Tuner', panel: 'tuner', message: services.error });
   const panel = new TunerPanel(el, ctx, services.engine, services.input, props.tuning ?? [...STANDARD_TUNING]);
   panel.start();
   const handle: PanelHandle<Props> = {
@@ -124,7 +124,6 @@ class TunerPanel {
     );
     this.root = card({
       title: 'Tuner',
-      eyebrow: 'Step 2',
       aside: this.tuningBadge,
       class: 'rw-tuner',
       body: [this.stage, this.strings],

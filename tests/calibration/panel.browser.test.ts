@@ -208,7 +208,7 @@ describe('calibration panel', () => {
     expect(currentProfile(h.settings.get())?.inputOffsetMs).toBe(c.inputOffsetMs);
     expect(q(step, '.rw-calib__stats').textContent).toContain('1 missed');
     expect(step.querySelectorAll('.rw-calib__strip-dot--rejected').length).toBeGreaterThanOrEqual(1);
-    expect(q(step, '.rw-calib__applied').textContent).toMatch(/subtracts \d+ ms from every pluck/);
+    expect(q(step, '.rw-calib__applied').textContent).toMatch(/Your plucks reach Riffway \d+ ms after the beat/);
     expect(q(h.host, '[data-row="guitar"] .rw-badge').textContent).toBe('Play-to-click');
     expect(q<HTMLButtonElement>(h.host, '.rw-tabs__tab[data-tab="visual"]').disabled).toBe(false);
     await page.screenshot({ element: h.host, path: `${SHOTS}/panel-guitar-result.png` });

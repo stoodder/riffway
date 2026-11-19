@@ -1,7 +1,9 @@
 /**
- * Monitoring panel (T-023, docs/monitoring.md): hear-my-guitar switch with status, headphone card,
+ * Monitoring panel (T-023, docs/monitoring.md): hear-my-guitar switch with status, a one-time
+ * headphone check ("I'm wearing headphones → turn on"; the only headphone advice on the page),
  * speaker / feedback guard banners, amp presets with drive / tone / level knobs, and the monitoring
- * latency estimate (input · processing · output, "estimated" until a play-to-click calibration).
+ * delay: measured when a loopback calibration exists for the device pair (round trip + amp
+ * processing), else the browser-reported estimate (input · processing · output).
  * Exports `mount: PanelMount<PanelPropsMap['monitor']>` (contract in `@shared/ui`).
  * @module
  */
@@ -9,8 +11,8 @@ import type { InputService, MonitorGuardEvent, MonitorService } from '@shared/se
 import type { AmpPresetId, Settings } from '@shared/settings';
 import type { AppContext, PanelHandle, PanelMount, PanelPropsMap } from '@shared/ui';
 import { AMP_PRESETS, AMP_PRESET_ORDER, AMP_RANGES, driveCharacter } from '@core/dsp/amp';
-import { isBuiltInMic } from '../../../audio/monitor/devices';
-import { LATENCY_TIPS, latencyBreakdown } from '../../../audio/monitor/latency';
+import { isBuiltInMic, isLaptopSpeaker } from '../../../audio/monitor/devices';
+import { LATENCY_TIPS, latencyBand, latencyBreakdown } from '../../../audio/monitor/latency';
 import { AudioGestureDismissedError } from '../../shell/audio-gesture';
 import { badge, button, card, h, icon, rovingFocus, setBusy, slider, toggle, type BadgeTone, type Slider } from '../../components';
 import './monitor.css';
@@ -43,6 +45,16 @@ const BAND_BADGE = {
   playable: { text: 'Playable', tone: 'info' },
   noticeable: { text: 'Noticeable — see tips', tone: 'warning' },
 } as const satisfies Record<string, { text: string; tone: BadgeTone }>;
+
+/**
+ * The measured monitoring delay (ms) when the active device pair has a loopback calibration: the
+ * hardware round trip (output → cable → input) plus the amp's processing. Null without one.
+ */
+export function measuredMonitorMs(s: Pick<Settings, 'calibration'>, dspMs: number): number | null {
+  const cal = s.calibration;
+  const loop = cal.deviceKey ? cal.profiles[cal.deviceKey]?.loopbackMs : null;
+  return typeof loop === 'number' && Number.isFinite(loop) && loop > 0 ? loop + Math.max(0, dspMs) : null;
+}
 
 const fmtDb = (v: number): string => `${v > 0 ? '+' : v < 0 ? '−' : ''}${Math.abs(v).toFixed(1)} dB`;
 const fmtMs = (v: number): string => `${v < 10 ? v.toFixed(1) : Math.round(v)} ms`;
@@ -81,29 +93,43 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
   const statusSlot = h('span', { class: 'rw-monitor__status', 'aria-live': 'polite' });
   const power = toggle({
     label: 'Hear my guitar',
-    description: 'Play your guitar through the amp sim. Headphones recommended.',
+    description: 'Play your guitar through the amp sim.',
     checked: settings.monitor.enabled,
     onChange: (on) => void setEnabled(on),
   });
 
-  // ---- Headphone card (first time) -------------------------------------------------------------
+  // ---- Headphone check (first time): the one place that asks about headphones -------------------
+  const phonesOn = button({
+    label: 'I’m wearing headphones — turn it on',
+    variant: 'primary',
+    size: 'sm',
+    icon: 'headphones',
+    onClick: () => void answerHeadphones(true),
+  });
+  const phonesLater = button({ label: 'Not now', size: 'sm', variant: 'ghost', onClick: () => void answerHeadphones(false) });
+  const phonesSpeakers = h(
+    'p',
+    { class: 'rw-monitor__phones-speakers' },
+    icon('warning', { size: '16px' }),
+    'Your output is the built-in speakers: they feed back into the guitar. Plug in headphones (or pick them as the output in step 1) first.',
+  );
   const headphones = card({
     class: 'rw-monitor__phones',
     accent: 'var(--color-info)',
-    title: 'Use headphones',
+    title: 'Are you wearing headphones?',
     headingLevel: 4,
     body: [
-      h('p', null, 'Hear yourself clearly and avoid feedback. Wired headphones keep the delay lowest.'),
+      h('p', null, 'Monitoring plays your guitar back through Riffway. Wired headphones keep the delay lowest and can’t feed back.'),
+      phonesSpeakers,
     ],
     aside: icon('headphones', { size: '28px' }),
-    footer: button({
-      label: 'Got it',
-      size: 'sm',
-      onClick: () => {
-        ctx.settings.update({ monitor: { headphonesCardSeen: true } }).catch(() => undefined);
-      },
-    }),
+    footer: [phonesOn, phonesLater],
   });
+
+  async function answerHeadphones(on: boolean): Promise<void> {
+    await ctx.settings.update({ monitor: { headphonesCardSeen: true } }).catch(() => undefined);
+    if (on) await setEnabled(true);
+  }
 
   // ---- Guard banners ---------------------------------------------------------------------------
   const turnOnAnyway = button({
@@ -199,6 +225,8 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
     output: h('dd', { class: 'rw-num' }),
   };
   const latCalib = h('p', { class: 'rw-monitor__calib' });
+  const latApprox = h('span', { class: 'rw-monitor__approx' }, '≈');
+  const latKind = h('span');
   const tips = h('ul', { class: 'rw-monitor__tips' }, ...LATENCY_TIPS.map((t) => h('li', null, t)));
   const tipsBox = h('details', { class: 'rw-monitor__tips-box' }, h('summary', null, 'Tips to lower the delay'), tips);
   const latency = h(
@@ -210,7 +238,7 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
       h('h4', { id: 'rw-monitor-lat-title', class: 'rw-monitor__h' }, 'Monitoring delay'),
       latBand,
     ),
-    h('p', { class: 'rw-monitor__lat-line' }, h('span', { class: 'rw-monitor__approx' }, '≈'), latTotal, badge('estimated', { tone: 'neutral', title: 'Computed from what the browser reports; calibrate to measure.' })),
+    h('p', { class: 'rw-monitor__lat-line' }, latApprox, latTotal, latKind),
     h('div', { class: 'rw-monitor__bar', 'aria-hidden': 'true' }, latSegs.input, latSegs.processing, latSegs.output),
     h(
       'dl',
@@ -260,6 +288,7 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
   const renderAmp = (): void => {
     const m = settings.monitor;
     headphones.hidden = m.headphonesCardSeen;
+    phonesSpeakers.hidden = !isLaptopSpeaker(ctx.settings.get().output.label);
     power.set(m.enabled);
     for (const [id, b] of presetButtons) b.setAttribute('aria-checked', String(id === m.preset));
     roving.focusItem(AMP_PRESET_ORDER.indexOf(m.preset), { focus: false });
@@ -276,10 +305,20 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
   const renderLatency = (): void => {
     const est = monitor.latency();
     const b = latencyBreakdown(est);
-    latTotal.textContent = fmtMs(b.totalMs);
-    const band = BAND_BADGE[est.band];
+    const measured = measuredMonitorMs(settings, est.parts.dspMs ?? 0);
+    const totalMs = measured ?? b.totalMs;
+    const bandId = measured !== null ? latencyBand(measured) : est.band;
+    latTotal.textContent = fmtMs(totalMs);
+    latApprox.hidden = measured !== null;
+    latKind.replaceChildren(
+      measured !== null
+        ? badge('measured', { tone: 'success', title: 'Round trip measured with a loopback cable, plus the amp’s processing.' })
+        : badge('estimated', { tone: 'neutral', title: 'Computed from what the browser reports; a loopback calibration measures it.' }),
+    );
+    latency.dataset.kind = measured !== null ? 'measured' : 'estimated';
+    const band = BAND_BADGE[bandId];
     latBand.replaceChildren(badge(band.text, { tone: band.tone }));
-    latency.dataset.band = est.band;
+    latency.dataset.band = bandId;
     const pct = (v: number): string => `${((v / Math.max(b.totalMs, 1e-9)) * 100).toFixed(2)}%`;
     latSegs.input.style.width = pct(b.inputMs);
     latSegs.processing.style.width = pct(b.processingMs);
@@ -288,10 +327,12 @@ function build(root: HTMLElement, ctx: AppContext, monitor: MonitorService, inpu
     latLegend.processing.textContent = fmtMs(b.processingMs);
     latLegend.output.textContent = `${fmtMs(b.outputMs)}${b.assumedOutput ? ' (assumed)' : ''}`;
     latCalib.textContent =
-      est.calibratedOffsetMs !== null
-        ? `Calibrated offset ≈ ${Math.round(est.calibratedOffsetMs)} ms (measured round trip, including your own timing).`
-        : 'This is an estimate from what the browser reports. Run latency calibration to measure the real round trip.';
-    tipsBox.open = est.band === 'noticeable';
+      measured !== null
+        ? `Measured: the loopback round trip through your interface plus the amp’s processing. The bar shows the browser’s estimate of the parts (≈ ${fmtMs(b.totalMs)} in total).`
+        : est.calibratedOffsetMs !== null
+          ? `Calibrated offset ≈ ${Math.round(est.calibratedOffsetMs)} ms (play-along round trip, including your own timing). The delay above is estimated; a loopback calibration measures it.`
+          : 'This is an estimate from what the browser reports. A loopback calibration (output cabled to input) measures the real round trip.';
+    tipsBox.open = bandId === 'noticeable';
   };
 
   const renderAll = (): void => {

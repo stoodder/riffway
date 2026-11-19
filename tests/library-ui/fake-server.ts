@@ -4,7 +4,7 @@
  * screen in happy-dom. Every request URL is recorded so tests can prove no third-party host is hit.
  */
 import { vi } from 'vitest';
-import type { ImportFileResult, SearchResponse, ServerConfig, ServerEvent, SongMeta, SourcesResponse } from '@shared/api';
+import type { ClassTabStatus, ImportFileResult, SearchResponse, ServerConfig, ServerEvent, SongMeta, SourcesResponse } from '@shared/api';
 import type { SearchResult } from '@shared/sources';
 import { SOURCE_IDS, type TrackInfo } from '@shared/song';
 import type { AppContext, RouteParams, ScreenId, ToastKind } from '@shared/ui';
@@ -67,6 +67,10 @@ export interface FakeServer {
   down: boolean;
   /** Reject `PUT /api/config` with a 400 and this message. */
   configError: string | null;
+  /** `GET /api/classtab/status` (null = 404, like a server without the route). */
+  classtab: ClassTabStatus | null;
+  /** `POST /api/classtab/refresh` bodies received. */
+  classtabRefreshes: unknown[];
   fetch: typeof fetch;
 }
 
@@ -111,6 +115,8 @@ export function createFakeServer(songs: SearchResult[]): FakeServer {
     importResult: (names) => names.map((name) => ({ name, status: 'imported', path: name })),
     down: false,
     configError: null,
+    classtab: null,
+    classtabRefreshes: [],
     fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = new URL(String(input), 'http://127.0.0.1:5174');
       const method = init?.method ?? 'GET';
@@ -145,6 +151,11 @@ export function createFakeServer(songs: SearchResult[]): FakeServer {
         return json(server.config);
       }
       if (path === '/api/library/rescan') return json({ started: true });
+      if (path === '/api/classtab/status' && server.classtab) return json(server.classtab);
+      if (path === '/api/classtab/refresh' && method === 'POST') {
+        server.classtabRefreshes.push(JSON.parse(String(init?.body ?? '{}')));
+        return json({ started: true });
+      }
       if (path === '/api/library/import') {
         const form = init?.body as FormData;
         const names = form.getAll('files').map((f) => (f as File).name);
@@ -159,6 +170,11 @@ export function createFakeServer(songs: SearchResult[]): FakeServer {
     }) as typeof fetch,
   };
   return server;
+}
+
+/** A ClassTab status (default: not downloaded). */
+export function classtabStatus(extra: Partial<ClassTabStatus> = {}): ClassTabStatus {
+  return { state: 'not-downloaded', lastRefresh: null, etag: null, lastModified: null, tabs: 0, midis: 0, rhythm: { midi: 0, ruler: 0, needsAlignment: 0 }, ...extra };
 }
 
 /** A song meta with the given tracks. */

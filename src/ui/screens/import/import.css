@@ -339,9 +339,9 @@
 }
 
 .imp-seg__input:checked + .imp-seg__label {
-  background: var(--color-surface-3);
-  color: var(--color-text);
-  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  background: var(--color-accent-soft);
+  color: var(--color-accent-strong);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
 }
 
 .imp-seg__input:focus-visible + .imp-seg__label {
@@ -469,6 +469,7 @@
 
 .imp-strip {
   display: flex;
+  overflow: hidden;
   flex-direction: column;
   gap: var(--space-2);
   padding: var(--space-2);
@@ -486,6 +487,13 @@
 .imp-strip__scroll {
   width: 100%;
   accent-color: var(--color-accent);
+}
+
+/* Nothing to scroll (the whole song fits): the slider is inert and should look it. */
+.imp-strip__scroll:disabled {
+  cursor: default;
+  opacity: 0.3;
+  filter: grayscale(1);
 }
 
 .imp-voice {
@@ -515,4 +523,24 @@
   .imp-header__aside {
     align-items: flex-start;
   }
+}
+
+/* "Have a .gp / MusicXML file?" pointer to the library's Add files (paste mode). */
+.imp-otherformats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.imp-otherformats .rw-icon {
+  color: var(--color-info);
+}
+
+.imp-otherformats__link {
+  color: var(--color-accent-strong);
+  font-weight: var(--weight-semibold);
 }

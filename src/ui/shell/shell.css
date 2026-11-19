@@ -1,5 +1,10 @@
 /* App shell (T-018): top bar, nav, screen region, audio-gesture overlay, stub placeholders. */
 
+/* The top bar is sticky: keep focused fields and in-page jumps clear of it. */
+html {
+  scroll-padding-top: calc(var(--topbar-height) + var(--space-4));
+}
+
 .rw-app {
   position: relative;
   min-height: 100vh;
@@ -175,6 +180,15 @@
   color: var(--color-text-subtle);
   font-size: var(--text-xs);
   white-space: nowrap;
+  /* The keys describe the nav: show them only while it has keyboard focus (R2-U-28). */
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-standard);
+}
+
+.rw-nav:focus-within ~ .rw-topbar__hints {
+  visibility: visible;
+  opacity: 1;
 }
 
 .rw-topbar__hints span {

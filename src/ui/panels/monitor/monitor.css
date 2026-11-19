@@ -52,6 +52,24 @@
   color: var(--color-text-muted);
 }
 
+.rw-monitor__phones .rw-monitor__phones-speakers {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin-top: var(--space-2);
+  color: var(--color-warning);
+}
+
+.rw-monitor__phones-speakers[hidden] {
+  display: none;
+}
+
+.rw-monitor__phones .rw-card__footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
 /* ---- Banners ------------------------------------------------------------------------------- */
 .rw-monitor__banner {
   display: flex;

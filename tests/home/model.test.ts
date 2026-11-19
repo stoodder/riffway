@@ -12,6 +12,7 @@ import {
   buildRecent,
   buildRecommendations,
   buildStats,
+  comfortNote,
   buildWeek,
   reasonText,
   relativeDay,
@@ -167,9 +168,11 @@ describe('recommendations', () => {
     );
     expect(model.recommendations.map((g) => g.id)).toEqual(['stretch', 'comfort', 'reach']);
     const stretch = model.recommendations[0]!;
-    expect(stretch.items).toHaveLength(6);
-    expect(model.recommendations[1]!.items).toHaveLength(3);
-    expect(stretch.items.every((i) => i.badge === 'Stretch' && !i.reason.startsWith('Stretch pick'))).toBe(true);
+    // Every stretch card is one tier above comfort (2): badge and reason agree (R2-U-07).
+    expect(stretch.items.length).toBeGreaterThanOrEqual(5);
+    expect(stretch.items.every((i) => i.rec.tier === 3 && i.badge === 'Stretch' && !i.reason.startsWith('Stretch pick'))).toBe(true);
+    const comfortGroup = model.recommendations[1]!;
+    expect(comfortGroup.items.filter((i) => i.rec.kind === 'comfort').every((i) => i.rec.tier <= 2 && /at your comfort tier|below your comfort tier/.test(i.reason))).toBe(true);
     expect(stretch.items[0]!.reason).toMatch(/^Tier 3, one above your comfort tier \(2\)/);
     expect(stretch.items[0]!.to.screen).toBe('song');
     const review = model.recommendations.find((g) => g.id === 'comfort')!.items.find((i) => i.rec.kind === 'review')!;
@@ -219,8 +222,24 @@ describe('next-day checks, recent results, stats', () => {
         ['starter:hall', cache('starter:hall', 3)],
       ]),
     });
-    const s = buildStats(input, songLookup(input.candidates, input.songCache), 2);
-    expect(s).toEqual({ repertoire: 1, masteredSections: 4, lockedSections: 3, comfortTier: 2, cleanRuns: 1, songsPlayed: 1 });
+    const s = buildStats(input, songLookup(input.candidates, input.songCache), { tier: 2, basis: 'default', qualifyingSongs: 0 });
+    expect(s).toEqual({
+      repertoire: 1,
+      masteredSections: 4,
+      lockedSections: 3,
+      comfortTier: 2,
+      comfortNote: 'A starting guess. It rises after full-speed runs at 85%+ on harder songs.',
+      cleanRuns: 1,
+      songsPlayed: 1,
+    });
+  });
+
+  it('says what the comfort tier rests on', () => {
+    expect(comfortNote({ tier: 3, basis: 'one-song', qualifyingSongs: 1 })).toBe(
+      'Based on one strong song a tier up (85%+ at full speed). A second song at that tier raises it to 4.',
+    );
+    expect(comfortNote({ tier: 2, basis: 'default', qualifyingSongs: 2 })).toMatch(/easier songs so far/);
+    expect(comfortNote({ tier: 4, basis: 'two-songs', qualifyingSongs: 5 })).toBe('Highest tier you play at 85%+ at full speed on 2 songs.');
   });
 
   it('bounds the section count by the report and the progress seen', () => {

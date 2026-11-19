@@ -2,7 +2,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ScreenHandle } from '@shared/ui';
 import { mount, REFRESH_DEBOUNCE_MS, SEARCH_DEBOUNCE_MS } from '../../src/ui/screens/library';
-import { createFakeServer, fakeContext, FakeEventSource, meta, result, type FakeCtx, type FakeServer } from './fake-server';
+import { classtabStatus, createFakeServer, fakeContext, FakeEventSource, meta, result, type FakeCtx, type FakeServer } from './fake-server';
 
 const flush = async (ms = 0): Promise<void> => {
   await vi.advanceTimersByTimeAsync(ms);
@@ -72,12 +72,15 @@ describe('library screen', () => {
     expect(hall.querySelector('.rw-diff')?.getAttribute('aria-label')).toBe('Difficulty 4.3, tier 4, Developing');
     expect(hall.querySelector('.lib-row__meta')?.textContent).toContain('Starter');
     expect(hall.querySelector('.lib-row__tuning')?.textContent).toBe('Standard');
-    expect(hall.querySelector('.lib-row__rhythm')?.textContent).toBe('Rhythm from file');
+    // Rhythm from the file is the norm: only exceptions (beat ruler) are mentioned.
+    expect(hall.querySelector('.lib-row__rhythm')).toBeNull();
     expect(Array.from(hall.querySelectorAll('.lib-tag')).map((t) => t.textContent)).toEqual(['pick', 'rock']);
     expect(hall.querySelector('.lib-row__state')?.textContent).toContain('Playable now');
     expect(hall.querySelector('.lib-row__by')?.textContent).toBe('Edvard Grieg');
     expect(row('Campfire Song').querySelector('.lib-row__state')?.textContent).toContain('Needs rhythm');
-    expect(row('Campfire Song').querySelector('.lib-row__est')?.textContent).toBe('est.');
+    // The estimate marker sits inside the pill, which says so in its name.
+    expect(row('Campfire Song').querySelector('.rw-diff .lib-row__est')?.textContent).toBe('≈');
+    expect(row('Campfire Song').querySelector('.rw-diff')?.getAttribute('aria-label')).toMatch(/\(estimate\)$/);
     expect(row('Broken Download').querySelector('.lib-row__state')?.textContent).toContain('Failed to import');
     expect(row('Broken Download').querySelector('.lib-row__state [title]')?.getAttribute('title')).toBe('No guitar tab found');
     expect(row('Broken Download').textContent).toContain('Unrated');
@@ -286,7 +289,7 @@ describe('library screen', () => {
     await start({ q: 'master of puppets' });
     expect(el.querySelector('.rw-empty__title')?.textContent).toBe('No songs in your library match “master of puppets”');
     expect(el.querySelector('.rw-empty__message')?.textContent).toMatch(/Songsterr or Ultimate Guitar below/);
-    expect(el.querySelectorAll('.lib-linkout')).toHaveLength(2);
+    expect(el.querySelectorAll('.lib-linkouts__list .lib-linkout')).toHaveLength(2);
   });
 
   it('changes the library folder with validation and shows server errors', async () => {
@@ -329,6 +332,106 @@ describe('library screen', () => {
     (Array.from(el.querySelectorAll<HTMLButtonElement>('.rw-empty button')).find((b) => b.textContent === 'Try again') as HTMLButtonElement).click();
     await flush();
     expect(rows()).toHaveLength(5);
+  });
+
+  it('never badges a row as a Songsterr match (Riffway does not search Songsterr, D1)', async () => {
+    server.songs = [result('starter:ode', 'Ode to Joy', { composer: 'Ludwig van Beethoven', badges: [{ source: 'songsterr', label: 'In your library – playable' }] })];
+    await start({ q: 'ode' });
+    expect(row('Ode to Joy').textContent).not.toMatch(/Songsterr/i);
+    expect(row('Ode to Joy').querySelectorAll('.lib-row__name .rw-badge')).toHaveLength(0);
+    // The link-out card says the song is in the library, without implying a Songsterr lookup.
+    expect(el.querySelector('[data-source="songsterr"] .lib-linkout__match')?.textContent).toBe('Already in your library: Ode to Joy');
+  });
+
+  it('does not repeat the artist in the composer line', async () => {
+    server.songs = [result('starter:box', 'Pentatonic Box Lick', { artist: 'Riffway', composer: 'Riffway (original exercise)' })];
+    await start();
+    expect(row('Pentatonic Box Lick').querySelector('.lib-row__by')?.textContent).toBe('Riffway (original exercise)');
+  });
+
+  it('sorts by difficulty, title or recent play and keeps the order in the URL', async () => {
+    server.songs = [
+      result('a', 'Zebra Riff', { rating: 4.2, tier: 4 }),
+      result('b', 'Apple Waltz', { rating: 1.3, tier: 1 }),
+      result('c', 'Mid Song', { rating: 2.9, tier: 3 }),
+    ];
+    const listRecentSongs = vi.fn(async () => [
+      { songId: 'c', title: 'Mid Song', lastPlayedAt: 200 },
+      { songId: 'a', title: 'Zebra Riff', lastPlayedAt: 100 },
+    ]);
+    (fake.ctx as { storage?: unknown }).storage = { listRecentSongs };
+    await start();
+    const sort = el.querySelector('.lib-sort select') as HTMLSelectElement;
+    expect(Array.from(sort.options).map((o) => o.text)).toEqual(['A–Z', 'Easiest first', 'Recently played']);
+    sort.value = 'easiest';
+    sort.dispatchEvent(new Event('change'));
+    await flush();
+    expect(rows()).toEqual(['Apple Waltz', 'Mid Song', 'Zebra Riff']);
+    expect(fake.navigations.at(-1)).toBe('#/library?sort=easiest');
+    expect(lastSearch().has('sort')).toBe(false);
+    sort.value = 'recent';
+    sort.dispatchEvent(new Event('change'));
+    await flush();
+    expect(listRecentSongs).toHaveBeenCalled();
+    expect(rows()).toEqual(['Mid Song', 'Zebra Riff', 'Apple Waltz']);
+    // With a query the default order is "Best match", and A–Z becomes its own option.
+    await type('i');
+    await flush(SEARCH_DEBOUNCE_MS);
+    expect(Array.from(sort.options).map((o) => o.text)).toEqual(['Best match', 'A–Z', 'Easiest first', 'Recently played']);
+    expect(sort.value).toBe('recent');
+  });
+
+  it('offers the ClassTab download while it is not downloaded, with live progress', async () => {
+    server.classtab = classtabStatus();
+    await start();
+    const card = el.querySelector('.lib-classtab') as HTMLElement;
+    expect(card.hidden).toBe(false);
+    expect(card.closest('.lib-linkouts')).not.toBeNull();
+    const btn = Array.from(card.querySelectorAll('button')).find((b) => b.textContent?.includes('Download ClassTab')) as HTMLButtonElement;
+    expect(btn.textContent).toBe('Download ClassTab (≈14 MB, classical/fingerstyle)');
+    btn.click();
+    await flush();
+    expect(server.classtabRefreshes).toEqual([{}]);
+    expect(btn.disabled).toBe(true);
+    FakeEventSource.last?.emit({ type: 'classtab.progress', phase: 'downloading', bytes: 7 * 1_048_576, totalBytes: 14 * 1_048_576 });
+    expect(card.querySelector('.lib-classtab__progress')?.textContent).toBe('Downloading… 7.0 of 14.0 MB');
+    expect((card.querySelector('progress') as HTMLProgressElement).value).toBeCloseTo(0.5);
+    const searchesBefore = server.searches.length;
+    server.classtab = classtabStatus({ state: 'ready', tabs: 3976, lastRefresh: 1 });
+    FakeEventSource.last?.emit({ type: 'classtab.progress', phase: 'done' });
+    await flush();
+    expect(card.hidden).toBe(true);
+    expect(server.searches.length).toBeGreaterThan(searchesBefore);
+    expect(fake.toasts.at(-1)).toEqual({ message: 'ClassTab is ready: its tabs are now in your library search.', kind: 'success' });
+  });
+
+  it('does not offer ClassTab when it is downloaded or switched off', async () => {
+    server.classtab = classtabStatus({ state: 'ready', tabs: 10 });
+    await start();
+    expect((el.querySelector('.lib-classtab') as HTMLElement).hidden).toBe(true);
+    handle?.unmount();
+    server.classtab = classtabStatus();
+    server.config = { ...server.config, enabledSources: ['local', 'starter'] };
+    await start();
+    expect((el.querySelector('.lib-classtab') as HTMLElement).hidden).toBe(true);
+  });
+
+  it('collapses the filters into a "Filters · n active" disclosure with Clear filters beside it', async () => {
+    await start({ tierMax: '4', tuning: 'drop-d' });
+    const toggle = el.querySelector('.lib-filters__toggle') as HTMLButtonElement;
+    const body = el.querySelector('.lib-filters__body') as HTMLElement;
+    expect(toggle.getAttribute('aria-controls')).toBe(body.id);
+    expect(toggle.textContent).toBe('Filters2 active');
+    const clear = Array.from(el.querySelectorAll<HTMLButtonElement>('.lib-filters__head button')).find((b) => b.textContent === 'Clear filters') as HTMLButtonElement;
+    expect(clear.hidden).toBe(false);
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe(String(!expanded));
+    expect(body.hidden).toBe(expanded);
+    clear.click();
+    await flush();
+    expect(clear.hidden).toBe(true);
+    expect(toggle.textContent).toBe('Filters');
   });
 
   it('cleans up on unmount: SSE closed, shortcuts and drop zone removed', async () => {

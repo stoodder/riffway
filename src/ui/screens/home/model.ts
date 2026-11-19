@@ -31,8 +31,9 @@ import type {
 import type { Stars } from '@shared/judge';
 import {
   addDays,
-  comfortTier,
+  comfortTierDetail,
   GRACE_EXTRA_DAYS,
+  type ComfortTierDetail,
   isCheckDue,
   isoWeekAt,
   localDate,
@@ -232,6 +233,8 @@ export interface StatsView {
   masteredSections: number;
   lockedSections: number;
   comfortTier: Tier;
+  /** Why the comfort tier is what it is ("Based on 1 song: … ."). */
+  comfortNote: string;
   cleanRuns: number;
   songsPlayed: number;
 }
@@ -394,7 +397,7 @@ export function buildChecklist(input: Pick<HomeInput, 'settings' | 'runs' | 'che
     {
       id: 'calibrate',
       title: 'Calibrate latency',
-      detail: calibrated ? 'Timing offsets are set.' : 'Play along with a click for 20 seconds so hits line up exactly.',
+      detail: calibrated ? 'Timing offsets are set.' : 'Play along with a click for about 15 seconds so hits line up exactly.',
       done: calibrated,
       action: { label: 'Calibrate', to: setup('calibration', { mode: 'guitar' }) },
     },
@@ -656,7 +659,21 @@ export function buildRecent(runs: readonly RunRecord[], lookup: SongLookup, now:
 }
 
 /** Repertoire and mastery totals. */
-export function buildStats(input: HomeInput, lookup: SongLookup, comfort: Tier): StatsView {
+/** The comfort tile's explanation: the rule, and what the current estimate rests on. */
+export function comfortNote(d: ComfortTierDetail): string {
+  switch (d.basis) {
+    case 'default':
+      return d.qualifyingSongs === 0
+        ? 'A starting guess. It rises after full-speed runs at 85%+ on harder songs.'
+        : 'Your 85%+ full-speed runs are on easier songs so far: try a harder one.';
+    case 'one-song':
+      return `Based on one strong song a tier up (85%+ at full speed). A second song at that tier raises it to ${d.tier + 1}.`;
+    case 'two-songs':
+      return 'Highest tier you play at 85%+ at full speed on 2 songs.';
+  }
+}
+
+export function buildStats(input: HomeInput, lookup: SongLookup, comfort: ComfortTierDetail): StatsView {
   let repertoire = 0;
   let masteredSections = 0;
   let lockedSections = 0;
@@ -671,7 +688,8 @@ export function buildStats(input: HomeInput, lookup: SongLookup, comfort: Tier):
     repertoire,
     masteredSections,
     lockedSections,
-    comfortTier: comfort,
+    comfortTier: comfort.tier,
+    comfortNote: comfortNote(comfort),
     cleanRuns: input.runs.filter((r) => r.clean).length,
     songsPlayed: new Set(input.runs.map((r) => r.songId)).size,
   };
@@ -680,7 +698,8 @@ export function buildStats(input: HomeInput, lookup: SongLookup, comfort: Tier):
 /** Build the whole home view model. Deterministic for equal input. */
 export function buildHomeModel(input: HomeInput): HomeModel {
   const lookup = songLookup(input.candidates, input.songCache);
-  const comfort = comfortTier(input.runs, (id) => lookup.tier(id));
+  const comfortDetail = comfortTierDetail(input.runs, (id) => lookup.tier(id));
+  const comfort = comfortDetail.tier;
   const prefs = input.settings.preferences;
   const recInput = {
     candidates: input.candidates ?? [],
@@ -689,6 +708,7 @@ export function buildHomeModel(input: HomeInput): HomeModel {
     dueChecks: input.checks,
     preferences: { style: prefs.style, fingerstyle: prefs.fingerstyle, genres: prefs.genres },
     now: input.now,
+    sectionName: (songId: string, idx: number) => lookup.difficulty(songId)?.sections.find((x) => x.sectionIndex === idx)?.name?.trim() || undefined,
   };
   const candidates = input.candidates ?? [];
   return {
@@ -704,6 +724,6 @@ export function buildHomeModel(input: HomeInput): HomeModel {
     recommendations: buildRecommendations(recommend(recInput), lookup),
     checks: buildChecks(input, lookup),
     recent: buildRecent(input.runs, lookup, input.now),
-    stats: buildStats(input, lookup, comfort),
+    stats: buildStats(input, lookup, comfortDetail),
   };
 }

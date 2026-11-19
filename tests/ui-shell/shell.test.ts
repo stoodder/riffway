@@ -145,6 +145,10 @@ describe('app shell', () => {
     expect(document.activeElement).toBe(links[4]);
     links[4]?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     expect(document.activeElement).toBe(root.querySelector('main h1'));
+    // The key hints say what Esc does, and follow the nav (CSS shows them while it has focus).
+    const hints = root.querySelector('.rw-topbar__hints') as HTMLElement;
+    expect(hints.textContent).toBe('←→ MoveEnter OpenEsc Jump to page');
+    expect(hints.previousElementSibling?.matches('nav.rw-nav')).toBe(true);
   });
 
   it('turns motion off in e2e mode and cleans up on destroy', async () => {

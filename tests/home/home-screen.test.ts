@@ -83,7 +83,8 @@ describe('home screen', () => {
     expect(el.querySelector('.hm-continue__title')?.textContent).toBe('In the Hall of the Mountain King');
     expect(el.querySelector('.hm-continue__next')?.textContent).toBe('Next up: Section 2 at 80%');
     expect(el.querySelector<HTMLAnchorElement>('.hm-continue .rw-btn--primary')?.getAttribute('href')).toBe('#/play/starter%3Ahall?arr=0&mode=practice&section=1&speed=0.8');
-    expect(text('.hm-goal__title')).toEqual(['Fix the tricky bit', 'Start something new']);
+    // Always three goals to choose from (R2-U-15); the extra slot is another new song.
+    expect(text('.hm-goal__title')).toEqual(['Fix the tricky bit', 'Start something new', 'Start something new']);
     expect(el.querySelectorAll('.hm-recs--stretch .hm-song').length).toBeGreaterThan(0);
     expect(el.querySelector('.hm-recs--stretch .hm-song__reason')?.textContent).toMatch(/comfort tier/);
     expect(text('.hm-run__title')).toEqual(['In the Hall of the Mountain King', 'Ode to Joy']);

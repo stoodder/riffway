@@ -1,6 +1,6 @@
 # Local library folder
 
-Last verified: 2026-11-19 · Status: **implement now**
+Last verified: 2026-11-19 · Status: **implemented** (T-017 index + watcher, T-026 drag-drop import)
 
 No external terms apply: the user's own files stay on their machine. The folder is outside the repo, or gitignored,
 and is never committed.

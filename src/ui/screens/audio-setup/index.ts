@@ -3,7 +3,9 @@
  * output device (T-022 `input`), tuner (T-022 `tuner`), monitoring + amp preset with the headphone
  * recommendation (T-023 `monitor`), latency calibration (T-033 `calibration`) — and a summary.
  * Only the current step's panel is mounted (the tuner switches the analysis worklet into tuner mode
- * while it is open). The step is the `step` route param (`#/audio-setup?step=tuner`; the calibration
+ * while it is open). Monitoring stays off until its step: a profile that never went through it
+ * (`monitor.headphonesCardSeen` false) has monitoring switched off when the screen opens, and the
+ * monitoring panel's headphone check turns it on. The step is the `step` route param (`#/audio-setup?step=tuner`; the calibration
  * step also takes `mode=guitar|keyboard|visual`); statuses come from settings and update live. Exports `mount: ScreenMount` (contract in `@shared/ui`).
  * @module
  */
@@ -11,7 +13,7 @@ import type { Settings } from '@shared/settings';
 import type { AppContext, PanelHandle, PanelPropsMap, RouteParams, ScreenHandle, ScreenMount } from '@shared/ui';
 import { button, emptyState, h, icon, type IconName } from '../../components';
 import { mountPanel } from '../../panels';
-import { STEPS, neighbour, stepFromParam, stepStatuses, summaryRows, type StepDef, type StepId, type StepTone } from './steps';
+import { STEPS, neighbour, stepFromParam, stepStatuses, summaryRows, type SetupSession, type StepDef, type StepId, type StepTone } from './steps';
 import './audio-setup.css';
 
 /** Calibration panel modes; the `mode` route param picks the panel's first tab (`#/audio-setup?step=calibration&mode=keyboard`). */
@@ -20,6 +22,9 @@ type CalibrationMode = NonNullable<PanelPropsMap['calibration']['mode']>;
 
 const TONE_ICON: Record<StepTone, IconName | null> = { done: 'check', todo: null, optional: null, warning: 'warning' };
 const NUMBERED = STEPS.filter((s) => s.panel !== null).length;
+
+/** Per page load: the tuner step was opened (nothing about tuning is saved). */
+const session: SetupSession = { tunerVisited: false };
 
 /** What the screen needs from the context (panels also use `services`). */
 const REQUIRED = ['settings', 'services', 'router', 'ui'] as const;
@@ -73,7 +78,6 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
   const eyebrow = h('p', { class: 'rw-eyebrow' });
   const title = h('h2', { class: 'as-step__title', tabindex: '-1' });
   const lead = h('p', { class: 'as-step__lead' });
-  const extra = h('div', { class: 'as-step__extra' });
   const body = h('div', { class: 'as-step__body', 'aria-live': 'polite', 'aria-busy': 'false' });
   const back = button({ label: 'Back', variant: 'ghost', icon: 'chevronRight', onClick: () => step(-1) });
   back.querySelector('svg')?.classList.add('as-flip');
@@ -82,7 +86,6 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
     'section',
     { class: 'as-step', 'aria-labelledby': 'as-step-title' },
     h('header', { class: 'as-step__head' }, eyebrow, title, lead),
-    extra,
     body,
     h('footer', { class: 'as-step__foot' }, back, next),
   );
@@ -101,13 +104,20 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
   );
   el.append(root);
 
+  // Monitoring is set up in step 3 (headphone check), never live from step 1 (R2-U-10).
+  const initial = ctx.settings.get();
+  if (!initial.monitor.headphonesCardSeen && initial.monitor.enabled) void ctx.settings.update({ monitor: { enabled: false } }).catch(() => undefined);
+
   const unsubSettings = ctx.settings.subscribe((s) => {
     renderRail(s);
-    if (current === 'done') renderSummary(s);
+    if (current === 'done') {
+      renderHead(STEPS.find((d) => d.id === 'done') as StepDef);
+      renderSummary(s);
+    }
   });
 
   function renderRail(s: Settings): void {
-    const statuses = stepStatuses(s);
+    const statuses = stepStatuses(s, session);
     for (const r of railItems) {
       const st = statuses[r.def.id];
       const active = r.def.id === current;
@@ -123,28 +133,19 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
   function renderHead(def: StepDef): void {
     const idx = STEPS.indexOf(def);
     eyebrow.textContent = def.panel ? `Step ${idx + 1} of ${NUMBERED}` : 'Summary';
-    title.textContent = def.title;
-    lead.textContent = def.lead;
+    const unfinished = def.id === 'done' && stepStatuses(ctx.settings.get(), session).done.tone !== 'done';
+    title.textContent = unfinished ? 'Almost set up' : def.title;
+    lead.textContent = unfinished ? 'One or more steps still need you (marked below). Everything else is saved.' : def.lead;
     const prev = neighbour(def.id, -1);
     const following = neighbour(def.id, 1);
     back.hidden = prev === null;
     const nextDef = following ? STEPS.find((s) => s.id === following) : null;
     next.hidden = nextDef === null;
     if (nextDef) (next.querySelector('.rw-btn__label') as HTMLElement).textContent = nextDef.panel ? `Next: ${nextDef.label}` : 'Finish';
-    extra.replaceChildren(...(def.id === 'monitor' ? [headphoneTip()] : []));
-  }
-
-  function headphoneTip(): HTMLElement {
-    return h(
-      'p',
-      { class: 'as-tip' },
-      icon('headphones', { size: '18px' }),
-      h('span', null, h('strong', null, 'Headphones recommended. '), 'Wired headphones keep the delay lowest and stop the guitar feeding back through laptop speakers.'),
-    );
   }
 
   function renderSummary(s: Settings): void {
-    const rows = summaryRows(s);
+    const rows = summaryRows(s, session);
     body.replaceChildren(
       h(
         'dl',
@@ -154,7 +155,20 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
             'div',
             { class: 'as-summary__row', dataset: { tone: r.tone } },
             h('dt', null, r.label),
-            h('dd', null, h('span', { class: 'as-summary__value' }, r.value), button({ label: 'Change', size: 'sm', variant: 'ghost', onClick: () => go(r.step, true) })),
+            h(
+              'dd',
+              null,
+              h('span', { class: 'as-summary__value' }, r.value),
+              button({
+                label: r.action,
+                size: 'sm',
+                variant: r.action === 'Change' ? 'ghost' : 'secondary',
+                onClick: () => {
+                  if (r.action === 'Calibrate guitar' || r.action === 'Calibrate keyboard') calMode = r.action === 'Calibrate guitar' ? 'guitar' : 'keyboard';
+                  go(r.step, true);
+                },
+              }),
+            ),
           ),
         ),
       ),
@@ -226,6 +240,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
 
   function show(id: StepId, focus: boolean): void {
     current = id;
+    if (id === 'tuner') session.tunerVisited = true;
     const def = STEPS.find((s) => s.id === id) as StepDef;
     renderHead(def);
     renderRail(ctx.settings.get());
@@ -239,7 +254,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
       return;
     }
     show(id, focus);
-    ctx.router.navigate(`/audio-setup?step=${id}`, { replace: true });
+    ctx.router.navigate(`/audio-setup?step=${id}${id === 'calibration' && calMode !== 'guitar' ? `&mode=${calMode}` : ''}`, { replace: true });
   }
 
   function step(dir: -1 | 1): void {

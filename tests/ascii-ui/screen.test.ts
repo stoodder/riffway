@@ -113,6 +113,9 @@ describe('import screen', () => {
     const ug = $<HTMLAnchorElement>('a.imp-ug');
     expect(ug.target).toBe('_blank');
     expect(ug.rel).toContain('noopener');
+    // Guitar Pro / MusicXML files are pointed at the library's Add files (R2-U-26).
+    expect($('.imp-otherformats').textContent).toMatch(/Guitar Pro .* MusicXML/);
+    expect($<HTMLAnchorElement>('.imp-otherformats a').getAttribute('href')).toBe('#/library');
 
     await paste(ARPEGGIO);
     const summary = $('.imp-summary').textContent ?? '';
@@ -240,6 +243,7 @@ describe('import screen', () => {
     expect($('h1').textContent).toBe('Align rhythm');
     expect($<HTMLTextAreaElement>('textarea').readOnly).toBe(true);
     expect(root.querySelector('a.imp-ug')).toBeNull();
+    expect(root.querySelector('.imp-otherformats')).toBeNull();
     byLabel('Save rhythm').click();
     await flush(10);
     expect(t.api.putSidecar).toHaveBeenCalledWith('local:abc', expect.objectContaining({ method: 'snap', grid: 8 }));

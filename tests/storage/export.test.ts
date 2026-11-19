@@ -151,6 +151,33 @@ describe('validation', () => {
     expect(preview.counts.runs).toBe(2);
   });
 
+  it('rejects unknown values of string-union settings and malformed calibration profiles', async () => {
+    const file = await valid();
+    const bad = structuredClone(file) as unknown as { settings: Record<string, Record<string, unknown>> };
+    bad.settings.game!.timingLeniency = 'brutal';
+    bad.settings.game!.inputMode = 'midi';
+    bad.settings.game!.feedbackDetail = 'verbose';
+    bad.settings.monitor!.preset = 'metal';
+    bad.settings.calibration!.method = 'guess';
+    bad.settings.preferences!.style = 'slide';
+    bad.settings.calibration!.profiles = { 'a → b': { inputLabel: 'a', outputLabel: null, inputOffsetMs: 'x', method: 'loopback', loopbackMs: 9 } };
+    expect(parseBackup(JSON.stringify(bad)).preview.errors).toEqual([
+      'settings.calibration.method: expected one of "none", "play-to-click", "tap-to-click", "loopback", "estimated"',
+      'settings.calibration.profiles["a → b"].inputOffsetMs: expected a finite number, got string',
+      'settings.monitor.preset: expected one of "clean", "crunch", "overdrive", "di"',
+      'settings.game.feedbackDetail: expected one of "minimal", "standard", "detailed"',
+      'settings.game.timingLeniency: expected one of "tight", "standard", "relaxed"',
+      'settings.game.inputMode: expected one of "auto", "guitar", "keyboard"',
+      'settings.preferences.style: expected one of "pick", "fingerstyle"',
+    ]);
+    // Valid values (and a profile from before the loopback fields existed) pass.
+    const good = structuredClone(file) as unknown as { settings: Record<string, Record<string, unknown>> };
+    good.settings.game!.timingLeniency = 'relaxed';
+    good.settings.game!.inputMode = 'keyboard';
+    good.settings.calibration!.profiles = { 'a → b': { inputLabel: 'a', outputLabel: null, inputOffsetMs: 12, method: 'play-to-click' } };
+    expect(parseBackup(JSON.stringify(good)).preview.errors).toEqual([]);
+  });
+
   it('reports missing parts, bad timestamps, bad sidecars and duplicate keys', async () => {
     const file = await valid();
     const { stores, ...rest } = file;

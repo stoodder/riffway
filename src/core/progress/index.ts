@@ -41,6 +41,10 @@ export {
 } from './streak';
 export {
   comfortTier,
+  comfortTierDetail,
+  kindForTier,
+  SESSION_GOAL_COUNT,
+  type ComfortTierDetail,
   COMFORT_ACCURACY,
   COMFORT_SONGS,
   DEFAULT_COMFORT_TIER,

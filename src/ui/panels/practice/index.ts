@@ -123,7 +123,11 @@ class PracticePanel {
   private metronomeVolume!: Slider;
 
   // Messages
-  private readonly message = h('p', { class: 'rw-practice__message', role: 'status', 'aria-live': 'polite' });
+  /**
+   * Trainer messages for screen readers only: the highway shows them as a toast, so the drawer does
+   * not repeat them on screen (R2-U-19).
+   */
+  private readonly message = h('p', { class: 'rw-practice__message rw-visually-hidden', role: 'status', 'aria-live': 'polite' });
   private messageTimer: ReturnType<typeof setTimeout> | null = null;
 
   // Last synced session values (so the rAF poll only touches the DOM on change)
@@ -139,16 +143,16 @@ class PracticePanel {
     this.strip = loopStrip({ song: session.song, onSelect: (l) => this.applyLoop(l) });
     this.loopButtons = {
       clear: button({ label: 'Clear loop', size: 'sm', variant: 'ghost', icon: 'close', onClick: () => this.clearLoop() }),
-      aMinus: button({ label: 'A ◂', size: 'sm', variant: 'ghost', title: 'Move loop start one bar earlier', onClick: () => this.nudge('start', -1) }),
-      aPlus: button({ label: 'A ▸', size: 'sm', variant: 'ghost', title: 'Move loop start one bar later', onClick: () => this.nudge('start', 1) }),
-      bMinus: button({ label: 'B ◂', size: 'sm', variant: 'ghost', title: 'Move loop end one bar earlier', onClick: () => this.nudge('end', -1) }),
-      bPlus: button({ label: 'B ▸', size: 'sm', variant: 'ghost', title: 'Move loop end one bar later', onClick: () => this.nudge('end', 1) }),
+      aMinus: button({ label: 'A ◂', size: 'sm', variant: 'secondary', title: 'Move loop start one bar earlier', onClick: () => this.nudge('start', -1) }),
+      aPlus: button({ label: 'A ▸', size: 'sm', variant: 'secondary', title: 'Move loop start one bar later', onClick: () => this.nudge('start', 1) }),
+      bMinus: button({ label: 'B ◂', size: 'sm', variant: 'secondary', title: 'Move loop end one bar earlier', onClick: () => this.nudge('end', -1) }),
+      bPlus: button({ label: 'B ▸', size: 'sm', variant: 'secondary', title: 'Move loop end one bar later', onClick: () => this.nudge('end', 1) }),
     };
     this.loopButtons.aMinus.setAttribute('aria-label', 'Loop start one bar earlier');
     this.loopButtons.aPlus.setAttribute('aria-label', 'Loop start one bar later');
     this.loopButtons.bMinus.setAttribute('aria-label', 'Loop end one bar earlier');
     this.loopButtons.bPlus.setAttribute('aria-label', 'Loop end one bar later');
-    this.root = h('section', { class: 'rw-practice', 'aria-label': 'Practice' });
+    this.root = h('section', { class: 'rw-practice', 'aria-label': 'Practice tools' });
     this.render();
     host.append(this.root);
     this.subscribe();
@@ -218,7 +222,10 @@ class PracticePanel {
       step: 5,
       value: Math.round(this.settings.mixer.metronome * 100),
       format: (v) => `${v}%`,
-      onInput: (v) => this.ctx.services.peek('engine')?.setLevel('metronome', v / 100),
+      // A muted metronome stays silent (the mixer's M); the level still saves for unmuting (R2-I-07).
+      onInput: (v) => {
+        if (!this.ctx.settings.get().mixerMute.metronome) this.ctx.services.peek('engine')?.setLevel('metronome', v / 100);
+      },
       onChange: (v) => this.persist({ mixer: { metronome: v / 100 } }),
     });
 
@@ -229,7 +236,7 @@ class PracticePanel {
       h(
         'header',
         { class: 'rw-practice__header' },
-        h('h2', { class: 'rw-practice__title' }, 'Practice'),
+        h('h2', { class: 'rw-practice__title' }, 'Practice tools'),
         helpBtn,
       ),
       shortcutsList,
@@ -254,7 +261,15 @@ class PracticePanel {
           setA,
           setB,
           this.loopButtons.clear,
-          h('span', { class: 'rw-practice__nudges', role: 'group', 'aria-label': 'Fine-tune by one bar' }, this.loopButtons.aMinus, this.loopButtons.aPlus, this.loopButtons.bMinus, this.loopButtons.bPlus),
+          h(
+            'span',
+            { class: 'rw-practice__nudges', role: 'group', 'aria-label': 'Fine-tune by one bar' },
+            h('span', { class: 'rw-practice__nudges-label', 'aria-hidden': 'true' }, 'Nudge by a bar'),
+            this.loopButtons.aMinus,
+            this.loopButtons.aPlus,
+            this.loopButtons.bMinus,
+            this.loopButtons.bPlus,
+          ),
         ),
         this.sectionList,
       ),
@@ -290,7 +305,7 @@ class PracticePanel {
     list.replaceChildren(
       ...defs.flatMap((d) => [h('dt', null, h('kbd', null, d.keyLabel)), h('dd', null, d.description)]),
       h('dt', null, h('kbd', null, '1–6')),
-      h('dd', null, 'Always go to the game (strings)'),
+      h('dd', null, 'Play strings (always)'),
     );
   }
 

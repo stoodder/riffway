@@ -63,8 +63,11 @@ Active time = time the transport is playing (not paused), summed per local day.
   Idempotent. Never show a "streak lost" message; show current and best side by side.
 
 ## Recommendations (`src/core/progress/recommend.ts`)
-**Comfort tier** = highest tier with ≥ 85% accuracy at 100% speed on ≥ 2 distinct songs; default 2
-for a new player (profile: beginner–intermediate).
+**Comfort tier** = highest tier with ≥ 85% accuracy at 100% speed on ≥ 2 distinct songs. One such song
+at tier T already counts as comfort T − 1, so one strong run on a harder song raises the estimate at
+once. Default (and floor) 2 for a new player (profile: beginner–intermediate). `comfortTierDetail()`
+also returns the basis (`default` / `one-song` / `two-songs`), which the home "Comfort tier" tile
+explains ("Based on one strong song a tier up…").
 
 Candidates = library songs with rhythm (not `needs-alignment`) plus starter items. Score each:
 ```
@@ -78,12 +81,18 @@ Fill 10 slots: 6 stretch, 3 comfort/review, 1 reach (reach suggested as a single
 checks fill the comfort slots first as `review` items (with `sectionIdx`, no 24 h penalty). Each slot takes
 the best unused candidate for its target (ties: closer tier, then id); candidates 3+ tiers from the target
 never fill a slot, so small libraries give fewer items. Only `availability: 'playable'` candidates with a
-tier count. Output order: stretch, review, comfort, reach; deterministic and independent of input order.
-Every item has a `reason`, e.g. "Stretch pick: tier 4, one above your comfort tier (3) · suits your pick
-playing · rock". Comfort tier ignores loop runs and runs below 100%.
+tier count. **Labels follow the tier, not the slot** (`kindForTier`): tier − comfort = +1 is
+`stretch`, ≥ +2 `reach`, ≤ 0 `comfort`, so a neighbouring-tier song that filled a stretch slot in a
+small library reads "Comfort pick" and the badge always matches the reason. Output order: stretch,
+review, comfort, reach; deterministic and independent of input order. Every item has a `reason`, e.g.
+"Stretch pick: tier 4, one above your comfort tier (3) · suits your pick playing · rock". Comfort tier
+ignores loop runs and runs below 100%.
 **Session goals** (3, player picks one, phrased as process goals): (1) next-day checks due,
-(2) the weakest section of the most recent stretch song ("Get Verse 2 clean at 80%"),
-(3) one new stretch song. Fingerstyle items are excluded from goals unless the player enables
+(2) the weakest section of the most recent stretch song ("Get “Verse 2” of “Song” clean at 80%";
+sections are named when the song's difficulty report has names), (3) one new stretch song. Missing
+slots are filled with the weakest unclean (< 90%) section of other recently played songs, then more
+unplayed recommendations (stretch, then comfort picks as "Warm up with …"), so there are 3 choices
+whenever the library allows. Fingerstyle items are excluded from goals unless the player enables
 "Fingerstyle" in preferences.
 
 ## Export / import (`src/storage/export.ts`)
@@ -97,8 +106,10 @@ playing · rock". Comfort tier ignores loop runs and runs below 100%.
 - Import (`parseBackup` / `previewImport` → `importAll`): reject non-JSON and foreign files
   (`app` ≠ `"riffway"`) and newer `schemaVersion`s with a readable message, migrate forward with the
   same `SCHEMA_STEPS` as `upgrade()`, then validate every record (path-qualified errors such as
-  `stores.runs[3].accuracy: expected a number 0–100`, duplicate keys, capped at 20). Unknown extra fields
-  are kept. `importAll` re-validates, throws `ImportValidationError` on failure and applies the file in one
+  `stores.runs[3].accuracy: expected a number 0–100`, duplicate keys, capped at 20). Settings fields
+  take their type from `DEFAULT_SETTINGS`, and string unions are checked by value (calibration
+  method, amp preset, feedback detail, timing leniency, input mode, right-hand style), as are
+  calibration profiles. Unknown extra fields are kept. `importAll` re-validates, throws `ImportValidationError` on failure and applies the file in one
   transaction.
 - **Replace** wipes local data and uses the file's settings (merged over defaults). **Merge** keeps local
   settings (device, calibration) and merges per key: runs match on `(songId, arrangement, startedAt)`

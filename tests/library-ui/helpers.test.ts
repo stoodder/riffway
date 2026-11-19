@@ -2,7 +2,10 @@
 import { describe, expect, it } from 'vitest';
 import { LIMITS } from '@shared/api';
 import { partitionFiles, summarizeImport } from '../../src/ui/screens/library/drop-import';
-import { formatDuration, songCount } from '../../src/ui/screens/library/labels';
+import { byLine, formatDuration, songCount } from '../../src/ui/screens/library/labels';
+import { shouldOfferClassTab } from '../../src/ui/screens/library/classtab-offer';
+import { activeFilterCount, filterBar } from '../../src/ui/screens/library/filters';
+import { DEFAULT_QUERY } from '../../src/ui/screens/library/query';
 import { importDestination, validateLibraryPath } from '../../src/ui/screens/library/library-folder';
 import { tuningFacets } from '../../src/ui/screens/library';
 import { trackDetails } from '../../src/ui/screens/library/arrangement-picker';
@@ -117,5 +120,38 @@ describe('display helpers', () => {
     expect(trackDetails({ index: 0, name: 'Lead', strings: 6, tuning: [64, 59, 55, 50, 45, 38], capo: 2, playable: true, noteCount: 1200 })).toBe(
       'Drop D · capo 2 · 1,200 notes',
     );
+  });
+
+  it('writes the by-line without repeating the artist in the composer', () => {
+    expect(byLine({ artist: 'Riffway', composer: 'Riffway (original exercise)', fileName: 'x.atex' })).toBe('Riffway (original exercise)');
+    expect(byLine({ artist: 'Traditional', composer: 'Traditional (England)', fileName: 'x' })).toBe('Traditional (England)');
+    expect(byLine({ artist: 'Some Band', composer: 'J. Writer', fileName: 'x' })).toBe('Some Band · J. Writer');
+    expect(byLine({ composer: 'Edvard Grieg', fileName: 'x' })).toBe('Edvard Grieg');
+    expect(byLine({ artist: ' ', fileName: 'riff.gp' })).toBe('riff.gp');
+  });
+
+  it('offers ClassTab only while it is enabled and not downloaded', () => {
+    const enabled = { enabledSources: ['classtab' as const] };
+    expect(shouldOfferClassTab({ state: 'not-downloaded', tabs: 0 }, enabled)).toBe(true);
+    expect(shouldOfferClassTab({ state: 'error', tabs: 0 }, enabled)).toBe(true);
+    expect(shouldOfferClassTab({ state: 'error', tabs: 12 }, enabled)).toBe(false);
+    expect(shouldOfferClassTab({ state: 'ready', tabs: 12 }, enabled)).toBe(false);
+    expect(shouldOfferClassTab({ state: 'not-downloaded', tabs: 0 }, { enabledSources: [] })).toBe(false);
+  });
+
+  it('counts active filters and starts collapsed on short windows', () => {
+    expect(activeFilterCount(DEFAULT_QUERY)).toBe(0);
+    expect(activeFilterCount({ ...DEFAULT_QUERY, sources: ['local', 'starter'], tierMin: 2, tags: ['bends', 'metal'], sort: 'az' })).toBe(4);
+    const tall = filterBar({ onChange: () => {}, collapsed: false });
+    expect(tall.el.querySelector('.lib-filters__toggle')?.getAttribute('aria-expanded')).toBe('true');
+    const prev = window.innerHeight;
+    Object.defineProperty(window, 'innerHeight', { configurable: true, value: 720 });
+    try {
+      const short = filterBar({ onChange: () => {} });
+      expect(short.el.querySelector('.lib-filters__toggle')?.getAttribute('aria-expanded')).toBe('false');
+      expect((short.el.querySelector('.lib-filters__body') as HTMLElement).hidden).toBe(true);
+    } finally {
+      Object.defineProperty(window, 'innerHeight', { configurable: true, value: prev });
+    }
   });
 });

@@ -2,10 +2,11 @@
  * Latency calibration panel (T-033, docs/timing.md § Latency calibration). Exports
  * `mount: PanelMount<PanelPropsMap['calibration']>` (contract in `@shared/ui`).
  *
- * - **Summary:** the current device pair and its guitar / keyboard / visual offsets with method,
- *   consistency and date, a note when they were measured on another device, and how each is applied.
  * - **Tabs** (`props.mode` picks the first): Guitar (play-to-click, plus loopback under "Advanced"),
  *   Keyboard (tap-to-click), Visual (flash vs click nudge). A running measurement locks the tabs.
+ * - **Summary** (below the tabs): the current device pair and its guitar / keyboard / visual offsets
+ *   with method, consistency and date, a note when they were measured on another device, and how
+ *   each is applied.
  * While mounted it keeps the active calibration on the current device pair's profile.
  * @module
  */
@@ -158,7 +159,8 @@ function build(root: HTMLElement, ctx: AppContext, engine: AudioEngine, input: I
     onChange: stopAll,
   });
 
-  root.replaceChildren(summary, tabset.el);
+  // The measurement first (its Start button stays above the fold on short windows), then what is saved.
+  root.replaceChildren(tabset.el, summary);
   renderSummary(ctx.settings.get());
   cleanups.push(
     ctx.settings.subscribe(renderSummary),

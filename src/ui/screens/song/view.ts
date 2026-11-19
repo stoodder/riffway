@@ -123,7 +123,7 @@ function hero(s: SongPageState, a: SongActions): HTMLElement {
 // Main column
 // ---------------------------------------------------------------------------------------------
 
-function tuningPrompt(t: TuningView, a: SongActions): HTMLElement | null {
+function tuningPrompt(t: TuningView, a: SongActions, needsRhythm: boolean): HTMLElement | null {
   if (!t.prompt) return null;
   return h(
     'section',
@@ -142,8 +142,20 @@ function tuningPrompt(t: TuningView, a: SongActions): HTMLElement | null {
         ),
       ),
     ),
-    button({ label: 'Open tuner', icon: 'audio', variant: 'primary', onClick: () => a.tune() }),
+    // One primary action per page: while the tab needs aligning, that is "Align rhythm to play".
+    button({ label: 'Open tuner', icon: 'audio', variant: needsRhythm ? 'secondary' : 'primary', onClick: () => a.tune() }),
   );
+}
+
+/** A section row's action: loop it, take its due check, or (no rhythm yet) go align the tab first. */
+function sectionAction(s: SongPageState, r: SongPageState['sections'][number], a: SongActions): HTMLElement {
+  if (s.meta.entry.rhythm === 'needs-alignment') {
+    const link = linkButton('Align first', a.href({ screen: 'import', params: { song: s.meta.entry.id } }), { size: 'sm', variant: 'ghost', icon: 'import' });
+    link.title = 'This tab has no timing yet: a loop would play guessed, evenly spaced notes. Align the rhythm once, then loop sections.';
+    link.setAttribute('aria-label', `Align the rhythm before looping ${r.name}`);
+    return link;
+  }
+  return linkButton(r.state === 'check-due' ? 'Take the check' : 'Loop this', a.href(r.loop), { size: 'sm', variant: r.state === 'check-due' ? 'primary' : 'secondary', icon: 'loop' });
 }
 
 function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
@@ -156,7 +168,8 @@ function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
   const strip = h(
     'ol',
     { class: 'sg-map', 'aria-hidden': 'true' },
-    ...rows.map((r) => h('li', { class: `sg-map__seg is-${r.state}`, style: `flex-grow: ${Math.max(0.02, r.share).toFixed(4)}; --tier-c: ${r.tier ? `var(--tier-${r.tier})` : 'var(--color-border-strong)'}`, title: `${r.name}: ${r.stateLabel}` })),
+    // Coloured by progress state only, as the legend says; difficulty lives in each row's pill.
+    ...rows.map((r) => h('li', { class: `sg-map__seg is-${r.state}`, style: `flex-grow: ${Math.max(0.02, r.share).toFixed(4)}`, title: `${r.name}: ${r.stateLabel}` })),
   );
   const list = h(
     'ol',
@@ -172,7 +185,7 @@ function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
           h('span', { class: 'sg-sec__name' }, r.name, r.tier ? difficultyPill({ tier: r.tier, ...(r.rating !== null ? { rating: r.rating } : {}), size: 'sm', showName: false }) : null),
           h('span', { class: 'sg-sec__detail' }, h('span', { class: 'sg-sec__label' }, r.stateLabel), ' · ', r.detail),
         ),
-        linkButton(r.state === 'check-due' ? 'Take the check' : 'Loop this', a.href(r.loop), { size: 'sm', variant: r.state === 'check-due' ? 'primary' : 'secondary', icon: 'loop' }),
+        sectionAction(s, r, a),
       ),
     ),
   );
@@ -251,13 +264,20 @@ function arrangementsCard(s: SongPageState, a: SongActions): HTMLElement | null 
   );
 }
 
+/** Techniques (skills the part uses) and style (right hand + genre) as two labelled tag rows. */
 function techniquesCard(s: SongPageState): HTMLElement | null {
   const t = s.meta.entry.tags;
   const report = s.meta.difficulty[s.arrangement];
   const skills = [...new Set([...(report?.skills ?? []), ...t.skills])];
-  if (!skills.length && !t.style.length && !t.genre.length) return null;
-  const chips = (items: readonly string[], cls: string): HTMLElement[] => items.map((x) => h('li', { class: `sg-tag ${cls}` }, x.replace(/-/g, ' ')));
-  return sgCard('Techniques', [h('ul', { class: 'sg-tags' }, ...chips(skills, 'is-skill'), ...chips(t.style, 'is-style'), ...chips(t.genre, 'is-genre'))]);
+  const style = [...new Set([...t.style, ...t.genre])];
+  if (!skills.length && !style.length) return null;
+  const row = (label: string, items: readonly string[], cls: string): HTMLElement[] =>
+    items.length
+      ? [h('dt', null, label), h('dd', null, h('ul', { class: 'sg-tags', 'aria-label': label }, ...items.map((x) => h('li', { class: `sg-tag ${cls}` }, x.replace(/-/g, ' ')))))]
+      : [];
+  return sgCard(skills.length ? 'Techniques & style' : 'Style', [h('dl', { class: 'sg-tagrows' }, ...row('Techniques', skills, 'is-skill'), ...row('Style', style, 'is-style'))], {
+    id: 'sg-techniques-title',
+  });
 }
 
 function bestsCard(s: SongPageState, a: SongActions): HTMLElement {
@@ -303,7 +323,8 @@ function rhythmCard(s: SongPageState, a: SongActions): HTMLElement | null {
         : `Timing comes from ${e.rhythm === 'midi' ? 'a paired MIDI file' : 'the tab’s beat ruler'}. Re-align it if it feels off.`;
   return sgCard('Rhythm', [
     h('p', { class: 'sg-card__sub' }, text),
-    h('div', null, linkButton(e.rhythm === 'needs-alignment' ? 'Align rhythm' : 'Re-align rhythm', a.href({ screen: 'import', params: { song: e.id } }), { size: 'sm', icon: 'import', variant: e.rhythm === 'needs-alignment' ? 'primary' : 'secondary' })),
+    // The hero already holds the page's primary "Align rhythm to play".
+    h('div', null, linkButton(e.rhythm === 'needs-alignment' ? 'Align rhythm' : 'Re-align rhythm', a.href({ screen: 'import', params: { song: e.id } }), { size: 'sm', icon: 'import', variant: 'secondary' })),
   ]);
 }
 
@@ -329,7 +350,7 @@ export function renderSong(s: SongPageState, a: SongActions, backingSlot: HTMLEl
     h(
       'div',
       { class: 'sg-grid' },
-      h('div', { class: 'sg-main' }, tuningPrompt(s.tuning, a), masteryMap(s, a), difficultyCard(s), backingSlot),
+      h('div', { class: 'sg-main' }, tuningPrompt(s.tuning, a, s.meta.entry.rhythm === 'needs-alignment'), masteryMap(s, a), difficultyCard(s), backingSlot),
       h('aside', { class: 'sg-side' }, arrangementsCard(s, a), bestsCard(s, a), techniquesCard(s), rhythmCard(s, a), sourceCard(s)),
     ),
   );

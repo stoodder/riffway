@@ -2,7 +2,8 @@
  * Library screen (T-026): one search box over every enabled source (150 ms debounce) with filters
  * (source, difficulty tier range, tuning, technique, playable now vs needs import/rhythm), result rows,
  * link-outs to Songsterr / Ultimate Guitar / the Guitar Pro free pack (new tab, `noopener`), the
- * library-folder chooser, whole-window drag-and-drop + file-picker import, live refresh over SSE and
+ * ClassTab download offer while it isn't downloaded, a sort control (best match / easiest / A–Z /
+ * recently played; applied to the returned rows), the library-folder chooser, whole-window drag-and-drop + file-picker import, live refresh over SSE and
  * the arrangement picker → song page. State lives in the route (`#/library?q=…&tierMax=4`).
  *
  * Keyboard: `/` focuses the search box, ↓ moves into the results, ↑/↓/Home/End move between songs,
@@ -14,14 +15,15 @@ import type { SearchResponse, ServerConfig, ServerEvent } from '@shared/api';
 import { SOURCE_IDS } from '@shared/song';
 import type { SearchResult } from '@shared/sources';
 import type { AppContext, ScreenHandle, ScreenMount } from '@shared/ui';
-import { button, emptyState, h, icon, uid } from '../../components';
+import { button, emptyState, h, icon, select, uid } from '../../components';
 import { pickArrangement } from './arrangement-picker';
+import { classtabOffer } from './classtab-offer';
 import { dropImport } from './drop-import';
 import { filterBar, type SourceFacet, type TuningFacet } from './filters';
 import { AVAILABILITY, SOURCE_LABEL, songCount } from './labels';
 import { importDestination, libraryFolder } from './library-folder';
 import { linkOutSection } from './link-outs';
-import { DEFAULT_QUERY, hasFilters, queryFromParams, queryToParams, sameQuery, toSearchQuery, type LibraryQuery } from './query';
+import { DEFAULT_QUERY, hasFilters, queryFromParams, queryToParams, sameQuery, sortResults, toSearchQuery, type LibraryQuery, type SortOrder } from './query';
 import { resultList } from './results';
 import './library.css';
 
@@ -31,6 +33,19 @@ export const SEARCH_DEBOUNCE_MS = 150;
 export const REFRESH_DEBOUNCE_MS = 250;
 /** Rows read to build the tuning filter and the "library is empty" check (server maximum). */
 const FACET_LIMIT = 500;
+/** Played songs read for the "Recently played" order. */
+const RECENT_LIMIT = 500;
+
+/** Sort select options; the default (`''`) reads "Best match" with a query and "A–Z" without one. */
+export function sortOptions(q: string): { value: SortOrder; label: string }[] {
+  const typed = q.trim() !== '';
+  return [
+    { value: '', label: typed ? 'Best match' : 'A–Z' },
+    ...(typed ? [{ value: 'az' as const, label: 'A–Z' }] : []),
+    { value: 'easiest', label: 'Easiest first' },
+    { value: 'recent', label: 'Recently played' },
+  ];
+}
 
 /** Facets for the filter bar, from `GET /api/sources` and an unfiltered listing. */
 interface Facets {
@@ -150,6 +165,17 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
   // ---- Filters, status, results, empty states, link-outs --------------------------------------
   const filters = filterBar({ onChange: (patch) => apply({ ...query, ...patch }) });
   const status = h('p', { class: 'lib-status', role: 'status' });
+  const sort = select({ label: 'Sort', options: sortOptions(query.q), onChange: (v) => apply({ ...query, sort: v as SortOrder }) });
+  sort.el.classList.add('lib-sort');
+  /** songId → last played (epoch ms), read when "Recently played" is chosen. */
+  let lastPlayed: Map<string, number> | null = null;
+  const offer = classtabOffer({
+    api: ctx.api,
+    onReady: () => {
+      ctx.ui.toast('ClassTab is ready: its tabs are now in your library search.', { kind: 'success' });
+      refresh();
+    },
+  });
   const indexing = h('p', { class: 'lib-indexing', 'aria-live': 'polite' });
   const list = resultList({ onOpen: (r) => void open(r), onEscape: () => input.focus() });
   list.el.id = resultsId;
@@ -162,14 +188,16 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
     drop.progress,
     searchBox,
     filters.el,
-    h('div', { class: 'lib-statusbar' }, status, indexing),
+    h('div', { class: 'lib-statusbar' }, h('div', { class: 'lib-statusbar__text' }, status, indexing), sort.el),
     list.el,
     empty,
     linkOuts.el,
     drop.overlay,
   );
+  linkOuts.el.append(offer.el);
   el.append(root);
   filters.set(query);
+  syncSort();
 
   // ---- Behaviour ------------------------------------------------------------------------------
   const titleOf = (id: string): string | undefined => response?.results.find((r) => r.id === id)?.title;
@@ -196,7 +224,8 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       return;
     }
     if (!response) return;
-    const { results, total, linkOuts: outs } = response;
+    const { total, linkOuts: outs } = response;
+    const results = sortResults(response.results, query.sort, { lastPlayed: lastPlayed ?? undefined });
     list.render(results, (r) => newFiles.has(r.fileName));
     list.el.hidden = results.length === 0;
     const q = query.q.trim();
@@ -204,7 +233,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
     status.textContent = libraryEmpty
       ? ''
       : total > results.length
-        ? `Showing ${results.length} of ${songCount(total)}. Narrow the search to see the rest.`
+        ? `Showing ${results.length} of ${songCount(total)}${query.sort ? ' (sorted among these)' : ''}. Narrow the search to see the rest.`
         : `${songCount(total)}${q ? ` for “${q}”` : ''}`;
     if (results.length) empty.replaceChildren();
     else empty.replaceChildren(emptyView(q));
@@ -234,7 +263,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
         ? 'Try a wider difficulty range or another tuning, or clear the filters.'
         : 'Check the spelling, or find the song on Songsterr or Ultimate Guitar below and drop the file here.',
       icon: 'search',
-      action: hasFilters(query) ? { label: 'Clear filters', onClick: () => apply({ ...DEFAULT_QUERY, q: query.q }) } : undefined,
+      action: hasFilters(query) ? { label: 'Clear filters', onClick: () => apply({ ...DEFAULT_QUERY, q: query.q, sort: query.sort }) } : undefined,
       secondary: q ? { label: 'Clear search', onClick: () => apply({ ...query, q: '' }) } : undefined,
     });
   }
@@ -265,6 +294,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       if (my !== facetSeq || destroyed) return;
       config = cfg;
       folder.set(cfg);
+      void offer.load(cfg);
       const indexed = sources.sources.filter((s) => s.kind !== 'link-out' && s.enabled && (s.indexed > 0 || query.sources.includes(s.id)));
       facets = {
         sources: indexed.map((s) => ({ id: s.id, label: SOURCE_LABEL[s.id], count: s.indexed })),
@@ -293,8 +323,28 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
     query = next;
     if (input.value !== query.q) input.value = query.q;
     filters.set(query);
+    syncSort();
     keepFocus(hadFocus);
     void runSearch();
+  }
+
+  /** Reflect `query.sort` (and the query-dependent default label) in the sort select. */
+  function syncSort(): void {
+    const options = sortOptions(query.q);
+    if (sort.select.options.length !== options.length || sort.select.options[0]?.text !== options[0]?.label) sort.setOptions(options);
+    sort.set(options.some((o) => o.value === query.sort) ? query.sort : '');
+    if (query.sort === 'recent' && lastPlayed === null) void loadLastPlayed();
+  }
+
+  async function loadLastPlayed(): Promise<void> {
+    lastPlayed = new Map();
+    try {
+      const recent = (await ctx.storage?.listRecentSongs(RECENT_LIMIT)) ?? [];
+      for (const s of recent) if (s.lastPlayedAt !== null) lastPlayed.set(s.songId, s.lastPlayedAt);
+    } catch {
+      // No progress store (or it failed): "Recently played" falls back to A–Z.
+    }
+    render();
   }
 
   async function enableStarter(): Promise<void> {
@@ -325,6 +375,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
   }
 
   const onServerEvent = (event: ServerEvent): void => {
+    offer.onEvent(event);
     if (event.type === 'library.changed') {
       win.clearTimeout(refreshTimer);
       refreshTimer = win.setTimeout(refresh, REFRESH_DEBOUNCE_MS);
@@ -335,6 +386,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
 
   input.addEventListener('input', () => {
     query = { ...query, q: input.value };
+    syncSort();
     win.clearTimeout(searchTimer);
     searchTimer = win.setTimeout(() => void runSearch(), SEARCH_DEBOUNCE_MS);
   });

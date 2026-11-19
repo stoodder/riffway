@@ -11,6 +11,7 @@ import type { Unsubscribe } from '@shared/clock';
 import type { AppContext } from '@shared/ui';
 import { ApiError } from '../../../api/client';
 import { badge, button, h, icon, setBusy, toggle, uid, type BadgeTone } from '../../components';
+import { classtabProgress } from '../library/classtab-offer';
 import { validateLibraryPath } from '../library/library-folder';
 import { group, section } from './controls';
 
@@ -66,34 +67,8 @@ export function classtabSummary(s: ClassTabStatus): { badge: { text: string; ton
   return { badge: badges[s.state], lines };
 }
 
-const mb = (bytes: number): string => (bytes / 1_048_576).toFixed(1);
-
-/** Progress text for a `classtab.progress` event, and the fraction when the size is known. */
-export function classtabProgress(ev: Extract<ServerEvent, { type: 'classtab.progress' }>): { text: string; fraction: number | null; finished: boolean } {
-  switch (ev.phase) {
-    case 'checking':
-      return { text: 'Checking classtab.org for an update…', fraction: null, finished: false };
-    case 'downloading': {
-      const total = ev.totalBytes ?? 0;
-      const got = ev.bytes ?? 0;
-      return {
-        text: total > 0 ? `Downloading… ${mb(got)} of ${mb(total)} MB` : `Downloading… ${mb(got)} MB`,
-        fraction: total > 0 ? Math.min(1, got / total) : null,
-        finished: false,
-      };
-    }
-    case 'extracting':
-      return { text: 'Unpacking the zip…', fraction: null, finished: false };
-    case 'indexing':
-      return { text: 'Indexing tabs…', fraction: null, finished: false };
-    case 'done':
-      return { text: 'ClassTab is up to date.', fraction: 1, finished: true };
-    case 'not-modified':
-      return { text: 'No update: you already have the latest ClassTab.', fraction: null, finished: true };
-    case 'error':
-      return { text: `Refresh failed: ${ev.message ?? 'unknown error'}`, fraction: null, finished: true };
-  }
-}
+/** Progress text for a `classtab.progress` event (shared with the library's ClassTab offer). */
+export { classtabProgress };
 
 const KIND_TEXT: Record<SourceStatus['kind'], string> = {
   library: 'Files on this computer',

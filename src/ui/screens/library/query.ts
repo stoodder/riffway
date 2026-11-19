@@ -14,6 +14,16 @@ export type Technique = 'pick' | 'fingerstyle';
 /** "Playable now" vs "needs import or rhythm" filter. */
 export type PlayableFilter = 'all' | 'playable' | 'needs-work';
 
+/**
+ * Result order, applied in the browser to the rows the server returned: `''` keeps the server order
+ * (best match for a query, A–Z without one), `easiest` sorts by difficulty, `az` by title and
+ * `recent` puts recently played songs first.
+ */
+export type SortOrder = '' | 'easiest' | 'az' | 'recent';
+
+/** Every sort order (the `sort` route param). */
+export const SORT_ORDERS: readonly SortOrder[] = ['', 'easiest', 'az', 'recent'];
+
 /** Everything the library screen searches with. Defaults mean "no filter". */
 export interface LibraryQuery {
   /** Free text (trimmed when sent). */
@@ -29,6 +39,8 @@ export interface LibraryQuery {
   technique: Technique | '';
   /** Other required tags (genre/skill), e.g. from a "songs with bends" link. */
   tags: string[];
+  /** Result order (not sent to the server). */
+  sort: SortOrder;
 }
 
 /** Tier bounds. */
@@ -48,6 +60,7 @@ export const DEFAULT_QUERY: Readonly<LibraryQuery> = Object.freeze({
   playable: 'all',
   technique: '',
   tags: [],
+  sort: '',
 });
 
 const TECHNIQUES: readonly Technique[] = ['pick', 'fingerstyle'];
@@ -82,6 +95,7 @@ export function queryFromParams(params: RouteParams): LibraryQuery {
     playable: params.playable === 'true' ? 'playable' : params.playable === 'false' ? 'needs-work' : 'all',
     technique,
     tags: [...new Set(tags.filter((t) => !TECHNIQUES.includes(t as Technique)))],
+    sort: SORT_ORDERS.find((o) => o && o === params.sort) ?? '',
   };
 }
 
@@ -101,6 +115,7 @@ export function queryToParams(query: LibraryQuery): RouteParams {
   if (query.playable !== 'all') params.playable = String(query.playable === 'playable');
   const tags = allTags(query);
   if (tags.length) params.tags = tags.join(',');
+  if (query.sort) params.sort = query.sort;
   return params;
 }
 
@@ -129,6 +144,33 @@ export function hasFilters(query: LibraryQuery): boolean {
     query.technique !== '' ||
     query.tags.length > 0
   );
+}
+
+/** What {@link sortResults} needs per song beyond the result itself. */
+export interface SortContext {
+  /** Epoch ms each song was last played (missing = never). */
+  lastPlayed?: ReadonlyMap<string, number>;
+}
+
+/**
+ * Order rows for `sort`. Stable: ties keep the server order. `easiest` puts unrated songs last;
+ * `recent` lists played songs newest first, then the rest A–Z. Returns a new array.
+ */
+export function sortResults<T extends { id: string; title: string; rating: number | null }>(rows: readonly T[], sort: SortOrder, ctx: SortContext = {}): T[] {
+  const out = [...rows];
+  const byTitle = (a: T, b: T): number => a.title.localeCompare(b.title, 'en', { sensitivity: 'base' });
+  switch (sort) {
+    case '':
+      return out;
+    case 'az':
+      return out.sort(byTitle);
+    case 'easiest':
+      return out.sort((a, b) => (a.rating ?? Infinity) - (b.rating ?? Infinity) || byTitle(a, b));
+    case 'recent': {
+      const at = (r: T): number => ctx.lastPlayed?.get(r.id) ?? -Infinity;
+      return out.sort((a, b) => at(b) - at(a) || byTitle(a, b));
+    }
+  }
 }
 
 /** Same search (text compared trimmed). */

@@ -187,16 +187,53 @@
   height: 36px;
 }
 
-.lib-filters__footer {
+.lib-filters__head {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
+  min-height: 32px;
+  margin: calc(-1 * var(--space-1)) 0;
 }
 
-.lib-filters__footer[hidden] {
+.lib-filters__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.lib-filters__toggle .rw-icon {
+  color: var(--color-text-muted);
+  transition: transform var(--dur-fast) var(--ease-standard);
+}
+
+.lib-filters__toggle[aria-expanded='false'] .rw-icon {
+  transform: rotate(-90deg);
+}
+
+.lib-filters__count {
+  color: var(--color-accent-strong);
+  font-weight: var(--weight-medium);
+}
+
+.lib-filters__head .rw-btn[hidden],
+.lib-filters__body[hidden],
+.lib-chips[hidden] {
   display: none;
+}
+
+.lib-filters__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 /* Chips (source filter, tag filter) */
@@ -282,11 +319,29 @@
 /* ---- Status line --------------------------------------------------------------------------------- */
 .lib-statusbar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   min-height: 1.5em;
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+}
+
+.lib-statusbar__text {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+/* "Sort [Easiest first ▾]" on one line at the right of the status bar. */
+.lib-sort.rw-field {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lib-sort .rw-select__input {
+  height: 32px;
 }
 
 .lib-indexing {
@@ -318,7 +373,7 @@
 .lib-row {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) 150px minmax(0, 2fr) 170px;
+  grid-template-columns: minmax(0, 2.2fr) 156px minmax(0, 2fr) 170px;
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-3) var(--space-4);
@@ -391,14 +446,13 @@
 }
 
 .lib-row__provisional {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-1);
-  opacity: 0.8;
+  border-style: dashed;
+  opacity: 0.85;
 }
 
 .lib-row__est {
-  color: var(--color-text-subtle);
+  margin-right: -2px;
+  color: var(--color-text-muted);
   font-size: var(--text-xs);
 }
 
@@ -418,10 +472,6 @@
 
 .lib-row__rhythm {
   color: var(--color-text-subtle);
-}
-
-.lib-row__rhythm.is-missing {
-  color: var(--color-warning);
 }
 
 .lib-row__tags {
@@ -519,6 +569,39 @@
 .lib-linkout__match {
   color: var(--color-success);
   font-size: var(--text-sm);
+}
+
+/* ClassTab offer: a full-width card below the link-outs (hidden once ClassTab is downloaded). */
+.lib-classtab[hidden] {
+  display: none;
+}
+
+.lib-classtab__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lib-classtab__title .rw-muted {
+  font-size: var(--text-sm);
+}
+
+.lib-classtab__progress {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.lib-classtab__progress:empty {
+  display: none;
+}
+
+.lib-classtab__bar {
+  width: 100%;
+  max-width: 420px;
+}
+
+.lib-classtab__bar[hidden] {
+  display: none;
 }
 
 /* ---- Import progress + drop overlay -------------------------------------------------------------- */

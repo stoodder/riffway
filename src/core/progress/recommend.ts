@@ -37,25 +37,54 @@ export interface RecommendInput {
   dueChecks: readonly SectionProgress[];
   preferences: { style: 'pick' | 'fingerstyle'; fingerstyle: boolean; genres: readonly string[] };
   now: number;
+  /** Display name of a section ("Intro"), when known; goals fall back to "section 2". */
+  sectionName?: (songId: string, sectionIdx: number) => string | undefined;
+}
+
+/** How the comfort tier was reached (for "why is it still 2?" copy). */
+export interface ComfortTierDetail {
+  tier: Tier;
+  /** `default`: no qualifying run; `one-song`: one strong song at `tier + 1`; `two-songs`: the full rule. */
+  basis: 'default' | 'one-song' | 'two-songs';
+  /** Distinct songs with a qualifying run (any tier). */
+  qualifyingSongs: number;
 }
 
 /**
- * Highest tier with ≥ 85% accuracy at 100% speed on ≥ 2 distinct songs; {@link DEFAULT_COMFORT_TIER}
- * when no tier qualifies. Loop runs (partial songs) and songs of unknown tier do not count.
+ * The comfort tier and its basis. A tier is comfortable with ≥ 85% accuracy at 100% speed on
+ * ≥ 2 distinct songs of that tier. One such song at tier T already shows the tier below is
+ * comfortable (T − 1), so a strong run on a harder song raises the estimate at once instead of
+ * waiting for a second song. Never below {@link DEFAULT_COMFORT_TIER}. Loop runs (partial songs) and
+ * songs of unknown tier do not count.
  */
-export function comfortTier(runs: readonly RunRecord[], tierOfSong: (songId: string) => Tier | null): Tier {
+export function comfortTierDetail(runs: readonly RunRecord[], tierOfSong: (songId: string) => Tier | null): ComfortTierDetail {
   const songsPerTier = new Map<Tier, Set<string>>();
+  const qualifying = new Set<string>();
   for (const r of runs) {
     if (r.loop || !isFullSpeed(r.speed) || r.accuracy < COMFORT_ACCURACY) continue;
     const tier = tierOfSong(r.songId);
     if (tier === null) continue;
+    qualifying.add(r.songId);
     const songs = songsPerTier.get(tier) ?? new Set<string>();
     songs.add(r.songId);
     songsPerTier.set(tier, songs);
   }
-  let best: Tier | null = null;
-  for (const [tier, songs] of songsPerTier) if (songs.size >= COMFORT_SONGS && (best === null || tier > best)) best = tier;
-  return best ?? DEFAULT_COMFORT_TIER;
+  let detail: ComfortTierDetail = { tier: DEFAULT_COMFORT_TIER, basis: 'default', qualifyingSongs: qualifying.size };
+  for (const [tier, songs] of songsPerTier) {
+    const candidate = songs.size >= COMFORT_SONGS ? tier : ((tier - 1) as Tier);
+    if (candidate > detail.tier || (candidate === detail.tier && songs.size >= COMFORT_SONGS && detail.basis !== 'two-songs')) {
+      detail = { tier: candidate, basis: songs.size >= COMFORT_SONGS ? 'two-songs' : 'one-song', qualifyingSongs: qualifying.size };
+    }
+  }
+  return detail;
+}
+
+/**
+ * Comfort tier: see {@link comfortTierDetail} (highest tier with ≥ 85% at 100% on ≥ 2 distinct
+ * songs, or one below a tier with one such song; {@link DEFAULT_COMFORT_TIER} otherwise).
+ */
+export function comfortTier(runs: readonly RunRecord[], tierOfSong: (songId: string) => Tier | null): Tier {
+  return comfortTierDetail(runs, tierOfSong).tier;
 }
 
 /** A candidate that can be recommended (has a tier, a playable arrangement and usable rhythm). */
@@ -127,6 +156,17 @@ function tierRelation(tier: Tier, comfort: Tier): string {
   return `${n} ${d > 0 ? 'above' : 'below'} your comfort tier (${comfort})`;
 }
 
+/**
+ * The label a song gets from its tier alone, so the badge always agrees with the reason: one tier
+ * above comfort is a stretch, two or more a reach, at or below comfort a comfort pick. Slots are
+ * filled by target tier, but a small library fills them from neighbouring tiers; this keeps a tier-2
+ * song in a "stretch" slot from being called a stretch for a tier-2 player.
+ */
+export function kindForTier(tier: Tier, comfort: Tier): SlotKind {
+  const d = tier - comfort;
+  return d >= 2 ? 'reach' : d === 1 ? 'stretch' : 'comfort';
+}
+
 const KIND_LEAD: Record<SlotKind, string> = {
   stretch: 'Stretch pick',
   comfort: 'Comfort pick',
@@ -161,7 +201,7 @@ export function recommend(input: RecommendInput): Recommendation[] {
     used.add(p.songId);
     const s = scoreFor(e, comfort + TARGET_OFFSET.comfort, input, null);
     reviews.push(
-      item(s, 'review', p.arrangement, `Next-day check due: one clean run of section ${p.sectionIdx + 1} at full speed locks it in`, p.sectionIdx),
+      item(s, 'review', p.arrangement, `Next-day check due: one clean run of ${sectionLabel(input, p.songId, p.sectionIdx)} at full speed locks it in`, p.sectionIdx),
     );
   }
 
@@ -174,13 +214,19 @@ export function recommend(input: RecommendInput): Recommendation[] {
       .sort(byRank(target))
       .slice(0, count);
     for (const s of ranked) used.add(s.song.id);
-    return ranked.map((s) => item(s, kind, s.song.defaultArrangement, reasonFor(kind, s, comfort)));
+    return ranked.map((s) => {
+      const label = kindForTier(s.tier, comfort);
+      return item(s, label, s.song.defaultArrangement, reasonFor(label, s, comfort));
+    });
   };
 
-  const stretch = pick('stretch', RECOMMENDATION_MIX.stretch);
-  const comfortItems = pick('comfort', RECOMMENDATION_MIX.comfort - reviews.length);
-  const reach = pick('reach', RECOMMENDATION_MIX.reach);
-  return [...stretch, ...reviews, ...comfortItems, ...reach];
+  const picked = [
+    ...pick('stretch', RECOMMENDATION_MIX.stretch),
+    ...pick('comfort', RECOMMENDATION_MIX.comfort - reviews.length),
+    ...pick('reach', RECOMMENDATION_MIX.reach),
+  ];
+  const ofKind = (kind: SlotKind): Recommendation[] => picked.filter((r) => r.kind === kind);
+  return [...ofKind('stretch'), ...reviews, ...ofKind('comfort'), ...ofKind('reach')];
 }
 
 function item(s: Scored, kind: RecommendationKind, arrangement: number, reason: string, sectionIdx?: number): Recommendation {
@@ -206,11 +252,23 @@ function dueChecksInOrder(checks: readonly SectionProgress[], now: number): Sect
     );
 }
 
+/** Session goals offered per session (learning research row 1: choose one of three). */
+export const SESSION_GOAL_COUNT = 3;
+
+/** `“Intro”` when the section has a name, else `section 2`. */
+function sectionLabel(input: RecommendInput, songId: string, sectionIdx: number): string {
+  const name = input.sectionName?.(songId, sectionIdx)?.trim();
+  return name ? `“${name}”` : `section ${sectionIdx + 1}`;
+}
+
 /**
- * Up to 3 process goals for the session, for the player to pick one: (1) the earliest next-day check
- * that is due, (2) the weakest section of the most recently played stretch song (tier above comfort),
- * (3) a stretch recommendation not played yet. Fingerstyle songs are left out unless the player
- * enabled "Fingerstyle" in preferences. Deterministic for equal input.
+ * {@link SESSION_GOAL_COUNT} process goals for the session, for the player to pick one: (1) the
+ * earliest next-day check that is due, (2) the weakest section of the most recently played stretch
+ * song (tier above comfort), (3) a stretch recommendation not played yet. Missing slots are filled
+ * with the weakest unclean section of other recently played songs, then with more unplayed
+ * recommendations (stretch first, then comfort picks as a warm-up), so the player always has a choice
+ * when the library allows it. Sections are named when `sectionName` knows them. Fingerstyle songs are
+ * left out unless the player enabled "Fingerstyle" in preferences. Deterministic for equal input.
  */
 export function sessionGoals(input: RecommendInput): SessionGoal[] {
   const songs = new Map<string, SearchResult>();
@@ -221,6 +279,7 @@ export function sessionGoals(input: RecommendInput): SessionGoal[] {
   };
   const title = (songId: string): string => `“${songs.get(songId)?.title ?? songId}”`;
   const goals: SessionGoal[] = [];
+  const free = (songId: string): boolean => goals.every((g) => g.songId !== songId);
 
   const due = dueChecksInOrder(input.dueChecks, input.now).filter((p) => allowed(p.songId));
   const check = due[0];
@@ -228,7 +287,7 @@ export function sessionGoals(input: RecommendInput): SessionGoal[] {
     const more = due.length > 1 ? ` (+${due.length - 1} more due)` : '';
     goals.push({
       kind: 'next-day-check',
-      label: `Next-day check: play section ${check.sectionIdx + 1} of ${title(check.songId)} clean at full speed${more}`,
+      label: `Next-day check: play ${sectionLabel(input, check.songId, check.sectionIdx)} of ${title(check.songId)} clean at full speed${more}`,
       songId: check.songId,
       arrangement: check.arrangement,
       sectionIdx: check.sectionIdx,
@@ -236,51 +295,76 @@ export function sessionGoals(input: RecommendInput): SessionGoal[] {
     });
   }
 
-  const weakest = weakestStretchSection(input, allowed);
-  if (weakest) {
-    const pct = Math.min(100, speedBucket(weakest.speed));
-    goals.push({
+  const weakestGoal = (w: WeakSection): SessionGoal => {
+    const pct = Math.min(100, speedBucket(w.speed));
+    return {
       kind: 'weakest-section',
-      label: `Get section ${weakest.sectionIdx + 1} of ${title(weakest.songId)} clean at ${pct}%`,
-      songId: weakest.songId,
-      arrangement: weakest.arrangement,
-      sectionIdx: weakest.sectionIdx,
+      label: `Get ${sectionLabel(input, w.songId, w.sectionIdx)} of ${title(w.songId)} clean at ${pct}%`,
+      songId: w.songId,
+      arrangement: w.arrangement,
+      sectionIdx: w.sectionIdx,
       targetSpeed: pct / 100,
-    });
-  }
+    };
+  };
+  const weakest = weakSections(input, (songId, tier) => tier > input.comfortTier && allowed(songId))[0];
+  if (weakest) goals.push(weakestGoal(weakest));
 
   const played = new Set(input.recentRuns.map((r) => r.songId));
-  const fresh = recommend(input).find(
-    (r) => r.kind === 'stretch' && !played.has(r.songId) && allowed(r.songId) && goals.every((g) => g.songId !== r.songId),
-  );
-  if (fresh) {
+  const recs = recommend(input).filter((r) => !played.has(r.songId) && allowed(r.songId));
+  const startGoal = (r: Recommendation, warmUp: boolean): SessionGoal => {
     const pct = Math.round(TRAINER.start * 100);
-    goals.push({
+    return {
       kind: 'new-stretch',
-      label: `Start ${title(fresh.songId)}: one clean pass at ${pct}%`,
-      songId: fresh.songId,
-      arrangement: fresh.arrangement,
+      label: warmUp ? `Warm up with ${title(r.songId)}: one clean pass at ${pct}%` : `Start ${title(r.songId)}: one clean pass at ${pct}%`,
+      songId: r.songId,
+      arrangement: r.arrangement,
       targetSpeed: TRAINER.start,
-    });
+    };
+  };
+  const fresh = recs.find((r) => r.kind === 'stretch' && free(r.songId));
+  if (fresh) goals.push(startGoal(fresh, false));
+
+  // Fill the remaining slots: other unclean sections first, then more new songs.
+  for (const w of weakSections(input, (songId) => allowed(songId) && free(songId))) {
+    if (goals.length >= SESSION_GOAL_COUNT) break;
+    if (free(w.songId) && w.accuracy < TRAINER.cleanAccuracy) goals.push(weakestGoal(w));
   }
-  return goals;
+  const byKind = (kind: RecommendationKind): Recommendation[] => recs.filter((r) => r.kind === kind);
+  for (const r of [...byKind('stretch'), ...byKind('comfort'), ...byKind('reach')]) {
+    if (goals.length >= SESSION_GOAL_COUNT) break;
+    if (free(r.songId)) goals.push(startGoal(r, r.kind === 'comfort'));
+  }
+  return goals.slice(0, SESSION_GOAL_COUNT);
 }
 
-/** Weakest judged section of the most recent run on a song above the comfort tier. */
-function weakestStretchSection(
-  input: RecommendInput,
-  allowed: (songId: string) => boolean,
-): { songId: string; arrangement: number; sectionIdx: number; speed: number } | null {
+/** The weakest judged section of a run. */
+interface WeakSection {
+  songId: string;
+  arrangement: number;
+  sectionIdx: number;
+  speed: number;
+  accuracy: number;
+}
+
+/**
+ * The weakest judged section of the latest run of each song (most recent song first) whose song
+ * passes `accept(songId, tier)`; songs without a known tier are skipped.
+ */
+function weakSections(input: RecommendInput, accept: (songId: string, tier: Tier) => boolean): WeakSection[] {
   const tiers = new Map<string, Tier>();
   for (const c of input.candidates) if (c.tier !== null && !tiers.has(c.id)) tiers.set(c.id, c.tier);
   const runs = [...input.recentRuns].sort((a, b) => b.startedAt - a.startedAt || compareIds(a.songId, b.songId));
+  const seen = new Set<string>();
+  const out: WeakSection[] = [];
   for (const r of runs) {
+    if (seen.has(r.songId)) continue;
     const tier = tiers.get(r.songId);
-    if (tier === undefined || tier <= input.comfortTier || !allowed(r.songId)) continue;
+    if (tier === undefined || !accept(r.songId, tier)) continue;
     const judged = r.sections.filter((s) => s.notes > 0);
     if (judged.length === 0) continue;
-    const weakest = judged.reduce((w, s) => (s.accuracy < w.accuracy || (s.accuracy === w.accuracy && s.idx < w.idx) ? s : w));
-    return { songId: r.songId, arrangement: r.arrangement, sectionIdx: weakest.idx, speed: r.speed };
+    seen.add(r.songId);
+    const w = judged.reduce((a, s) => (s.accuracy < a.accuracy || (s.accuracy === a.accuracy && s.idx < a.idx) ? s : a));
+    out.push({ songId: r.songId, arrangement: r.arrangement, sectionIdx: w.idx, speed: r.speed, accuracy: w.accuracy });
   }
-  return null;
+  return out;
 }

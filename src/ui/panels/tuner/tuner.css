@@ -337,3 +337,22 @@
   font-size: var(--text-md);
   font-weight: var(--weight-bold);
 }
+
+/* Short windows: a smaller gauge so the string row stays on screen (T-041 note 4). */
+@media (max-height: 900px) {
+  .rw-tuner__stage {
+    padding-top: var(--space-3);
+  }
+
+  .rw-tuner__readout {
+    min-height: 5rem;
+  }
+
+  .rw-tuner__name {
+    font-size: clamp(3.5rem, 9vh, 5.5rem);
+  }
+
+  .rw-tuner__gauge {
+    width: min(100%, 300px);
+  }
+}

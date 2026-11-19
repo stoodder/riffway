@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SearchResult } from '@shared/sources';
 import type { RunRecord, SectionProgress } from '@shared/storage';
 import type { Tier } from '@shared/song';
-import { comfortTier, DEFAULT_COMFORT_TIER, recommend, sessionGoals, type RecommendInput } from '@core/progress';
+import { comfortTier, comfortTierDetail, DEFAULT_COMFORT_TIER, kindForTier, recommend, sessionGoals, type RecommendInput } from '@core/progress';
 
 const NOW = new Date(2026, 10, 19, 18).getTime();
 const HOUR = 3_600_000;
@@ -91,7 +91,17 @@ describe('comfortTier', () => {
 
   it(`defaults to ${DEFAULT_COMFORT_TIER} without qualifying runs`, () => {
     expect(comfortTier([], tierOf)).toBe(DEFAULT_COMFORT_TIER);
+    expect(comfortTierDetail([], tierOf)).toEqual({ tier: DEFAULT_COMFORT_TIER, basis: 'default', qualifyingSongs: 0 });
+    // One strong tier-3 song shows tier 2 is comfortable: no change for a default of 2.
     expect(comfortTier([runOf('a')], tierOf)).toBe(DEFAULT_COMFORT_TIER);
+  });
+
+  it('rises at once after one strong full run on a harder song (one tier below it)', () => {
+    // R2-U-07: 98% on a tier-5 song used to leave the comfort tier at 2 until a second song.
+    expect(comfortTierDetail([runOf('e', { accuracy: 98 })], tierOf)).toEqual({ tier: 4, basis: 'one-song', qualifyingSongs: 1 });
+    // Two songs at a tier beat one song a tier higher (equal estimate, stronger basis).
+    expect(comfortTierDetail([runOf('c'), runOf('d'), runOf('e')], tierOf)).toEqual({ tier: 4, basis: 'two-songs', qualifyingSongs: 3 });
+    expect(comfortTier([runOf('e', { accuracy: 80 })], tierOf)).toBe(DEFAULT_COMFORT_TIER);
   });
 
   it('is the highest tier with ≥ 85% at 100% on ≥ 2 distinct songs', () => {
@@ -108,6 +118,7 @@ describe('comfortTier', () => {
       runOf('d', { speed: 0.95 }),
       runOf('d', { accuracy: 84.9 }),
       runOf('d', { loop: { startBar: 0, endBar: 4 } }),
+      runOf('e', { accuracy: 50 }),
       runOf('zzz'),
       runOf('yyy'),
     ];
@@ -155,11 +166,13 @@ describe('recommend', () => {
     const lib = [song('a', 4), song('b', 4), song('c', 3)];
     const recs = recommend(input({ candidates: lib, recentRuns: [runOf('a', { startedAt: NOW - 2 * HOUR, endedAt: NOW - HOUR })] }));
     const stretch = recs.filter((r) => r.kind === 'stretch');
-    expect(stretch.map((r) => r.songId)).toEqual(['b', 'a', 'c']);
+    expect(stretch.map((r) => r.songId)).toEqual(['b', 'a']);
+    // The tier-3 song filled a stretch slot but is labelled by its tier: comfort.
+    expect(recs.find((r) => r.songId === 'c')?.kind).toBe('comfort');
     expect(stretch[1]?.score).toBeCloseTo(0.7);
     expect(stretch[1]?.reason).toContain('played in the last 24 h');
     const old = recommend(input({ candidates: lib, recentRuns: [runOf('a', { startedAt: NOW - 30 * HOUR, endedAt: NOW - 25 * HOUR })] }));
-    expect(old.filter((r) => r.kind === 'stretch').map((r) => r.songId)).toEqual(['a', 'b', 'c']);
+    expect(old.filter((r) => r.kind === 'stretch').map((r) => r.songId)).toEqual(['a', 'b']);
   });
 
   it('puts due next-day checks into the comfort slots as review items, exempt from the 24 h penalty', () => {
@@ -195,13 +208,26 @@ describe('recommend', () => {
     const lib = [song('t1', 1), song('t3', 3), song('t5', 5), song('t7', 7), song('t8', 8)];
     const recs = recommend(input({ candidates: lib }));
     expect(recs.map((r) => [r.kind, r.songId])).toEqual([
-      ['stretch', 't3'],
-      ['stretch', 't5'],
+      ['comfort', 't3'],
       ['comfort', 't1'],
+      ['reach', 't5'],
       ['reach', 't7'],
     ]);
-    expect(recs[0]?.reason).toContain('at your comfort tier (3)');
-    expect(recs[2]?.reason).toContain('two below your comfort tier (3)');
+    expect(recs[0]?.reason).toBe('Comfort pick: tier 3, at your comfort tier (3)');
+    expect(recs[1]?.reason).toContain('two below your comfort tier (3)');
+    expect(recs[2]?.reason).toMatch(/^Reach goal — try a single section: tier 5, two above/);
+  });
+
+  it('labels every item by its tier, so the badge and the reason always agree (R2-U-07)', () => {
+    for (const comfort of [1, 2, 3, 5, 8] as Tier[]) {
+      for (const lib of [LIBRARY, LIBRARY.filter((s) => (s.tier ?? 0) % 2 === 0), [song('x2', 2), song('x4', 4)]]) {
+        for (const r of recommend(input({ candidates: lib, comfortTier: comfort }))) {
+          expect(r.kind).toBe(kindForTier(r.tier, comfort));
+          const lead = { stretch: 'Stretch pick', comfort: 'Comfort pick', reach: 'Reach goal', review: 'Next-day check' }[r.kind];
+          expect(r.reason.startsWith(lead)).toBe(true);
+        }
+      }
+    }
   });
 });
 
@@ -256,6 +282,41 @@ describe('sessionGoals', () => {
       ['weakest-section', 'f'],
       ['new-stretch', 'p'],
     ]);
+  });
+
+  it('names sections when it knows them', () => {
+    const lastStretch = runOf('t4-2', { startedAt: NOW - 3 * HOUR, speed: 0.8, sections: [{ idx: 1, notes: 20, hits: 14, accuracy: 70 }] });
+    const names: Record<string, string> = { 't3-2#0': 'Intro', 't4-2#1': 'Verse riff' };
+    const goals = sessionGoals(
+      input({ dueChecks: [due('t3-2', 0, NOW - HOUR)], recentRuns: [lastStretch], sectionName: (id, idx) => names[`${id}#${idx}`] }),
+    );
+    expect(goals.map((g) => g.label)).toEqual([
+      'Next-day check: play “Intro” of “Song t3-2” clean at full speed',
+      'Get “Verse riff” of “Song t4-2” clean at 80%',
+      'Start “Song t4-0”: one clean pass at 70%',
+    ]);
+  });
+
+  it('always offers three goals when the library allows: other unclean sections, then more new songs', () => {
+    // A comfort-tier song with a weak section, nothing due, no stretch song played.
+    const comfortRun = runOf('t3-0', { startedAt: NOW - HOUR, sections: [{ idx: 2, notes: 10, hits: 6, accuracy: 60 }] });
+    const goals = sessionGoals(input({ recentRuns: [comfortRun] }));
+    expect(goals.map((g) => [g.kind, g.songId])).toEqual([
+      ['new-stretch', 't4-0'],
+      ['weakest-section', 't3-0'],
+      ['new-stretch', 't4-1'],
+    ]);
+    // A first-time player gets three new songs; a comfort-only library offers warm-ups.
+    expect(sessionGoals(input()).map((g) => g.songId)).toEqual(['t4-0', 't4-1', 't4-2']);
+    const comfortOnly = sessionGoals(input({ candidates: [song('c1', 3), song('c2', 3), song('c3', 2)] }));
+    expect(comfortOnly.map((g) => g.label)).toEqual([
+      'Warm up with “Song c1”: one clean pass at 70%',
+      'Warm up with “Song c2”: one clean pass at 70%',
+      'Warm up with “Song c3”: one clean pass at 70%',
+    ]);
+    // Clean sections are not "tricky bits".
+    const clean = runOf('t3-0', { startedAt: NOW - HOUR, sections: [{ idx: 0, notes: 10, hits: 10, accuracy: 100 }] });
+    expect(sessionGoals(input({ recentRuns: [clean] })).every((g) => g.kind === 'new-stretch')).toBe(true);
   });
 
   it('returns no goals for an empty library and no history', () => {

@@ -163,10 +163,6 @@
   color: var(--color-text-muted);
 }
 
-.as-step__extra:empty {
-  display: none;
-}
-
 .as-step__body {
   min-height: 160px;
 }
@@ -208,25 +204,6 @@
 
 .as-flip {
   transform: scaleX(-1);
-}
-
-/* Headphone tip (monitoring step). */
-.as-tip {
-  display: flex;
-  align-items: flex-start;
-  gap: var(--space-3);
-  max-width: 68ch;
-  padding: var(--space-3) var(--space-4);
-  border: 1px solid rgb(82 191 255 / 0.35);
-  border-radius: var(--radius-md);
-  background: rgb(82 191 255 / 0.07);
-  font-size: var(--text-sm);
-}
-
-.as-tip > svg {
-  flex: none;
-  margin-top: 1px;
-  color: var(--color-info);
 }
 
 /* ---- Summary ---------------------------------------------------------------------------------- */
@@ -300,6 +277,21 @@
 }
 
 /* ---- Narrow windows: the rail becomes a horizontal strip ------------------------------------- */
+/* Short windows (1280×800 and below): keep each step's controls above the fold (T-041 note 4). */
+@media (max-height: 900px) {
+  .as {
+    gap: var(--space-4);
+  }
+
+  .as-head > p {
+    display: none;
+  }
+
+  .as-head h1 {
+    font-size: var(--text-xl);
+  }
+}
+
 @media (max-width: 860px) {
   .as-layout {
     grid-template-columns: 1fr;

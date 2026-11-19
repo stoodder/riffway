@@ -1,5 +1,3 @@
-import { readFileSync } from 'node:fs';
-import { basename } from 'node:path';
 /**
  * Data (T-020/T-035): settings and progress persist across a reload (IndexedDB), and an exported
  * backup restores them after "Delete all data" (export → import round trip, Replace mode).
@@ -30,23 +28,12 @@ function localCount(page: Page, key: string) {
 }
 
 /**
- * Hand the exported file to the Import section's file input. Playwright's file chooser did not fire
- * `change` here after "Delete all data" in the same page (a fresh page works), so the file goes in
- * through a DataTransfer, which is what a real picker produces; the manual checklist covers the
- * native picker.
+ * Hand the exported file to the Import section through the real file chooser ("Choose backup
+ * file…" → Chrome's picker → `change`), as a player does.
  */
 async function chooseBackup(page: Page, path: string): Promise<void> {
-  await page.evaluate(
-    ({ json, name }) => {
-      const input = document.querySelector<HTMLInputElement>('input[type="file"][accept*="json"]');
-      if (!input) throw new Error('no backup file input');
-      const dt = new DataTransfer();
-      dt.items.add(new File([json], name, { type: 'application/json' }));
-      input.files = dt.files;
-      input.dispatchEvent(new Event('change', { bubbles: true }));
-    },
-    { json: readFileSync(path, 'utf8'), name: basename(path) },
-  );
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'Choose backup file…' }).click()]);
+  await chooser.setFiles(path);
 }
 
 /** The "Feedback detail" choice on Settings → Gameplay. */
@@ -95,7 +82,9 @@ test('settings and progress persist across a reload', async ({ page }) => {
   await expect(localCount(page, 'practiceDays')).toHaveText('1');
 });
 
-test('export → delete all data → import (replace) restores progress and settings', async ({ page }, testInfo) => {
+// The title stays ASCII: it names the output folder the backup is saved in, and Chromium's file
+// input silently ignores a file whose path has non-ASCII characters (an arrow here once did; T-041 note 7).
+test('export, delete all data, import (replace): progress and settings come back', async ({ page }, testInfo) => {
   await openApp(page, '/settings');
   await feedbackDetail(page).getByText('Minimal', { exact: true }).click();
   await expect(feedbackDetail(page).getByRole('radio', { name: /^Minimal/ })).toBeChecked();

@@ -447,7 +447,7 @@ function statsCard(s: StatsView): HTMLElement {
       tile(String(s.lockedSections), 'Sections locked in', 'Mastered and passed the next-day check.'),
       tile(String(s.masteredSections), 'Sections mastered', 'Two clean runs at full speed in one session.'),
       tile(String(s.cleanRuns), 'Clean runs', 'Runs with at least 90% accuracy and no more than 2 misses in a row.'),
-      tile(difficultyPill({ tier: s.comfortTier, size: 'sm' }), 'Comfort tier', 'Highest tier you play at 85%+ at full speed on 2 songs.'),
+      tile(difficultyPill({ tier: s.comfortTier, size: 'sm' }), 'Comfort tier', s.comfortNote),
     ),
   );
 }

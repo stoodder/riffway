@@ -145,13 +145,16 @@ describe('audio setup steps', () => {
   it('derives statuses from settings', () => {
     const fresh = stepStatuses(defaultSettings());
     expect(fresh.input).toEqual({ tone: 'todo', text: 'Not connected yet' });
-    expect(fresh.monitor).toEqual({ tone: 'done', text: 'On · Clean' });
+    // Monitoring is not "done" before its step was visited, whatever the default switch says (T-041 note 4).
+    expect(fresh.monitor).toEqual({ tone: 'todo', text: 'Not set up yet' });
+    expect(fresh.tuner).toEqual({ tone: 'optional', text: 'Every session' });
+    expect(stepStatuses(defaultSettings(), { tunerVisited: true }).tuner).toEqual({ tone: 'done', text: 'Checked this session' });
     expect(fresh.calibration).toEqual({ tone: 'todo', text: 'Not calibrated' });
     expect(fresh.done.tone).toBe('todo');
     const set = stepStatuses(
       with_((s) => {
         s.input.label = 'USB Audio CODEC';
-        s.monitor = { ...s.monitor, enabled: false };
+        s.monitor = { ...s.monitor, enabled: false, headphonesCardSeen: true };
         s.calibration = { ...s.calibration, method: 'play-to-click', inputOffsetMs: 38.4 };
       }),
     );
@@ -160,21 +163,42 @@ describe('audio setup steps', () => {
     expect(set.calibration).toEqual({ tone: 'done', text: '+38 ms offset' });
     expect(set.done).toEqual({ tone: 'done', text: 'Ready to play' });
     expect(stepStatuses(with_((s) => (s.calibration.method = 'estimated'))).calibration.tone).toBe('warning');
-    expect(stepStatuses(with_((s) => (s.calibration = { ...s.calibration, method: 'tap-to-click', keyboardOffsetMs: -12 }))).calibration.text).toBe('−12 ms offset');
+    expect(stepStatuses(with_((s) => (s.monitor = { ...s.monitor, headphonesCardSeen: true }))).monitor).toEqual({ tone: 'done', text: 'On · Clean' });
+  });
+
+  it('keeps calibration open until the input games use is calibrated (R2-U-09)', () => {
+    // Keyboard calibrated only, guitar is the input: amber, not "Ready to play".
+    const keysOnly = with_((s) => {
+      s.input.label = 'USB Audio CODEC';
+      s.calibration = { ...s.calibration, method: 'tap-to-click', keyboardOffsetMs: -146 };
+    });
+    expect(stepStatuses(keysOnly).calibration).toEqual({ tone: 'warning', text: 'Guitar not calibrated' });
+    expect(stepStatuses(keysOnly).done).toEqual({ tone: 'todo', text: 'A step needs attention' });
+    const row = summaryRows(keysOnly).find((r) => r.step === 'calibration');
+    expect(row).toMatchObject({ value: 'Guitar not calibrated · keyboard −146 ms', tone: 'warning', action: 'Calibrate guitar' });
+    // Keyboard-only players are done once the keyboard is calibrated, without a guitar input.
+    const keyboardMode = with_((s) => {
+      s.game.inputMode = 'keyboard';
+      s.calibration = { ...s.calibration, method: 'tap-to-click', keyboardOffsetMs: -146 };
+    });
+    expect(stepStatuses(keyboardMode).calibration).toEqual({ tone: 'done', text: 'Keyboard −146 ms offset' });
+    expect(stepStatuses(keyboardMode).input.tone).toBe('optional');
+    expect(stepStatuses(keyboardMode).done.text).toBe('Ready to play');
+    expect(summaryRows(with_((s) => (s.game.inputMode = 'keyboard'))).find((r) => r.step === 'calibration')?.action).toBe('Calibrate keyboard');
   });
 
   it('builds the summary rows', () => {
-    expect(summaryRows(defaultSettings()).map((r) => [r.label, r.value, r.step])).toEqual([
-      ['Guitar input', 'Not connected yet', 'input'],
-      ['Output', 'System default', 'input'],
-      ['Monitoring', 'On · Clean amp', 'monitor'],
-      ['Latency calibration', 'Not calibrated', 'calibration'],
+    expect(summaryRows(defaultSettings()).map((r) => [r.label, r.value, r.step, r.action])).toEqual([
+      ['Guitar input', 'Not connected yet', 'input', 'Connect'],
+      ['Output', 'System default', 'input', 'Change'],
+      ['Monitoring', 'Not set up yet', 'monitor', 'Set up'],
+      ['Latency calibration', 'Not calibrated', 'calibration', 'Calibrate guitar'],
     ]);
     const rows = summaryRows(
       with_((s) => {
         s.input = { deviceId: 'abc', label: 'USB Audio CODEC', channel: 'mix' };
         s.output = { sinkId: 'hp', label: 'External Headphones' };
-        s.monitor = { ...s.monitor, preset: 'overdrive' };
+        s.monitor = { ...s.monitor, preset: 'overdrive', headphonesCardSeen: true };
         s.calibration = { ...s.calibration, method: 'play-to-click', inputOffsetMs: 40, keyboardOffsetMs: 12, spreadMs: 3.6 };
       }),
     );

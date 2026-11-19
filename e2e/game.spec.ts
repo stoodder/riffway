@@ -114,7 +114,7 @@ test('practice: 70% speed and a one-bar A/B loop that wraps twice', async ({ pag
   test.setTimeout(90_000);
   await openApp(page, playPath(OPEN_STRINGS, 'mode=practice'));
   await waitForSession(page);
-  const practice = page.getByRole('region', { name: 'Practice', exact: true });
+  const practice = page.getByRole('region', { name: 'Practice tools', exact: true });
   await expect(practice).toBeVisible();
 
   // Loop "First Frets" (bars 9–16), shrink it to bar 9 with B ◂, fix the speed at 70%.

@@ -127,7 +127,24 @@ class MixerPanel {
       const hint = this.hintFor(r.bus, muted);
       r.hint.textContent = hint ?? '';
       r.hint.hidden = hint === null;
+      // Nothing to mix without a backing track: the fader is inert and the hint offers to attach one.
+      const noTrack = r.bus === 'backing' && this.noBackingTrack();
+      r.fader.setDisabled(noTrack);
+      r.mute.disabled = noTrack;
+      if (noTrack && this.session) r.hint.append(' ', this.attachLink(this.session));
     }
+  }
+
+  /** True in a game whose song has no backing track attached. */
+  private noBackingTrack(): boolean {
+    const backing = this.ctx.services.peek('backing');
+    return this.session !== null && backing !== null && !backing.link;
+  }
+
+  /** "Attach audio" → the song page, where the backing panel attaches a file. */
+  private attachLink(session: GameSession): HTMLAnchorElement {
+    const id = session.song.id;
+    return h('a', { class: 'rw-mixer__attach', href: this.ctx.router.href('song', { id, arr: String(session.song.arrangement) }) }, 'Attach audio on the song page');
   }
 
   private isMuted(bus: MixerBus): boolean {
@@ -142,10 +159,8 @@ class MixerPanel {
         const link = this.ctx.services.peek('backing')?.link;
         return this.settings.game.muteGuideWithBacking && link?.enabled ? 'Auto-muted while the backing track plays.' : null;
       }
-      case 'backing': {
-        const backing = this.ctx.services.peek('backing');
-        return this.session && backing && !backing.link ? 'No backing track attached to this song.' : null;
-      }
+      case 'backing':
+        return this.noBackingTrack() ? 'No backing track attached to this song.' : null;
       case 'monitor': {
         const monitor = this.ctx.services.peek('monitor');
         return monitor && !monitor.enabled ? 'Monitoring is off (Audio setup → Monitoring).' : null;

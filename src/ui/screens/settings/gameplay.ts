@@ -181,7 +181,7 @@ export function practiceTab(b: Binder): HTMLElement {
   const countIn = select({
     label: 'Count-in',
     options: [
-      { value: '0', label: 'None' },
+      { value: '0', label: 'Off' },
       { value: '1', label: '1 bar' },
       { value: '2', label: '2 bars' },
     ],

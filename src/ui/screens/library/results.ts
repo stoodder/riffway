@@ -1,12 +1,12 @@
 /**
  * The result list: one row per song with title/artist, difficulty pill, source badge, tuning, style
- * tags, rhythm status and a playable-state chip. Rows are a roving-focus group (↑/↓, Home/End; Enter
+ * tags, the rhythm source when it is worth a mention (see {@link RHYTHM_NOTE}) and a playable-state chip. Rows are a roving-focus group (↑/↓, Home/End; Enter
  * opens; Esc returns to the search box) so the list is one Tab stop.
  * @module
  */
 import type { SearchResult } from '@shared/sources';
 import { badge, difficultyPill, h, rovingFocus, uid, type RovingFocus } from '../../components';
-import { RHYTHM_LABEL, SOURCE_LABEL, availabilityChip, formatDuration } from './labels';
+import { RHYTHM_NOTE, SOURCE_LABEL, availabilityChip, byLine, formatDuration } from './labels';
 
 /** Options for {@link resultList}. */
 export interface ResultListOptions {
@@ -29,21 +29,16 @@ export interface ResultList {
 /** Display genres per row (style tags are always shown). */
 const MAX_GENRES = 2;
 
-function byLine(r: SearchResult): string {
-  const people = [r.artist, r.composer && r.composer !== r.artist ? r.composer : undefined].filter(Boolean);
-  return people.length ? people.join(' · ') : r.fileName;
-}
-
 function difficulty(r: SearchResult): HTMLElement {
   if (r.tier === null) return badge('Unrated', { title: 'Difficulty is computed when the song can be analysed' });
   const pill = difficultyPill({ tier: r.tier, rating: r.rating ?? undefined, size: 'sm' });
   if (!r.ratingProvisional) return pill;
-  return h(
-    'span',
-    { class: 'lib-row__provisional', title: 'Estimate: the rating is provisional until the rhythm is aligned' },
-    pill,
-    h('span', { class: 'lib-row__est' }, 'est.'),
-  );
+  // The pill already fills the column: the estimate marker sits inside it (dashed outline + "≈").
+  pill.classList.add('lib-row__provisional');
+  pill.title = 'Estimate: the rating is provisional until the rhythm is aligned';
+  pill.querySelector('.rw-diff__num')?.before(h('span', { class: 'lib-row__est', 'aria-hidden': 'true' }, '≈'));
+  pill.setAttribute('aria-label', `${pill.getAttribute('aria-label') ?? 'Difficulty'} (estimate)`);
+  return pill;
 }
 
 function row(r: SearchResult, isNew: boolean, onOpen: (r: SearchResult) => void): HTMLLIElement {
@@ -67,11 +62,8 @@ function row(r: SearchResult, isNew: boolean, onOpen: (r: SearchResult) => void)
     { class: 'lib-row__meta', id: metaId },
     badge(SOURCE_LABEL[r.source], { tone: 'neutral', title: `Source: ${SOURCE_LABEL[r.source]}` }),
     h('span', { class: 'lib-row__tuning', title: 'Tuning' }, r.tuningLabel),
-    h('span', { class: `lib-row__rhythm${r.rhythm === 'needs-alignment' ? ' is-missing' : ''}` }, RHYTHM_LABEL[r.rhythm]),
+    RHYTHM_NOTE[r.rhythm] ? h('span', { class: 'lib-row__rhythm' }, RHYTHM_NOTE[r.rhythm]) : null,
     tags.length ? h('span', { class: 'lib-row__tags' }, ...tags.map((t) => h('span', { class: 'lib-tag' }, t))) : null,
-  );
-  const extraBadges = [...new Map((r.badges ?? []).map((b) => [b.label, b])).values()].map((b) =>
-    badge(`${SOURCE_LABEL[b.source]} match`, { tone: 'info', title: `${b.label}: matches your search on ${SOURCE_LABEL[b.source]} by title and artist` }),
   );
   const duration = formatDuration(r.durationSec);
   return h(
@@ -80,7 +72,7 @@ function row(r: SearchResult, isNew: boolean, onOpen: (r: SearchResult) => void)
     h(
       'div',
       { class: 'lib-row__title' },
-      h('div', { class: 'lib-row__name' }, open, isNew ? badge('New', { tone: 'accent' }) : null, ...extraBadges),
+      h('div', { class: 'lib-row__name' }, open, isNew ? badge('New', { tone: 'accent' }) : null),
       h('span', { class: 'lib-row__by', id: byId }, byLine(r)),
     ),
     h('div', { class: 'lib-row__diff' }, difficulty(r)),

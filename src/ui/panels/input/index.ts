@@ -1,7 +1,8 @@
 /**
  * Guitar input panel (T-022): input/output device pickers, channel select for multi-channel
  * interfaces, a live level meter (zones, 1 s peak hold, clip lamp, "No signal") and the warnings
- * from opening the input (processing flags left on, saved input missing, input unplugged).
+ * from opening the input (processing flags left on, saved input missing, input unplugged). The card's
+ * `data-state` is `checking` until the first render, then `listening`, `idle` or `disconnected`.
  * Exports `mount: PanelMount<PanelPropsMap['input']>` (contract in `@shared/ui`); registered in
  * `src/ui/panels/index.ts`. See docs/audio-input.md.
  * @module
@@ -30,7 +31,7 @@ type Notice = { kind: 'warning' | 'danger' | 'info'; text: string; id: string };
 
 export const mount: PanelMount<PanelPropsMap['input']> = async (el, ctx) => {
   const services = await audioPanelServices(ctx);
-  if ('error' in services) return unavailablePanel(el, { title: 'Guitar input', eyebrow: 'Step 1', panel: 'input', message: services.error });
+  if ('error' in services) return unavailablePanel(el, { title: 'Guitar input', panel: 'input', message: services.error });
   const panel = new InputPanel(el, ctx, services.engine, services.input);
   await panel.start();
   return { unmount: () => panel.destroy() };
@@ -104,12 +105,18 @@ class InputPanel {
     );
     this.root = card({
       title: 'Guitar input',
-      eyebrow: 'Step 1',
       aside: this.status,
       class: 'rw-input',
       body: [this.notices, this.connectBox, this.live],
     });
     this.root.dataset.panel = 'input';
+    // Until the first render knows whether the input opens on its own (permission granted before),
+    // show neither the connect button nor the meter: a button that vanishes under the cursor is a
+    // trap (R2-S-03). `data-state` is set by every render.
+    this.connectBox.hidden = true;
+    this.live.hidden = true;
+    this.status.replaceChildren(badge('Checking…', { tone: 'neutral' }));
+    this.root.dataset.state = 'checking';
     host.append(this.root);
   }
 
@@ -239,6 +246,7 @@ class InputPanel {
     if (this.destroyed) return;
     this.connectBox.hidden = cur !== null;
     this.live.hidden = cur === null;
+    this.root.dataset.state = cur ? 'listening' : this.disconnected ? 'disconnected' : 'idle';
     this.status.replaceChildren(
       cur
         ? badge('Listening', { tone: 'success', icon: 'audio' })

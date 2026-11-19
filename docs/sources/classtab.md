@@ -70,6 +70,11 @@ Drop D is the most common alternate tuning. The headers also include tempo (`tem
 and a legend (`= note held`, `p pull off`). Parse them with tolerant regular expressions and fall back to standard tuning.
 
 ## Implementation (T-025)
+- **Where the player gets it:** while ClassTab is enabled and not downloaded, the Library's "Find more
+  tabs" section shows one low-key card, "Download ClassTab (≈14 MB, classical/fingerstyle)"
+  (`src/ui/screens/library/classtab-offer.ts`), which starts the refresh below and shows its progress;
+  Settings → Library & sources has the same download plus "Check for update" afterwards. Nothing is
+  downloaded until the player clicks.
 - **Refresh:** `npm run classtab:refresh [-- --force] [--data-dir <dir>]`, or `POST /api/classtab/refresh`
   (`{}` or `{"force": true}`; answers `202 {started: true}` or `200 {started: false, reason}`). Progress
   and the outcome arrive as `classtab.progress` events (`checking → downloading → extracting → indexing →

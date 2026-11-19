@@ -144,10 +144,15 @@ describe('mixer panel', () => {
     const r = await setup({ withSession: true, services: { monitor, backing } });
     expect(r.row('monitor').textContent).toContain('Monitoring is off');
     expect(r.row('backing').textContent).toContain('No backing track attached');
+    // Nothing to mix: the fader and mute are disabled and the hint offers to attach audio (R2-U-20).
+    expect(r.fader('backing').disabled).toBe(true);
+    expect(r.mute('backing').disabled).toBe(true);
+    expect(r.row('backing').querySelector<HTMLAnchorElement>('.rw-mixer__attach')?.getAttribute('href')).toBe(`#/song/${encodeURIComponent(r.session!.song.id)}`);
     (backing as { link: unknown }).link = { enabled: true };
     await r.settings.update({ game: { muteGuideWithBacking: true } });
     expect(r.row('guide').textContent).toContain('Auto-muted while the backing track plays.');
     expect(r.row('backing').querySelector('.rw-mixer__hint')?.hasAttribute('hidden')).toBe(true);
+    expect(r.fader('backing').disabled).toBe(false);
   });
 
   it('reverts and toasts when saving fails', async () => {

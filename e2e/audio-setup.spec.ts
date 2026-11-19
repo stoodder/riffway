@@ -22,10 +22,13 @@ test('fake device: meter moves, tuner reads A2, calibration step', async ({ page
   const steps = page.getByRole('navigation', { name: 'Setup steps' });
 
   // ---- Step 1: input + level ----
-  const input = page.locator('[data-panel="input"]');
-  // With the fake-UI flag the permission is granted, so the panel may open the input on mount.
-  const connect = input.getByRole('button', { name: /connect|allow|choose/i }).first();
-  if (await connect.isVisible().catch(() => false)) await connect.click();
+  // The card (`.rw-input`, not the screen's slot, which shares `data-panel`) settles first: the input
+  // either opened on its own (the fake-UI flag grants the permission) or offers "Connect". Only then
+  // is the button clicked, so it can't vanish under the click (R2-S-03).
+  const input = page.locator('.rw-input[data-panel="input"]');
+  await expect(input).toHaveAttribute('data-state', /^(listening|idle|disconnected)$/);
+  if ((await input.getAttribute('data-state')) !== 'listening') await input.getByRole('button', { name: 'Connect guitar input' }).click();
+  await expect(input).toHaveAttribute('data-state', 'listening');
   await expect(input.locator('.rw-input__status')).toHaveText('Listening');
   await expect(input.getByRole('combobox', { name: 'Input device' })).toBeVisible();
   const meter = input.getByRole('meter', { name: 'Input level' });

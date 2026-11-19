@@ -35,8 +35,9 @@ any Songsterr songs the user has imported are matched locally. The owner should 
    instead of suggesting a workaround.
 3. **"Playable" matching.** The adapter has no remote calls. For a query, it finds library entries whose
    title/artist match (normalised: lower-case, diacritics stripped, punctuation and "the" removed,
-   feat./live/remaster suffixes removed). It shows them as "In your library – playable".
-   An optional `origin: songsterr` tag can be set on import when the user chooses it.
+   feat./live/remaster suffixes removed). The Songsterr link-out card lists them ("Already in your
+   library: …"). Result rows get no Songsterr badge: Riffway never looks anything up on Songsterr, so a
+   per-row "Songsterr match" would suggest it did (R2-S-04).
 4. **Never:** scrape song pages, hit `/api/`, extract tabs from the web player, or embed the site in an iframe.
 
 ## Implementation (T-026)
@@ -44,8 +45,9 @@ any Songsterr songs the user has imported are matched locally. The owner should 
   link-out ("Search on Songsterr", with a hint that the Guitar Pro download is a Plus feature) for a non-empty query.
 - `server/sources/linkout/match.ts`: `normalizeTitle()` and `matchLocalEntries()` implement the matching in point 3.
   A query matches an entry when every normalised query word appears among the entry's title + artist/composer words
-  (whole words, any order). Matched rows get the badge "In your library – playable" (or "In your library" when they
-  still need rhythm); the Library screen lists them under the Songsterr link-out.
+  (whole words, any order). The server still attaches `badges` ("In your library – playable" / "In your library")
+  to matched rows in `GET /api/search`; the Library screen does not show them on the rows and lists the matches
+  under the Songsterr link-out instead.
 - The Library screen opens the URL with `window.open(url, '_blank', 'noopener,noreferrer')`.
 - Tests (`tests/linkout/`) stub `fetch` and Node's `http`/`https`/`net` to throw and scan the adapter sources for
   network calls; nothing in the app or tests requests `songsterr.com`.

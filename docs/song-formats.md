@@ -149,6 +149,9 @@ technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generat
 Import screen `src/ui/screens/import/` (pure logic in `model.ts`). Goal: playable in under a minute.
 Routes: `#/import` (paste; `?q=` prefills the title) and `#/import?song=<id>` ("Align rhythm" for a library
 ASCII tab: the file is read-only, only the sidecar is saved; a non-ASCII song shows "already has its rhythm").
+In paste mode a line under the title points Guitar Pro / MusicXML files to the Library's "Add files" (they
+carry their own rhythm). On the song page a tab that still needs alignment offers "Align first" instead of
+"Loop this" on its sections (a loop would play guessed, evenly spaced timing).
 1. **Paste or open** a `.txt`/`.tab` (button or drop on the text box; windows-1252 decoded). A
    "Search on Ultimate Guitar" link-out sits beside it (opens `search.php?search_type=title&value=` in a new
    tab with artist + title; the app never requests UG, [sources/ultimate-guitar.md](sources/ultimate-guitar.md)).
@@ -157,9 +160,10 @@ ASCII tab: the file is read-only, only the sidecar is saved; a non-ASCII song sh
    "Line n" chip selects that line in the text box); a numbered parsed view with staff lines tinted and
    unparsed lines highlighted. Title/artist/BPM/time signature prefill from the header until edited.
 3. **Details:** title (required), artist, tuning override (named tunings), capo. Overrides are saved as
-   header lines in front of the text (`Tuning: D A D G B E`, `Capo: 2`, `Tempo: Q=120`, `Time: 3/4`; only
-   values that differ from the tab, tempo/time only when the user set them) followed by a blank line; the
-   header parser keeps the first value it sees, so they win. Non-standard string labels still beat a
+   header lines in front of the text (`Title: …`, `Artist: …`, `Tuning: D A D G B E`, `Capo: 2`,
+   `Tempo: Q=120`, `Time: 3/4`; only values that differ from the tab, title/artist only when the text
+   names something else, tempo/time only when the user set them) followed by a blank line; the header
+   parser keeps the first value it sees, so they win (a typed title beats a title-like first line). Non-standard string labels still beat a
    `Tuning:` line; the screen warns when that happens.
 4. **BPM + time signature**; **tap tempo** (button or `T`; mean of the last 8 intervals, a 2 s pause restarts).
 5. **Snap to grid (default):** `snapToGrid` (column spacing within a bar = duration ratio, quantised; chords

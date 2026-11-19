@@ -89,13 +89,18 @@ export function deviceLine(s: Pick<Settings, 'input' | 'output'>): string {
   return `${s.input.label || 'Default input'} → ${s.output.label || 'Default output'}`;
 }
 
-/** Sentence explaining how a guitar or keyboard offset changes judging. */
+/**
+ * Sentence explaining how a guitar or keyboard offset changes judging, in the player's terms (when
+ * their notes arrive), not the sign convention: a positive offset means notes reach Riffway after
+ * the beat, a negative one that they land ahead of it.
+ */
 export function appliedSentence(kind: 'guitar' | 'keyboard', offsetMs: number): string {
   const what = kind === 'guitar' ? 'pluck' : 'key press';
+  const plural = kind === 'guitar' ? 'plucks' : 'key presses';
   const perfect = Math.round(WINDOWS.perfect * 1000);
   if (Math.round(offsetMs) === 0) return `Every ${what} is judged as it arrives. Perfect is ±${perfect} ms.`;
-  const dir = offsetMs > 0 ? 'subtracts' : 'adds';
-  return `Riffway ${dir} ${fmtMs(Math.abs(offsetMs))} ${offsetMs > 0 ? 'from' : 'to'} every ${what} before judging it, so a note you play right on the beat scores Perfect (±${perfect} ms).`;
+  const when = offsetMs > 0 ? `reach Riffway ${fmtMs(offsetMs)} after the beat` : `land ${fmtMs(-offsetMs)} ahead of the beat`;
+  return `Your ${plural} ${when}. Riffway corrects for that, so a note you play right on the beat scores Perfect (±${perfect} ms).`;
 }
 
 /** Sentence for the visual offset. */

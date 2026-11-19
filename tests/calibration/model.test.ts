@@ -37,10 +37,13 @@ describe('formatting', () => {
 
 describe('sentences', () => {
   it('explains how an offset changes judging', () => {
+    // R2-U-27: the sentence says when notes arrive, never "adds" next to a minus sign.
     expect(appliedSentence('guitar', 42)).toBe(
-      'Riffway subtracts 42 ms from every pluck before judging it, so a note you play right on the beat scores Perfect (±35 ms).',
+      'Your plucks reach Riffway 42 ms after the beat. Riffway corrects for that, so a note you play right on the beat scores Perfect (±35 ms).',
     );
-    expect(appliedSentence('keyboard', -12)).toContain('adds 12 ms to every key press');
+    expect(appliedSentence('keyboard', -146)).toBe(
+      'Your key presses land 146 ms ahead of the beat. Riffway corrects for that, so a note you play right on the beat scores Perfect (±35 ms).',
+    );
     expect(appliedSentence('guitar', 0.2)).toBe('Every pluck is judged as it arrives. Perfect is ±35 ms.');
     expect(visualSentence(15)).toContain('15 ms later');
     expect(visualSentence(-10)).toContain('10 ms earlier');

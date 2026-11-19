@@ -142,6 +142,8 @@ describe('speed trainer', () => {
     expect(msg.textContent).toBe('Clean run! +5% → 80%');
     expect(msg.dataset.tone).toBe('up');
     expect(msg.getAttribute('aria-live')).toBe('polite');
+    // Announced, not shown: the highway toast is the one visible copy (R2-U-19).
+    expect(msg.classList.contains('rw-visually-hidden')).toBe(true);
     expect(r.q('.rw-practice__speed-value').textContent).toBe('80%');
     expect(r.q('.rw-practice__trainer').textContent).toContain('Clean runs this session: 1');
     session.emitMessage({ kind: 'trainer', text: 'Slow down a notch → 75%' });
@@ -314,6 +316,17 @@ describe('count-in and metronome', () => {
     expect(r.settings.update).toHaveBeenCalledWith({ mixer: { metronome: 0.4 } });
   });
 
+  it('keeps a muted metronome silent while its volume moves (R2-I-07)', async () => {
+    const r = await setup({ settings: memorySettings({ mixerMute: { metronome: true } }) });
+    const vol = Array.from(r.host.querySelectorAll<HTMLInputElement>('input[type="range"]')).find((i) => i.labels?.[0]?.textContent === 'Metronome volume') as HTMLInputElement;
+    vol.value = '80';
+    vol.dispatchEvent(new Event('input'));
+    expect(r.eng.setLevel).not.toHaveBeenCalled();
+    vol.dispatchEvent(new Event('change'));
+    // The level is still saved, so unmuting restores it.
+    expect(r.settings.update).toHaveBeenCalledWith({ mixer: { metronome: 0.8 } });
+  });
+
   it('toasts when a setting cannot be saved', async () => {
     const settings = memorySettings();
     settings.fail = new Error('disk full');
@@ -333,7 +346,7 @@ describe('focus and lifecycle', () => {
     const help = r.q('.rw-practice__shortcuts');
     expect(help.hidden).toBe(false);
     expect(help.textContent).toContain('Set loop start here');
-    expect(help.textContent).toContain('Always go to the game');
+    expect(help.textContent).toContain('Play strings (always)');
   });
 
   it('unmount removes the DOM and the key listeners; update rebinds a new session', async () => {

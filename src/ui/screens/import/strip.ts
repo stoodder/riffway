@@ -113,7 +113,7 @@ export class RhythmStrip {
   }
 
   private visibleSec(): number {
-    return ((this.width || this.el.clientWidth || 600) - PAD_LEFT) / this.pxPerSec;
+    return ((this.width || this.contentWidth()) - PAD_LEFT) / this.pxPerSec;
   }
 
   private setView(start: number): void {
@@ -126,11 +126,19 @@ export class RhythmStrip {
     this.draw();
   }
 
+  /** The strip's inner width (CSS px, padding excluded): the canvas never pokes past the frame. */
+  private contentWidth(): number {
+    const width = this.el.clientWidth;
+    if (!width) return 600;
+    const css = getComputedStyle(this.el);
+    return Math.max(1, Math.floor(width - (parseFloat(css.paddingLeft) || 0) - (parseFloat(css.paddingRight) || 0)));
+  }
+
   /** Redraw (cheap; called per animation frame during playback). */
   draw(): void {
     const g = this.canvas.getContext('2d');
     if (!g) return;
-    const cssW = this.el.clientWidth || 600;
+    const cssW = this.contentWidth();
     const dpr = globalThis.devicePixelRatio || 1;
     if (this.width !== cssW || this.canvas.width !== Math.round(cssW * dpr)) {
       this.width = cssW;

@@ -143,7 +143,7 @@ export function startShell(root: HTMLElement, ctx: AppContext): Shell {
     { class: 'rw-topbar__hints', 'aria-hidden': 'true' },
     h('span', null, h('kbd', null, '←'), h('kbd', null, '→'), ' Move'),
     h('span', null, h('kbd', null, 'Enter'), ' Open'),
-    h('span', null, h('kbd', null, 'Esc'), ' Content'),
+    h('span', null, h('kbd', null, 'Esc'), ' Jump to page'),
   );
   const topbar = h('header', { class: 'rw-topbar' }, h('div', { class: 'rw-topbar__inner' }, brand, nav, hints));
   const app = h('div', { class: 'rw-app' }, skip, topbar, main);

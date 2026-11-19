@@ -84,6 +84,7 @@ describe('input panel', () => {
     const connect = $<HTMLButtonElement>(r.host, '.rw-input__connect button');
     expect($(r.host, '.rw-input__live').hidden).toBe(true);
     expect($(r.host, '.rw-input__status').textContent).toBe('Not connected');
+    expect($(r.host, '[data-panel="input"]').dataset.state).toBe('idle');
     connect.click();
     await vi.waitFor(() => expect($(r.host, '.rw-input__status').textContent).toBe('Listening'));
     expect($(r.host, '.rw-input__connect').hidden).toBe(true);
@@ -161,6 +162,32 @@ describe('input panel', () => {
     const handle = await mountInput(r.host, r.ctx, {});
     expect(r.input.current?.device.deviceId).toBe('cubi');
     expect($(r.host, '.rw-input__status').textContent).toBe('Listening');
+    expect($(r.host, '[data-panel="input"]').dataset.state).toBe('listening');
+    handle.unmount();
+  });
+
+  it('never shows a connect button that vanishes on its own while the input opens (R2-S-03)', async () => {
+    permission('granted');
+    let release!: () => void;
+    const gate = new Promise<void>((res) => (release = res));
+    const r = rig([MIC, CUBI], { input: { deviceId: 'cubi', label: CUBI.label, channel: 0 } });
+    const open = r.input.open.bind(r.input);
+    vi.spyOn(r.input, 'open').mockImplementation(async (...args) => {
+      await gate;
+      return open(...args);
+    });
+    const mounting = mountInput(r.host, r.ctx, {});
+    await flush(10);
+    // While the saved input is re-opening: no connect button, no meter, a neutral status.
+    const card = $(r.host, '[data-panel="input"]');
+    expect(card.dataset.state).toBe('checking');
+    expect($(r.host, '.rw-input__connect').hidden).toBe(true);
+    expect($(r.host, '.rw-input__live').hidden).toBe(true);
+    expect($(r.host, '.rw-input__status').textContent).toBe('Checking…');
+    release();
+    const handle = await mounting;
+    expect(card.dataset.state).toBe('listening');
+    expect($(r.host, '.rw-input__connect').hidden).toBe(true);
     handle.unmount();
   });
 

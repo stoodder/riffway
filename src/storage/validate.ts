@@ -4,7 +4,15 @@
  * allowed and kept, so newer optional fields survive a round trip.
  * @module
  */
-import { DEFAULT_SETTINGS } from '@shared/settings';
+import {
+  DEFAULT_SETTINGS,
+  type AmpPresetId,
+  type CalibrationMethod,
+  type FeedbackDetail,
+  type GameInputMode,
+  type Settings,
+  type TimingLeniency,
+} from '@shared/settings';
 import { OUTCOMES } from '@shared/judge';
 
 /** Collects errors up to a cap. */
@@ -252,10 +260,51 @@ export const rhythmSidecar: Check = object({
   savedAt: num,
 });
 
-/** Settings fields whose type is a union the default value cannot describe (path below `settings`). */
+/**
+ * Every member of a string union, as a check. Keyed by the union so adding a member to the type
+ * without adding it here fails to compile (the record must list each member exactly once).
+ */
+function unionOf<T extends string>(members: Record<T, true>): Check {
+  return oneOf(...Object.keys(members));
+}
+
+const CALIBRATION_METHOD = unionOf<CalibrationMethod>({ none: true, 'play-to-click': true, 'tap-to-click': true, loopback: true, estimated: true });
+
+/**
+ * One calibration profile (`settings.calibration.profiles[key]`). The pair and the guitar offset are
+ * required; the rest is optional so files from before a field existed still import (a wrong type is
+ * still an error).
+ */
+const calibrationProfile = object({
+  inputLabel: nullable(str),
+  outputLabel: nullable(str),
+  inputOffsetMs: num,
+  method: CALIBRATION_METHOD,
+  measuredAt: optional(nullable(num)),
+  spreadMs: optional(nullable(num)),
+  keyboardOffsetMs: optional(num),
+  keyboardMeasuredAt: optional(nullable(num)),
+  keyboardSpreadMs: optional(nullable(num)),
+  visualOffsetMs: optional(num),
+  loopbackMs: optional(nullable(num)),
+  loopbackAt: optional(nullable(num)),
+} satisfies Record<keyof Settings['calibration']['profiles'][string], Field>);
+
+/**
+ * Settings fields whose type the default value cannot describe (path below `settings`): string and
+ * number unions (a default's type alone would accept any string), and records whose default is empty.
+ */
 const SETTINGS_OVERRIDES: Record<string, Check> = {
   '.schema': oneOf(1),
   '.input.channel': oneOf(0, 1, 'mix'),
+  '.calibration.method': CALIBRATION_METHOD,
+  '.calibration.profiles': recordOf(calibrationProfile),
+  '.monitor.preset': unionOf<AmpPresetId>({ clean: true, crunch: true, overdrive: true, di: true }),
+  '.game.feedbackDetail': unionOf<FeedbackDetail>({ minimal: true, standard: true, detailed: true }),
+  '.game.timingLeniency': unionOf<TimingLeniency>({ tight: true, standard: true, relaxed: true }),
+  '.game.inputMode': unionOf<GameInputMode>({ auto: true, guitar: true, keyboard: true }),
+  '.keyboard.wrongPitchModifier': unionOf<Settings['keyboard']['wrongPitchModifier']>({ Shift: true }),
+  '.preferences.style': unionOf<Settings['preferences']['style']>({ pick: true, fingerstyle: true }),
 };
 
 /**

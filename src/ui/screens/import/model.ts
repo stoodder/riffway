@@ -130,6 +130,10 @@ export function parsePaste(text: string): PasteParse {
 
 /** Values the user can override; written as header lines in front of the saved text. */
 export interface HeaderOverrides {
+  /** The title the player typed (wins over a title-like first line of the text). */
+  title?: string;
+  /** The artist the player typed. */
+  artist?: string;
   /** MIDI tuning high → low. */
   tuning?: readonly number[];
   capo?: number;
@@ -147,20 +151,31 @@ export function tuningNames(tuning: readonly number[]): string {
 
 /**
  * The text that is saved: header lines for every override that differs from what the text already
- * says (`Tuning:`, `Capo:`, `Tempo: Q=`, `Time:`), a blank line, then the pasted text. The header
- * parser keeps the first value it finds, so these lines win over the tab's own header.
+ * says (`Title:`, `Artist:`, `Tuning:`, `Capo:`, `Tempo: Q=`, `Time:`), a blank line, then the pasted
+ * text. The header parser keeps the first value it finds, so these lines win over the tab's own
+ * header: a typed title beats a title-like first line of the text (R2-S-06).
  */
 export function composeText(raw: string, overrides: HeaderOverrides, detected: AsciiTab | null): string {
   const header = detected?.header ?? {};
   const lines: string[] = [];
   const same = (a: readonly number[] | undefined, b: readonly number[] | undefined): boolean =>
     !!a && !!b && a.length === b.length && a.every((v, i) => v === b[i]);
+  const title = overrides.title?.trim();
+  const artist = overrides.artist?.trim();
+  // Only when the text names something else: otherwise the file name ("Artist - Title.txt") says it.
+  if (title && header.title !== undefined && title !== header.title) lines.push(`Title: ${oneLine(title)}`);
+  if (artist && header.artist !== undefined && artist !== header.artist) lines.push(`Artist: ${oneLine(artist)}`);
   if (overrides.tuning && !same(overrides.tuning, detected?.tuning)) lines.push(`Tuning: ${tuningNames(overrides.tuning)}`);
   if (overrides.capo !== undefined && overrides.capo !== (header.capo ?? 0)) lines.push(`Capo: ${overrides.capo}`);
   if (overrides.bpm !== undefined && overrides.bpm !== header.tempo) lines.push(`Tempo: Q=${Math.round(overrides.bpm)}`);
   if (overrides.timeSig && !same(overrides.timeSig, header.timeSig)) lines.push(`Time: ${overrides.timeSig[0]}/${overrides.timeSig[1]}`);
   if (!lines.length) return raw;
   return `${lines.join('\n')}\n\n${raw}`;
+}
+
+/** A typed value as a single header line (no line breaks). */
+function oneLine(value: string): string {
+  return value.replace(/\s+/g, ' ');
 }
 
 /** Rhythm settings chosen in the alignment UI. */

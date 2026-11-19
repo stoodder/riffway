@@ -25,6 +25,34 @@ export const RHYTHM_LABEL: Readonly<Record<RhythmStatus, string>> = {
   'needs-alignment': 'Needs rhythm alignment',
 };
 
+/**
+ * The rhythm source a result row mentions: only the exceptions worth knowing about. Timing from the
+ * file itself (or a MIDI pair, or the player's own alignment) is the norm and stays unsaid; a tab
+ * that still needs alignment already says so in its availability chip.
+ */
+export const RHYTHM_NOTE: Readonly<Record<RhythmStatus, string | null>> = {
+  exact: null,
+  midi: null,
+  ruler: 'Rhythm from beat ruler',
+  aligned: null,
+  'needs-alignment': null,
+};
+
+/**
+ * The "by" line of a song: artist and composer without repeating one in the other ("Riffway ·
+ * Riffway (original exercise)" reads "Riffway (original exercise)"), else the file name.
+ */
+export function byLine(r: { artist?: string; composer?: string; fileName: string }): string {
+  const artist = r.artist?.trim() || undefined;
+  const composer = r.composer?.trim() || undefined;
+  if (artist && composer) {
+    if (composer.startsWith(artist)) return composer;
+    if (artist.startsWith(composer)) return artist;
+    return `${artist} · ${composer}`;
+  }
+  return artist ?? composer ?? r.fileName;
+}
+
 /** Availability chip per result. */
 export const AVAILABILITY: Readonly<Record<Availability, { label: string; tone: BadgeTone; icon: IconName; help: string }>> = {
   playable: { label: 'Playable now', tone: 'success', icon: 'play', help: 'Ready to play.' },

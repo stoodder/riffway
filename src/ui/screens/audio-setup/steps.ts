@@ -43,7 +43,7 @@ export const STEPS: readonly StepDef[] = [
     id: 'monitor',
     label: 'Monitoring',
     title: 'Hear your guitar',
-    lead: 'With no amp in the chain, Riffway can play your guitar through an amp sim. Use headphones: laptop speakers feed back.',
+    lead: 'With no amp in the chain, Riffway can play your guitar through an amp sim. Pick a sound and check the delay.',
     panel: 'monitor',
   },
   {
@@ -82,21 +82,63 @@ export function neighbour(id: StepId, dir: -1 | 1): StepId | null {
   return i >= 0 && i < STEP_IDS.length ? (STEP_IDS[i] as StepId) : null;
 }
 
-/** Status lines for every step, from settings. The tuner has nothing persisted, so it is "optional". */
-export function stepStatuses(s: Settings): Record<StepId, StepStatus> {
-  const input: StepStatus = s.input.label ? { tone: 'done', text: s.input.label } : { tone: 'todo', text: 'Not connected yet' };
-  const monitor: StepStatus = s.monitor.enabled ? { tone: 'done', text: `On · ${AMP_PRESETS[s.monitor.preset].label}` } : { tone: 'optional', text: 'Off' };
+/** What the screen knows beyond settings (nothing about tuning is persisted). */
+export interface SetupSession {
+  /** The tuner step was opened in this browser session. */
+  tunerVisited: boolean;
+}
+
+/** Which offsets have been measured, from the calibration settings. */
+export function calibrationState(s: Pick<Settings, 'calibration'>): { guitar: boolean; keyboard: boolean; estimated: boolean } {
   const cal = s.calibration;
-  const calibration: StepStatus =
-    cal.method === 'play-to-click' || cal.method === 'loopback' || cal.method === 'tap-to-click'
-      ? { tone: 'done', text: `${formatOffset(cal.method === 'tap-to-click' ? cal.keyboardOffsetMs : cal.inputOffsetMs)} offset` }
-      : cal.method === 'estimated'
+  const profile = cal.deviceKey ? cal.profiles[cal.deviceKey] : undefined;
+  return {
+    guitar: cal.method === 'play-to-click' || cal.method === 'loopback',
+    keyboard: cal.method === 'tap-to-click' || (profile?.keyboardMeasuredAt ?? null) !== null || Math.round(cal.keyboardOffsetMs) !== 0,
+    estimated: cal.method === 'estimated',
+  };
+}
+
+/** True when games use the keyboard only (`game.inputMode: 'keyboard'`): the guitar steps are optional. */
+function keyboardOnly(s: Settings): boolean {
+  return s.game.inputMode === 'keyboard';
+}
+
+/**
+ * Status lines for every step, from settings (and the session). The tuner has nothing persisted:
+ * it is "done" once opened this session. Monitoring counts as set up only after the player has been
+ * through its step (`headphonesCardSeen`), whatever the default switch says. Calibration is done when
+ * the input that games use is calibrated: the guitar, or the keyboard in keyboard-only mode; a
+ * keyboard-only calibration leaves the guitar step amber ("Guitar not calibrated").
+ */
+export function stepStatuses(s: Settings, session: SetupSession = { tunerVisited: false }): Record<StepId, StepStatus> {
+  const input: StepStatus = s.input.label
+    ? { tone: 'done', text: s.input.label }
+    : keyboardOnly(s)
+      ? { tone: 'optional', text: 'Keyboard mode: optional' }
+      : { tone: 'todo', text: 'Not connected yet' };
+  const monitor: StepStatus = !s.monitor.headphonesCardSeen
+    ? { tone: 'todo', text: 'Not set up yet' }
+    : s.monitor.enabled
+      ? { tone: 'done', text: `On · ${AMP_PRESETS[s.monitor.preset].label}` }
+      : { tone: 'optional', text: 'Off' };
+  const cal = s.calibration;
+  const measured = calibrationState(s);
+  const calibration: StepStatus = keyboardOnly(s)
+    ? measured.keyboard
+      ? { tone: 'done', text: `Keyboard ${formatOffset(cal.keyboardOffsetMs)} offset` }
+      : { tone: 'todo', text: 'Keyboard not calibrated' }
+    : measured.guitar
+      ? { tone: 'done', text: `${formatOffset(cal.inputOffsetMs)} offset` }
+      : measured.estimated
         ? { tone: 'warning', text: 'Estimated only' }
-        : { tone: 'todo', text: 'Not calibrated' };
-  const ready = input.tone === 'done' && calibration.tone === 'done';
+        : measured.keyboard
+          ? { tone: 'warning', text: 'Guitar not calibrated' }
+          : { tone: 'todo', text: 'Not calibrated' };
+  const ready = (input.tone === 'done' || keyboardOnly(s)) && calibration.tone === 'done';
   return {
     input,
-    tuner: { tone: 'optional', text: 'Every session' },
+    tuner: session.tunerVisited ? { tone: 'done', text: 'Checked this session' } : { tone: 'optional', text: 'Every session' },
     monitor,
     calibration,
     done: ready ? { tone: 'done', text: 'Ready to play' } : { tone: 'todo', text: 'A step needs attention' },
@@ -116,26 +158,40 @@ export interface SummaryRow {
   tone: StepTone;
   /** Step to revisit to change it. */
   step: StepId;
+  /** Button text for revisiting ("Change", or the missing action such as "Calibrate guitar"). */
+  action: string;
 }
 
 /** The summary step's rows (input, output, monitoring, calibration). */
-export function summaryRows(s: Settings): SummaryRow[] {
-  const st = stepStatuses(s);
+export function summaryRows(s: Settings, session?: SetupSession): SummaryRow[] {
+  const st = stepStatuses(s, session);
   const channel = s.input.channel === 'mix' ? 'channels 1 + 2' : `channel ${s.input.channel + 1}`;
   const cal = s.calibration;
-  const calValue =
-    st.calibration.tone === 'done'
-      ? `Guitar ${formatOffset(cal.inputOffsetMs)} · keyboard ${formatOffset(cal.keyboardOffsetMs)}${cal.spreadMs !== null ? ` · spread ±${Math.round(cal.spreadMs)} ms` : ''}`
+  const measured = calibrationState(s);
+  const keyboard = measured.keyboard ? `keyboard ${formatOffset(cal.keyboardOffsetMs)}` : 'keyboard not calibrated';
+  const spread = cal.spreadMs !== null ? ` · spread ±${Math.round(cal.spreadMs)} ms` : '';
+  const calValue = measured.guitar
+    ? `Guitar ${formatOffset(cal.inputOffsetMs)} · ${keyboard}${spread}`
+    : measured.keyboard
+      ? `Guitar not calibrated · keyboard ${formatOffset(cal.keyboardOffsetMs)}`
       : st.calibration.text;
+  const calAction = keyboardOnly(s) ? (measured.keyboard ? 'Change' : 'Calibrate keyboard') : measured.guitar ? 'Change' : 'Calibrate guitar';
   return [
-    { label: 'Guitar input', value: s.input.label ? `${s.input.label} (${channel})` : 'Not connected yet', tone: st.input.tone, step: 'input' },
-    { label: 'Output', value: s.output.label ?? 'System default', tone: s.output.label ? 'done' : 'optional', step: 'input' },
+    {
+      label: 'Guitar input',
+      value: s.input.label ? `${s.input.label} (${channel})` : st.input.text,
+      tone: st.input.tone,
+      step: 'input',
+      action: s.input.label ? 'Change' : 'Connect',
+    },
+    { label: 'Output', value: s.output.label ?? 'System default', tone: s.output.label ? 'done' : 'optional', step: 'input', action: 'Change' },
     {
       label: 'Monitoring',
-      value: s.monitor.enabled ? `On · ${AMP_PRESETS[s.monitor.preset].label} amp` : 'Off (you hear your own amp)',
+      value: !s.monitor.headphonesCardSeen ? 'Not set up yet' : s.monitor.enabled ? `On · ${AMP_PRESETS[s.monitor.preset].label} amp` : 'Off (you hear your own amp)',
       tone: st.monitor.tone,
       step: 'monitor',
+      action: s.monitor.headphonesCardSeen ? 'Change' : 'Set up',
     },
-    { label: 'Latency calibration', value: calValue, tone: st.calibration.tone, step: 'calibration' },
+    { label: 'Latency calibration', value: calValue, tone: st.calibration.tone, step: 'calibration', action: calAction },
   ];
 }

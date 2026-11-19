@@ -294,6 +294,16 @@ class ImportScreen implements ScreenHandle {
             ? `${this.state.alignTitle ?? 'This tab'} has notes but no reliable rhythm yet. Pick a tempo, snap or tap the rhythm, preview it and save.`
             : 'Paste a text tab (or open a .txt file), check what was read, give it a rhythm, preview it and save it to your library.',
         ),
+        align
+          ? null
+          : h(
+              'p',
+              { class: 'imp-otherformats' },
+              icon('info', { size: '16px' }),
+              h('span', null, 'Have a Guitar Pro (.gp, .gp5…) or MusicXML file? It brings its own rhythm: '),
+              // A partial context (no router) still renders: the hash route is the fallback.
+              h('a', { href: this.ctx.router?.href('library') ?? '#/library', class: 'imp-otherformats__link' }, 'add files to your library'),
+            ),
       ),
       align ? null : h('div', { class: 'imp-header__aside' }, this.ugLink, h('p', { class: 'imp-ug-hint rw-muted' }, 'Opens in a new tab. Copy the tab text and paste it here.')),
     );
@@ -712,9 +722,13 @@ class ImportScreen implements ScreenHandle {
     const s = this.state;
     if (s.mode === 'align') return s.raw;
     const tuning = TUNING_CHOICES.find((t) => t.id === s.tuning)?.midi;
+    const title = this.titleInput.value.trim();
+    const artist = this.artistInput.value.trim();
     return composeText(
       s.raw,
       {
+        ...(title ? { title } : {}),
+        ...(artist ? { artist } : {}),
         ...(tuning ? { tuning } : {}),
         ...(s.capo !== null ? { capo: s.capo } : {}),
         ...(s.bpmTouched ? { bpm: s.bpm } : {}),

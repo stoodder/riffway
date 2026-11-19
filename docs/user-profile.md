@@ -4,7 +4,7 @@ Shapes defaults, difficulty calibration, starter library and recommendations.
 
 | Topic | Answer | Design implication |
 |---|---|---|
-| Skill | Beginner–intermediate | Starter library spans tier 1–6 of 10; recommendations target "stretch" songs ~1 tier above comfort |
+| Skill | Beginner–intermediate | Starter library authored for tiers 1–6 of 10 (computed ratings land at 1–5, each within ±1 of its target, T-029); recommendations target "stretch" songs ~1 tier above comfort |
 | Taste | Rock, metal, really everything — especially **recognizable** songs; wants to **play for others** | Starter library favours recognizable public-domain melodies in rock/metal arrangements; "performance ready" milestone (full run, no slowdown, ≥90%) |
 | Goals | Expand skill set, grow repertoire, improve on difficult songs | Skill tags per song, section mastery + looping/speed trainer for hard parts, repertoire count |
 | Handedness | Right-handed | No mirroring by default (left-handed toggle is a nice-to-have) |

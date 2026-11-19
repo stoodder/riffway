@@ -159,7 +159,9 @@ describe('monitoring panel', () => {
     const root = q(host, '.rw-monitor');
     expect(root.dataset.status).toBe('live');
     expect(visible(q(root, '.rw-monitor__phones'))).toBe(true);
-    expect(root.textContent).toContain('Use headphones');
+    expect(root.textContent).toContain('Are you wearing headphones?');
+    // One headphone message only (R2-U-10): no "Headphones recommended" toggle subtitle.
+    expect(root.textContent).not.toContain('Headphones recommended');
     expect(q(root, '[data-preset="clean"]').getAttribute('aria-checked')).toBe('true');
     expect(q(root, '.rw-monitor__lat-total').textContent).toMatch(/^\d+(\.\d)? ms$/);
     const lat = q(root, '.rw-monitor__latency');
@@ -168,7 +170,8 @@ describe('monitoring panel', () => {
     expect(lat.textContent).toContain('Processing');
     expect(lat.textContent).toContain('Output');
     expect(lat.textContent).toContain('(assumed)'); // input latency not reported by the fake input
-    expect(lat.textContent).toContain('Run latency calibration');
+    expect(lat.textContent).toContain('A loopback calibration');
+    expect(lat.dataset.kind).toBe('estimated');
     expect(lat.dataset.band).toBe('playable');
     expect(visible(q(root, '.rw-monitor__banner--warning'))).toBe(false);
     expect(visible(q(root, '.rw-monitor__banner--danger'))).toBe(false);
@@ -270,6 +273,64 @@ describe('monitoring panel', () => {
     expect(lat.textContent).toContain('headphones');
     expect(visible(q(root, '.rw-monitor__note'))).toBe(true);
     await page.screenshot({ element: host, path: '../../test-results/monitor/panel-noticeable.png' });
+  });
+
+  it('turns monitoring on from the headphone check, and warns about built-in speakers there', async () => {
+    const { host, monitor, settings } = await setup({ monitor: { enabled: false }, output: { sinkId: 'spk', label: 'MacBook Pro Speakers' } });
+    const card = q(host, '.rw-monitor__phones');
+    expect(visible(card)).toBe(true);
+    expect(visible(q(card, '.rw-monitor__phones-speakers'))).toBe(true);
+    const on = Array.from(card.querySelectorAll('button')).find((b) => b.textContent?.includes('wearing headphones')) as HTMLButtonElement;
+    on.click();
+    await expect.poll(() => monitor.enabledCalls).toEqual([true]);
+    expect(settings.get().monitor.headphonesCardSeen).toBe(true);
+    await expect.poll(() => visible(card)).toBe(false);
+  });
+
+  it('"Not now" dismisses the headphone check and leaves monitoring off', async () => {
+    const { host, monitor, settings } = await setup({ monitor: { enabled: false } });
+    const card = q(host, '.rw-monitor__phones');
+    expect(visible(q(card, '.rw-monitor__phones-speakers'))).toBe(false);
+    (Array.from(card.querySelectorAll('button')).find((b) => b.textContent === 'Not now') as HTMLButtonElement).click();
+    await expect.poll(() => settings.get().monitor.headphonesCardSeen).toBe(true);
+    expect(monitor.enabledCalls).toEqual([]);
+    expect(settings.get().monitor.enabled).toBe(false);
+  });
+
+  it('shows the measured monitoring delay when a loopback calibration exists (R2-S-10)', async () => {
+    const key = 'Scarlett Solo USB → Headphones';
+    const { host } = await setup({
+      monitor: { headphonesCardSeen: true },
+      calibration: {
+        method: 'loopback',
+        inputOffsetMs: 14,
+        deviceKey: key,
+        profiles: {
+          [key]: {
+            inputLabel: 'Scarlett Solo USB',
+            outputLabel: 'Headphones',
+            inputOffsetMs: 14,
+            method: 'loopback',
+            measuredAt: 1,
+            spreadMs: 1,
+            keyboardOffsetMs: 0,
+            keyboardMeasuredAt: null,
+            keyboardSpreadMs: null,
+            visualOffsetMs: 0,
+            loopbackMs: 9.5,
+            loopbackAt: 1,
+          },
+        },
+      },
+    });
+    const lat = q(host, '.rw-monitor__latency');
+    expect(lat.dataset.kind).toBe('measured');
+    expect(lat.textContent).toContain('measured');
+    expect(lat.textContent).toContain('Measured: the loopback round trip');
+    const dspMs = (AMP_LATENCY_SAMPLES / 48000) * 1000;
+    const total = 9.5 + dspMs;
+    expect(q(lat, '.rw-monitor__lat-total').textContent).toBe(`${total < 10 ? total.toFixed(1) : Math.round(total)} ms`);
+    expect(lat.dataset.band).toBe('great');
   });
 
   it('unmount removes the panel and its subscriptions', async () => {

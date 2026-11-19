@@ -11,15 +11,17 @@ only in the local companion server and are registered in `server/sources/registr
   URLs the user's browser opens in a new tab, and `matchLocal(query, entries)` may flag library songs that match.
 
 `GET /api/search` runs one MiniSearch query over the unified index and adds every enabled link-out adapter's
-link-outs (only for a non-empty query). The Library screen (`src/ui/screens/library/`) shows the results, the
-filters and the link-out row, and imports dropped files into the library folder. Before an adapter calls anything,
+link-outs (only for a non-empty query). The Library screen (`src/ui/screens/library/`) shows the results (sortable
+in the browser: best match / A–Z, easiest first, recently played), the filters (collapsed on short windows), the
+link-out row with the ClassTab download offer while ClassTab isn't downloaded, and imports dropped files into the
+library folder. Before an adapter calls anything,
 its terms are checked and recorded here. An adapter whose source allows no automated access does no network I/O
 at all: it only offers a link-out URL and matches files the user imports.
 
 | Source | Status | Access method | Terms summary | Effort | Doc |
 |---|---|---|---|---|---|
-| Local library folder | implement now | fs watcher + drag-drop import via companion server | User's own files, kept local | M | [local-folder.md](local-folder.md) |
-| ClassTab.org | implement now | One official whole-site zip (`/zip/classtab.zip`), conditional GET refresh | No site licence. Some tabs are "private study" only. Index locally, never redistribute | M | [classtab.md](classtab.md) |
+| Local library folder | implemented (T-017, T-026) | fs watcher + drag-drop import via companion server | User's own files, kept local | M | [local-folder.md](local-folder.md) |
+| ClassTab.org | implemented (T-025; offered in the Library) | One official whole-site zip (`/zip/classtab.zip`), conditional GET refresh | No site licence. Some tabs are "private study" only. Index locally, never redistribute | M | [classtab.md](classtab.md) |
 | Songsterr | link-out only (implemented, T-026) | Opens `songsterr.com/?pattern=` in a browser tab. Matches imported GP files locally | API declined to automated clients (403). `/api/` disallowed. GP download is Plus-only | S | [songsterr.md](songsterr.md) |
 | Ultimate Guitar | link-out only (implemented, T-026) | Opens `search.php?search_type=title&value=`. ASCII paste | Personal non-commercial use. Linking OK. No framing. `/search.php` disallowed for bots | S (+M paste/align) | [ultimate-guitar.md](ultimate-guitar.md) |
 | Guitar Pro free pack | link-out only (implemented, T-026) | User downloads it (email required) and drops it into the library folder | No licence. Reproduction needs Arobas's written permission | S | [candidates.md](candidates.md) |

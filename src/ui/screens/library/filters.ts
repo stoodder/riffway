@@ -1,6 +1,8 @@
 /**
  * Filter bar: source chips, difficulty tier range, tuning, technique (pick / fingerstyle), "playable
- * now" vs "needs import or rhythm", extra tag chips and "Clear filters". Every control is keyboard
+ * now" vs "needs import or rhythm", extra tag chips and "Clear filters". The panel is a disclosure
+ * ("Filters", with the number of active filters) that starts collapsed on short windows
+ * ({@link COLLAPSE_BELOW_HEIGHT}) so the songs stay above the fold. Every control is keyboard
  * operable: chips are toggle buttons, segmented groups are radio groups (←/→), ranges are native selects.
  * @module
  */
@@ -8,6 +10,9 @@ import type { SourceId, Tier } from '@shared/song';
 import { button, h, icon, rovingFocus, select, uid, type Select } from '../../components';
 import { tierBandName } from '../../design/tokens';
 import { DEFAULT_QUERY, hasFilters, TIER_MAX, TIER_MIN, type LibraryQuery, type PlayableFilter, type Technique } from './query';
+
+/** Windows at most this tall (CSS px) start with the filters collapsed. */
+export const COLLAPSE_BELOW_HEIGHT = 760;
 
 /** A source the user can filter by. */
 export interface SourceFacet {
@@ -27,6 +32,8 @@ export interface TuningFacet {
 export interface FilterBarOptions {
   /** A control changed; apply the patch and search. */
   onChange: (patch: Partial<LibraryQuery>) => void;
+  /** Start collapsed (default: when the window is at most {@link COLLAPSE_BELOW_HEIGHT} px tall). */
+  collapsed?: boolean;
 }
 
 /** A mounted filter bar. */
@@ -73,6 +80,18 @@ function segmented<V extends string>(label: string, segments: readonly Segment<V
 
 const tierOption = (t: number): { value: string; label: string } => ({ value: String(t), label: `${t} · ${tierBandName(t as Tier)}` });
 const TIER_OPTIONS = Array.from({ length: TIER_MAX - TIER_MIN + 1 }, (_, i) => tierOption(TIER_MIN + i));
+
+/** How many filters narrow the results (each source chip, range, tuning, show, technique and tag counts once). */
+export function activeFilterCount(query: LibraryQuery): number {
+  return (
+    (query.sources.length ? 1 : 0) +
+    (query.tierMin > TIER_MIN || query.tierMax < TIER_MAX ? 1 : 0) +
+    (query.tuning ? 1 : 0) +
+    (query.playable !== 'all' ? 1 : 0) +
+    (query.technique ? 1 : 0) +
+    query.tags.length
+  );
+}
 
 /** Create the filter bar. */
 export function filterBar(opts: FilterBarOptions): FilterBar {
@@ -151,18 +170,41 @@ export function filterBar(opts: FilterBarOptions): FilterBar {
     (v) => opts.onChange({ playable: v }),
   );
 
-  // Extra tags (from links such as "songs with bends") and "Clear filters".
+  // Extra tags (from links such as "songs with bends").
   const tagChips = h('div', { class: 'lib-chips lib-chips--tags', 'aria-label': 'Tag filters', role: 'group' });
-  const clear = button({ label: 'Clear filters', variant: 'ghost', size: 'sm', icon: 'close', onClick: () => opts.onChange({ ...DEFAULT_QUERY, q: query.q }) });
-  const footer = h('div', { class: 'lib-filters__footer' }, tagChips, clear);
 
-  const el = h(
-    'section',
-    { class: 'lib-filters', 'aria-label': 'Filters' },
+  // Disclosure header: "Filters · 2 active" toggles the body; "Clear filters" sits beside it.
+  const bodyId = uid('lib-filters-body');
+  const activeCount = h('span', { class: 'lib-filters__count rw-num' });
+  const toggleBtn = h(
+    'button',
+    { type: 'button', class: 'lib-filters__toggle', 'aria-controls': bodyId, on: { click: () => setExpanded(toggleBtn.getAttribute('aria-expanded') !== 'true') } },
+    icon('chevronDown', { size: '16px' }),
+    h('span', null, 'Filters'),
+    activeCount,
+  );
+  const clear = button({
+    label: 'Clear filters',
+    variant: 'ghost',
+    size: 'sm',
+    icon: 'close',
+    onClick: () => opts.onChange({ ...DEFAULT_QUERY, q: query.q, sort: query.sort }),
+  });
+  const body = h(
+    'div',
+    { class: 'lib-filters__body', id: bodyId },
     h('div', { class: 'lib-filters__row' }, sourcesEl, playable.el),
     h('div', { class: 'lib-filters__row' }, tierEl, tuning.el, technique.el),
-    footer,
+    tagChips,
   );
+  function setExpanded(open: boolean): void {
+    toggleBtn.setAttribute('aria-expanded', String(open));
+    body.hidden = !open;
+  }
+  const collapsed = opts.collapsed ?? (typeof window !== 'undefined' && window.innerHeight > 0 && window.innerHeight <= COLLAPSE_BELOW_HEIGHT);
+  setExpanded(!collapsed);
+
+  const el = h('section', { class: 'lib-filters', 'aria-label': 'Filters' }, h('div', { class: 'lib-filters__head' }, toggleBtn, clear), body);
 
   return {
     el,
@@ -189,7 +231,10 @@ export function filterBar(opts: FilterBarOptions): FilterBar {
           ),
         ),
       );
-      footer.hidden = !hasFilters(next);
+      tagChips.hidden = next.tags.length === 0;
+      clear.hidden = !hasFilters(next);
+      const n = activeFilterCount(next);
+      activeCount.textContent = n ? `${n} active` : '';
     },
     setSources(sources) {
       sourceFacets = sources;

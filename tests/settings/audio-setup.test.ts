@@ -106,9 +106,12 @@ describe('audio setup screen', () => {
     expect(fake.navigations.at(-1)).toBe('/audio-setup?step=tuner');
     expect(document.activeElement).toBe(q('.as-step__title'));
 
+    // The tuner has nothing saved: opening it this session marks it checked (T-041 note 4).
+    expect(railStatus('tuner')).toBe('Checked this session');
     btn('Next: Monitoring').click();
     await vi.waitFor(() => expect(shown()).toEqual(['monitor']));
-    expect(q('.as-tip').textContent).toMatch(/Headphones recommended/);
+    // The headphone advice lives in the monitoring panel's single check, not repeated by the screen.
+    expect(el.querySelector('.as-tip')).toBeNull();
 
     btn('Next: Latency').click();
     await vi.waitFor(() => expect(shown()).toEqual(['calibration']));
@@ -143,8 +146,8 @@ describe('audio setup screen', () => {
     await fake.ctx.settings.update({
       input: { deviceId: 'usb', label: 'USB Audio CODEC', channel: 0 },
       output: { sinkId: 'hp', label: 'External Headphones' },
-      monitor: { preset: 'crunch' },
-      calibration: { method: 'play-to-click', inputOffsetMs: 41, spreadMs: 3 },
+      monitor: { preset: 'crunch', headphonesCardSeen: true },
+      calibration: { method: 'play-to-click', inputOffsetMs: 41, keyboardOffsetMs: -20, spreadMs: 3 },
     });
     await start({ step: 'done' });
     const rows = Array.from(el.querySelectorAll('.as-summary__row')).map((r) => [r.querySelector('dt')?.textContent, r.querySelector('.as-summary__value')?.textContent]);
@@ -152,7 +155,7 @@ describe('audio setup screen', () => {
       ['Guitar input', 'USB Audio CODEC (channel 1)'],
       ['Output', 'External Headphones'],
       ['Monitoring', 'On · Crunch amp'],
-      ['Latency calibration', 'Guitar +41 ms · keyboard 0 ms · spread ±3 ms'],
+      ['Latency calibration', 'Guitar +41 ms · keyboard −20 ms · spread ±3 ms'],
     ]);
     expect(railStatus('done')).toBe('Ready to play');
     expect(q<HTMLAnchorElement>('.as-summary__actions a').getAttribute('href')).toBe('#/library');
@@ -164,6 +167,29 @@ describe('audio setup screen', () => {
     await vi.waitFor(() => expect(el.querySelector('.as-summary')).not.toBeNull());
     await fake.ctx.settings.update({ monitor: { enabled: false } });
     await vi.waitFor(() => expect(el.querySelectorAll('.as-summary__value')[2]?.textContent).toBe('Off (you hear your own amp)'));
+  });
+
+  it('keeps monitoring off until its step and says when the guitar is not calibrated (R2-U-09/10)', async () => {
+    await fake.ctx.settings.update({ input: { deviceId: 'usb', label: 'USB Audio CODEC' }, calibration: { method: 'tap-to-click', keyboardOffsetMs: -146 } });
+    expect(fake.ctx.settings.get().monitor.enabled).toBe(true);
+    await start({ step: 'done' });
+    // Never through the monitoring step: switched off until the headphone check turns it on.
+    await vi.waitFor(() => expect(fake.ctx.settings.get().monitor.enabled).toBe(false));
+    expect(q('.as-step__title').textContent).toBe('Almost set up');
+    expect(railStatus('done')).toBe('A step needs attention');
+    const cal = Array.from(el.querySelectorAll<HTMLElement>('.as-summary__row')).find((r) => r.querySelector('dt')?.textContent === 'Latency calibration') as HTMLElement;
+    expect(cal.dataset.tone).toBe('warning');
+    expect(cal.querySelector('.as-summary__value')?.textContent).toBe('Guitar not calibrated · keyboard −146 ms');
+    (cal.querySelector('button') as HTMLButtonElement).click();
+    await vi.waitFor(() => expect(shown()).toEqual(['calibration']));
+    expect(panels.mounted.at(-1)?.props).toEqual({ mode: 'guitar' });
+  });
+
+  it('leaves monitoring alone once the player has been through its step', async () => {
+    await fake.ctx.settings.update({ monitor: { headphonesCardSeen: true, enabled: true } });
+    await start();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fake.ctx.settings.get().monitor.enabled).toBe(true);
   });
 
   it('follows route updates and ignores its own echo', async () => {

@@ -224,6 +224,7 @@ export function makeCtx(opts: { settings?: MemorySettings; progress?: SectionPro
       peek: (id: keyof ServiceMap) => services[id] ?? null,
     },
     ui: { toast, confirm: async () => true, requireAudioGesture: async () => undefined },
+    router: { href: (screen: string, params: Record<string, string> = {}) => `#/${screen}${params.id ? `/${encodeURIComponent(params.id)}` : ''}` },
     flags: { e2e: false, dev: false },
   } as unknown as AppContext;
   return { ctx, settings, toast };

@@ -91,6 +91,20 @@ describe('composeText', () => {
     expect(back.groups.length).toBe(tab.groups.length);
   });
 
+  it('lets a typed title and artist beat a title-like first line (R2-S-06)', () => {
+    const titled = `My Riff\n${ARPEGGIO}`;
+    const own = parseAsciiTab(titled);
+    expect(own.header.title).toBe('My Riff');
+    const text = composeText(titled, { title: 'Review Riff', artist: '' }, own);
+    expect(text.split('\n')[0]).toBe('Title: Review Riff');
+    const back = parseAsciiTab(text);
+    expect(back.header.title).toBe('Review Riff');
+    expect(back.groups.length).toBe(own.groups.length);
+    // Typed values that match the text, or a text without a title, add nothing (the file name carries them).
+    expect(composeText(titled, { title: 'My Riff' }, own)).toBe(titled);
+    expect(composeText(ARPEGGIO, { title: 'Anything', artist: 'Someone' }, tab)).toBe(ARPEGGIO);
+  });
+
   it('overrides the tab’s own header values', () => {
     const own = `Tempo: 70\nCapo 3\n\n${ARPEGGIO}`;
     const ownTab = parseAsciiTab(own);

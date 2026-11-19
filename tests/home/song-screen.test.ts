@@ -88,6 +88,14 @@ describe('song page', () => {
     expect(href('.sg-best')).toBe(`#/results/${r1}`);
     expect(el.querySelector('.rw-spark')?.getAttribute('aria-label')).toBe('Accuracy over your last 2 runs: 72% to 88% (best 88%)');
     expect(text('.sg-tag')).toEqual(['position shifts', 'chords', 'pick', 'classical']);
+    // Techniques and style (right hand + genre) are separate rows (R2-U-24).
+    expect(text('.sg-tagrows dt')).toEqual(['Techniques', 'Style']);
+    expect(text('.sg-tagrows .is-skill')).toEqual(['position shifts', 'chords']);
+    expect(text('.sg-tagrows .is-style')).toEqual(['pick', 'classical']);
+    // The section bar is coloured by progress only (the legend), never by difficulty (R2-U-08).
+    const segs = Array.from(el.querySelectorAll<HTMLElement>('.sg-map__seg'));
+    expect(segs.map((seg) => seg.className)).toEqual(['sg-map__seg is-new', 'sg-map__seg is-practising', 'sg-map__seg is-new']);
+    expect(segs.every((seg) => !seg.getAttribute('style')?.includes('tier'))).toBe(true);
     // No arrangement picker for a single-track song; no retune prompt in standard tuning.
     expect(el.querySelector('.sg-arrs, .sg-retune')).toBeNull();
     // Opening the song refreshes its cache entry for the home screen.
@@ -168,6 +176,12 @@ describe('song page', () => {
     expect(href('.sg-hero__actions a')).toBe('#/import?song=local%3Atab');
     expect(el.querySelector('.sg-hero__actions')?.textContent).not.toMatch(/^Play/);
     expect(el.textContent).toMatch(/Rhythm/);
+    // No "Loop this" on guessed timing: every section asks to align first (R2-U-11) …
+    await eventually(() => expect(el.querySelectorAll('.sg-sec').length).toBeGreaterThan(0));
+    const sectionLinks = Array.from(el.querySelectorAll<HTMLAnchorElement>('.sg-sec a'));
+    expect(sectionLinks.every((a) => a.textContent === 'Align first' && a.getAttribute('href') === '#/import?song=local%3Atab')).toBe(true);
+    // … and the hero's "Align rhythm to play" is the only primary action on the page.
+    expect(Array.from(el.querySelectorAll('.rw-btn--primary')).map((b) => b.textContent)).toEqual(['Align rhythm to play']);
   });
 
   it('explains a missing song and an unreachable server', async () => {
