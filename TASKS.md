@@ -83,6 +83,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-025 | ClassTab adapter + refresh | impl | done 0f7c9da: 28 tests; real run: 3976 tabs, rhythm MIDI 1921 / ruler 432 / needs-align 1616 |
 | T-029 | Integration + difficulty calibration | impl | done b101151: 59 integration tests; all 14 starter items within ±1 tier; worked example now 4.6 |
 | T-026 | Library & search UI + link-outs + drag-drop | impl | done e934f25: 80 tests; no external requests verified; 12 screenshots |
+| T-102 | R1 platform fixes | impl | done bdb1b54: R1-P-02..12 fixed w/ regression tests; P-01 open for owner |
 
 ---
 
@@ -277,7 +278,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** every R1-C finding fixed or explicitly rejected with reasoning in R1-core.md; new tests drive the judge through the REAL `TransportCore` (multi-anchor, loops of 1–2 bars at 40–100% speed, hidden-tab horizon, pause/resume, seek fwd/back, setSpeed/setLoop near B) and fail on the old code; docs/timing.md and game-mechanics.md agree on paused-clock semantics. Full suite green.
 
 ### T-102 · R1 fixes: importers, progress (platform)
-- **Status:** in-progress · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-platform`
+- **Status:** done · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-platform`
 - **Owns:** `src/core/import/` , `src/core/progress/`, `src/storage/`, `src/core/model/`, `server/` except Wave 2-owned files (`server/sources/{classtab,linkout}/`, `server/routes/{classtab,audio,sidecars}.ts`), `src/ui/{shell,design,components}/`, `starter/`, their tests, `docs/progress.md`, `docs/reviews/R1-platform.md` (status column)
 - **Acceptance:** every R1-P finding except R1-P-01 fixed or explicitly rejected with reasoning; regression test per fix; doc changes for docs/song-formats.md (owned by T-028 this wave) listed in the report instead of edited. R1-P-01 stays open for the owner (wrap-up). Full suite green.
 
