@@ -255,8 +255,13 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Export/import: validate, migrate, preview, merge/replace; round trip yields identical stores
     (`fake-indexeddb`).
 
+### T-089 · Wave 1 integration: contract changes, doc fixes, stale tests
+- **Status:** in-progress · **Deps:** T-011…T-020 · **Parallel:** y (with T-090 review, read-only) · **Agent:** `impl-integration`
+- **Owns:** `shared/**`, `src/app/services.ts`, `tests/foundation/`, `.gitignore`, `src/ui/design/tokens.ts`, `docs/game-mechanics.md`, `docs/song-formats.md`, `src/core/import/` (small fixes only), `server/` (CCR wiring only)
+- **Acceptance:** CCRs applied (SectionProgress.session; ServerOptions.analyzer; LibraryService difficulty + per-source indexing state, removing `instanceof LibraryIndex`; EngineOptions.settings + services.ts passes ctx.settings); foundation tests assert real behaviour instead of NotImplemented; `.gitignore` `/library/` root-only; tokens.ts uses core `tierName`; docs fixed (hand-position rules from T-013; alphaTex `{h}` for hammer/pull and `//` tags comment; rhythm precedence sidecar>MIDI>ruler>proportional; `version` option); `loadSong` passes `version`; alphaTab console noise on corrupt files silenced; `|*`…`*|` ASCII repeats expanded. Full `npm test`, typecheck, lint green.
+
 ### T-090 · Review round R1 (contracts + core logic)
-- **Status:** todo · **Deps:** T-011…T-020 · **Parallel:** n · **Agent:** `review`
+- **Status:** in-progress · **Deps:** T-011…T-020 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R1.md`; adds fix tasks `T-1xx` to this file
 - **Acceptance:** full test/typecheck/lint run; contracts vs docs; core logic vs docs (judge, difficulty,
   timing math, model invariants); forbidden-network grep (`songsterr.com/api`, UG fetches, classtab in
@@ -266,6 +271,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-021 · Guide synth renderer + song worker
 - **Status:** todo · **Deps:** T-011, T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Orchestrator notes (from W1):** Guide source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md). Two starter items use `\voice` (multi-voice) and natural-harmonic realValue is the sounding pitch.
 - **Owns:** `src/audio/guide/`, `tests/guide/`
 - **Acceptance:**
   - `song.worker.ts` (alphaTab main entry, not `/worker`): bundle → `loadSong` → `Song`; `MidiFile` via
@@ -279,6 +285,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-022 · Input device, analysis worklet, level meter, tuner
 - **Status:** todo · **Deps:** T-015, T-016, T-018 · **Parallel:** y · **Agent:** `impl-audio`
+- **Orchestrator notes (from W1):** Also own the docs/audio-input.md update to match T-015's DSP (no spectral flux; 2nd-diff+energy onset; octave check +0.03; 1-semitone range margin; -120 dB floor). Pass the window-centre frame to the pitch-change detector (`changeFrame`). Synthetic test notes must fade out (abrupt cut reads as onset). Thresholds were tuned on synthetic signals only; T-036 validates on recordings.
 - **Owns:** `src/audio/input/`, `src/audio/worklets/analysis.worklet.ts`, `src/ui/panels/input/`,
   `src/ui/panels/tuner/`, `tests/input/`, `docs/audio-input.md` (W2)
 - **Acceptance:**
@@ -293,6 +300,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-023 · Monitoring + amp/cab sim + latency display + feedback guard
 - **Status:** todo · **Deps:** T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Orchestrator notes (from W1):** docs/monitoring.md: engine limiter is a zero-latency WaveShaper soft clipper (DynamicsCompressor added ~6 ms), update the doc. Screens calling requireAudioGesture() must handle AudioGestureDismissedError.
 - **Owns:** `src/core/dsp/amp/`, `src/audio/monitor/`, `src/audio/worklets/amp.worklet.ts`,
   `src/ui/panels/monitor/`, `tests/monitor/`, `docs/monitoring.md` (W2)
 - **Acceptance:** everything in `docs/monitoring.md`: Clean / Overdrive / DI presets, oversampled clipper,
@@ -339,6 +347,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-027 · Backing audio: attach, align, time-stretch
 - **Status:** todo · **Deps:** T-016, T-017, T-020 · **Parallel:** y · **Agent:** `impl-audio`
+- **Orchestrator notes (from W1):** Backing source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md).
 - **Owns:** `server/routes/audio.ts`, `src/audio/backing/`, `src/ui/panels/backing/`, `tests/backing/`
 - **Acceptance:**
   - `POST/GET/DELETE /api/audio` (sha1 store, mp3/wav/m4a allowlist, 200 MB cap); `audioLinks` via storage.
@@ -361,6 +370,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-029 · Integration: indexer ↔ importers ↔ difficulty calibration
 - **Status:** todo · **Deps:** T-011, T-013, T-017, T-019 · **Parallel:** y · **Agent:** `impl-core`
+- **Orchestrator notes (from W1):** Two starter items use `\voice`; ensure both voices import as playable notes. Run the real analyzer end to end (T-017 tests use a fake analyzer).
 - **Owns:** `tests/integration/`, `src/core/difficulty/constants.ts` (W2), `docs/difficulty.md` (W2)
 - **Acceptance:** server indexes `starter/` with real difficulty; every starter item within ±1 of
   `targetTier` (adjust constants, update the doc and the worked example if it changes); search
@@ -371,6 +381,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-031 · Game session, keyboard mode, game + results screens
 - **Status:** todo · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
+- **Orchestrator notes (from W1):** Call `judge.startPass` in the loop-wrap handler; call `advance(inputHorizon(...))`, not ctx.currentTime (T-014). Clock returns non-finite times while paused. DOM tests that build the app context must `import 'fake-indexeddb/auto'`. Handle AudioGestureDismissedError.
 - **Owns:** `src/game/session/`, `src/game/input/`, `src/test-hooks/`, `src/ui/screens/game/`,
   `src/ui/screens/results/`, `tests/session/`, `docs/game-mechanics.md` (W3)
 - **Acceptance:**
