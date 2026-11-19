@@ -97,6 +97,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-035 | Settings + audio setup + export/import UI | impl | done 5ab9b1d: 43 tests; guided audio setup; data export/import with preview + merge/replace |
 | T-033 | Latency calibration wizard | impl | done c4c1a0b: 41 node + 16 browser; recovers synthetic 37 ms as 37.02 ms through real worklet; per device pair |
 | T-034 | Home dashboard + song page | impl | done 19f6603: 49 tests; first-run checklist, recommendations w/ reasons, streak w/o loss copy, song page w/ mastery map |
+| T-031 | Game session, keyboard mode, game + results screens | impl | done 5c6cd88: full song driven in real Chromium via keyboard mode; results rebuilt from storage |
 
 ---
 
@@ -419,7 +420,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 ## Wave 3 (parallel)
 
 ### T-031 · Game session, keyboard mode, game + results screens
-- **Status:** in-progress · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** done · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
 - **Orchestrator notes (from W1):** (Superseded by T-101:) one judge per run, created just before `play()`; call `startPass({pass: change.pass})` on ANY clock change with a different pass (loops, seeks, jumps); call `advance(inputHorizon(...))` (not ctx.currentTime), also while paused. Clock `ctxTimeInPass` returns NaN while paused, -Infinity for skipped notes. Use `cueShowAt` for hand cues. Use `guideShouldMute(settings, backing.link)` for guide muting. Send `expect` hints (upcoming note pitches) to the analysis worklet — without them onsets below D#2 get no pitch (Drop D). DOM tests that build the app context must `import 'fake-indexeddb/auto'`. Handle AudioGestureDismissedError.
 - **Owns:** `src/game/session/`, `src/game/input/`, `src/test-hooks/`, `src/ui/screens/game/`,
   `src/ui/screens/results/`, `tests/session/`, `docs/game-mechanics.md` (W3)
