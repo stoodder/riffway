@@ -95,6 +95,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-032 | Practice panel + mixer UI | impl | done eec3689: 57 tests; speed 40-100% (110% overspeed) per transport clamp; A/B strip, trainer ladder, mixer |
 | T-030 | Wave 2 integration | impl | done a7b70ef: additive CCRs, Crunch preset, UG/Songsterr lint guard, graceful mounts, vitest port fix |
 | T-035 | Settings + audio setup + export/import UI | impl | done 5ab9b1d: 43 tests; guided audio setup; data export/import with preview + merge/replace |
+| T-033 | Latency calibration wizard | impl | done c4c1a0b: 41 node + 16 browser; recovers synthetic 37 ms as 37.02 ms through real worklet; per device pair |
 
 ---
 
@@ -440,7 +441,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   (monitor, backing, guide, metronome, master) persisted. Tests with a fake session.
 
 ### T-033 · Latency calibration wizard
-- **Status:** in-progress · **Deps:** T-016, T-022 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-016, T-022 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/audio/calibration/`, `src/ui/panels/calibration/`, `tests/calibration/`, `docs/timing.md` (W3)
 - **Acceptance:** play-to-click, tap-to-click and visual offset exactly per timing.md (pairing, median,
   MAD rejection, ≥ 8 pairs, spread ≤ 15 ms, retry, "estimated" fallback); results saved in settings;
