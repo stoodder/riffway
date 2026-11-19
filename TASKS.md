@@ -74,6 +74,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-017 | Server core, local+starter adapters, search | impl | done 122d16a: 40 tests; loopback Host/Origin guard; CCRs: ServerOptions.analyzer, LibraryService difficulty/indexing state |
 | T-011 | Song model helpers + alphaTab importer | impl | done 3efcc30: 142 tests; golden files; GP7 exports round-trip; triplet feel not applied |
 | T-014 | Judge, scoring and practice logic | impl | done 2d337d8: 159 tests incl. window-edge tables at 40-110% speed; bias-corrected matching |
+| T-018 | App shell, design system, navigation | impl | done 43884ab: 52 tests; gallery at #/dev/components; reduced motion in e2e |
 
 ---
 
@@ -210,7 +211,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     traversal rejected; each filter; SSE event on change; starter items appear as `starter`.
 
 ### T-018 · App shell, design system, navigation
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/main.ts`, `src/ui/shell/`, `src/ui/design/`, `src/ui/components/`, `src/ui/router.ts`,
   `src/ui/screens/dev/`, `public/`, `tests/ui-shell/`
 - **Acceptance:**
