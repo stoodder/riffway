@@ -84,6 +84,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-029 | Integration + difficulty calibration | impl | done b101151: 59 integration tests; all 14 starter items within ±1 tier; worked example now 4.6 |
 | T-026 | Library & search UI + link-outs + drag-drop | impl | done e934f25: 80 tests; no external requests verified; 12 screenshots |
 | T-102 | R1 platform fixes | impl | done bdb1b54: R1-P-02..12 fixed w/ regression tests; P-01 open for owner |
+| T-028 | ASCII paste import + rhythm-alignment UI | impl | done 2ca0d10: 43 tests; snap-to-grid + tap-along + preview; UG link-out only |
 
 ---
 
@@ -378,7 +379,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Browser test: aligned backing onset lands within ±10 ms of the clock's beat at 100% and 75%.
 
 ### T-028 · ASCII paste import + rhythm-alignment UI
-- **Status:** in-progress · **Deps:** T-012, T-016, T-017; T-021 contract · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-012, T-016, T-017; T-021 contract · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/import/`, `server/routes/sidecars.ts`, `tests/ascii-ui/`, `docs/song-formats.md` (W2)
 - **Acceptance:**
   - Import screen per song-formats.md § Rhythm alignment UX: paste or open file, preview with unparsed lines
