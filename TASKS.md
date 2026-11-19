@@ -81,6 +81,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-012 | ASCII tab parser + ClassTab rhythm derivation | impl | done d4aba88: 159 tests; synthetic fixtures; ref check 7/7 paired 97-100%; |* *| repeats not expanded |
 | T-089 | Wave 1 integration | impl | done db3b2ce: CCRs applied, 988 tests green; .gitignore fix surfaced uncommitted library screen stub |
 | T-025 | ClassTab adapter + refresh | impl | done 0f7c9da: 28 tests; real run: 3976 tabs, rhythm MIDI 1921 / ruler 432 / needs-align 1616 |
+| T-029 | Integration + difficulty calibration | impl | done b101151: 59 integration tests; all 14 starter items within ±1 tier; worked example now 4.6 |
 
 ---
 
@@ -381,7 +382,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Tests: route tests via `app.inject`; UI flow test (happy-dom) from paste to saved sidecar.
 
 ### T-029 · Integration: indexer ↔ importers ↔ difficulty calibration
-- **Status:** in-progress · **Deps:** T-011, T-013, T-017, T-019 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** done · **Deps:** T-011, T-013, T-017, T-019 · **Parallel:** y · **Agent:** `impl-core`
 - **Orchestrator notes (from W1):** Two starter items use `\voice`; ensure both voices import as playable notes. Run the real analyzer end to end (T-017 tests use a fake analyzer).
 - **Owns:** `tests/integration/`, `src/core/difficulty/constants.ts` (W2), `docs/difficulty.md` (W2)
 - **Acceptance:** server indexes `starter/` with real difficulty; every starter item within ±1 of
