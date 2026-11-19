@@ -108,6 +108,18 @@ describe('loadSong', () => {
     expect(importError(() => loadSong({ fileName: 'x.gp', data: new Uint8Array([0, 1, 2, 3, 4]) })).code).toBe('unsupported');
   });
 
+  it('keeps alphaTab quiet on corrupt files (the ImportError is the only report)', () => {
+    const spies = (['log', 'info', 'warn', 'error', 'debug'] as const).map((m) => vi.spyOn(console, m).mockImplementation(() => {}));
+    try {
+      for (const fileName of ['x.gp5', 'x.gp', 'x.gpx']) {
+        expect(importError(() => loadSong({ fileName, data: new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9]) })).code).toBe('unsupported');
+      }
+      for (const spy of spies) expect(spy).not.toHaveBeenCalled();
+    } finally {
+      for (const spy of spies) spy.mockRestore();
+    }
+  });
+
   it('throws syntax errors with alphaTex diagnostics (code, line, column)', () => {
     const err = importError(() => loadSong({ fileName: 'bad.atex', data: text('\\title "Bad"\n:4 3.3 x.9.k r') }));
     expect(err.code).toBe('syntax');
@@ -123,6 +135,8 @@ describe('loadSong', () => {
     expect(asciiToSong).toHaveBeenLastCalledWith(bundle, { id: 'local:x' });
     loadSong({ fileName: 'tab.tab', data: text('') }, { id: 'opt' });
     expect(asciiToSong).toHaveBeenLastCalledWith(expect.objectContaining({ fileName: 'tab.tab' }), { id: 'opt' });
+    loadSong({ fileName: 'multi.txt', data: text('') }, { version: 2 });
+    expect(asciiToSong).toHaveBeenLastCalledWith(expect.objectContaining({ fileName: 'multi.txt' }), { version: 2 });
   });
 });
 

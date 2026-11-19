@@ -1,51 +1,15 @@
 /**
  * Song analysis used by the indexer (T-017): `loadSong` (T-011) + `analyzeDifficulty` (T-013) →
- * the metadata stored in an `IndexEntry`. Injectable through `createApp({analyzer})` so server tests
- * do not depend on the real importers (T-029 wires the real ones end to end).
+ * the metadata stored in an `IndexEntry` ({@link SongAnalyzer} contract in `../types`). Injectable through
+ * `createApp({analyzer})` so server tests do not depend on the real importers (T-029 wires the real ones
+ * end to end).
  * @module
  */
-import type { DifficultyReport, RhythmStatus, SongBundle, SongFormat, SongTags, TrackInfo } from '@shared/song';
+import type { DifficultyReport, SongTags } from '@shared/song';
 import { analyzeDifficulty } from '@core/difficulty';
 import { ImportError, detectFormat, isImportError, listTracks, loadSong } from '@core/import/load-song';
 import { describeTuning } from '@core/model';
-
-/** Everything the indexer needs from one parsed file (default arrangement). */
-export interface SongAnalysis {
-  format: SongFormat;
-  title: string;
-  artist?: string;
-  composer?: string;
-  /** Every track of the file, playable or not. */
-  tracks: TrackInfo[];
-  /** First playable track, or -1 when none is playable. */
-  defaultArrangement: number;
-  /** MIDI tuning of the default arrangement, high → low. */
-  tuning: number[];
-  tuningId: string;
-  tuningLabel: string;
-  capo: number;
-  /** Initial tempo (BPM), or null when unknown. */
-  bpm: number | null;
-  durationSec: number;
-  rhythm: RhythmStatus;
-  /** Difficulty of the default arrangement; null when unplayable or analysis failed. */
-  difficulty: DifficultyReport | null;
-  /** Song tags from the file plus the difficulty's skill tags. */
-  tags: SongTags;
-  /** Set when the file parsed but cannot be played (e.g. no 6-string guitar track). */
-  error?: string;
-}
-
-/**
- * The indexer's view of the song importers. Both methods may throw; an `ImportError` with code
- * `unsupported` (or `empty` for ASCII text) means "not a song file" and the file is skipped silently.
- */
-export interface SongAnalyzer {
-  /** Parse a bundle's default arrangement into index metadata. */
-  analyze(bundle: SongBundle): SongAnalysis | Promise<SongAnalysis>;
-  /** Difficulty of one arrangement (song page, `SongMeta.difficulty`). */
-  difficulty(bundle: SongBundle, arrangement: number): DifficultyReport | Promise<DifficultyReport>;
-}
+import type { SongAnalysis, SongAnalyzer } from '../types';
 
 /** True when an analysis error means "this file is not a song" rather than "this song is broken". */
 export function isSkippableImportError(err: unknown, fileName: string): boolean {

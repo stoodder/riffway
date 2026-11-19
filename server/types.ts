@@ -6,8 +6,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { ConfigUpdate, SearchQuery, SearchResponse, ServerConfig, ServerEvent } from '@shared/api';
 import type { Unsubscribe } from '@shared/clock';
-import type { SongBundle } from '@shared/song';
-import type { AdapterContext, AdapterLogger, IndexEntry, SourceAdapter, SourceAdapterFactory } from '@shared/sources';
+import type { DifficultyReport, RhythmStatus, SongBundle, SongFormat, SongTags, SourceId, TrackInfo } from '@shared/song';
+import type { AdapterContext, AdapterLogger, IndexEntry, SourceAdapter, SourceAdapterFactory, SourceStatus } from '@shared/sources';
 
 /** Absolute paths used by the server (DEC-20). */
 export interface ServerPaths {
@@ -45,7 +45,48 @@ export interface ServerOptions {
   watch?: boolean;
   /** Adapter factories (default: `server/sources/registry.ts`). */
   sources?: readonly SourceAdapterFactory[];
+  /** Song analysis for the indexer (default: real `loadSong` + `analyzeDifficulty`, `server/indexer/analyzer.ts`). */
+  analyzer?: SongAnalyzer;
 }
+
+/** Everything the indexer needs from one parsed file (default arrangement). */
+export interface SongAnalysis {
+  format: SongFormat;
+  title: string;
+  artist?: string;
+  composer?: string;
+  /** Every track of the file, playable or not. */
+  tracks: TrackInfo[];
+  /** First playable track, or -1 when none is playable. */
+  defaultArrangement: number;
+  /** MIDI tuning of the default arrangement, high → low. */
+  tuning: number[];
+  tuningId: string;
+  tuningLabel: string;
+  capo: number;
+  /** Initial tempo (BPM), or null when unknown. */
+  bpm: number | null;
+  durationSec: number;
+  rhythm: RhythmStatus;
+  /** Difficulty of the default arrangement; null when unplayable or analysis failed. */
+  difficulty: DifficultyReport | null;
+  /** Song tags from the file plus the difficulty's skill tags. */
+  tags: SongTags;
+  /** Set when the file parsed but cannot be played (e.g. no 6-string guitar track). */
+  error?: string;
+}
+
+/**
+ * The indexer's view of the song importers. Both methods may throw; an `ImportError` with code
+ * `unsupported` (or `empty` for ASCII text) means "not a song file" and the file is skipped silently.
+ */
+export interface SongAnalyzer {
+  /** Parse a bundle's default arrangement into index metadata. */
+  analyze(bundle: SongBundle): SongAnalysis | Promise<SongAnalysis>;
+  /** Difficulty of one arrangement (song page, `SongMeta.difficulty`). */
+  difficulty(bundle: SongBundle, arrangement: number): DifficultyReport | Promise<DifficultyReport>;
+}
+
 
 /** Server config with persistence (`<dataDir>/config.json`). */
 export interface ConfigStore {
@@ -58,6 +99,13 @@ export interface ConfigStore {
 export interface EventBus {
   emit(event: ServerEvent): void;
   subscribe(cb: (event: ServerEvent) => void): Unsubscribe;
+}
+
+/** Indexing state of one source (merged into its `SourceStatus` by {@link LibraryService.decorateStatus}). */
+export interface SourceIndexState {
+  state: 'idle' | 'indexing' | 'error';
+  lastRefresh: number | null;
+  message?: string;
 }
 
 /** The unified library index (T-017). */
@@ -80,6 +128,15 @@ export interface LibraryService {
   rescan(): Promise<void>;
   /** Sidecar path for a song id (`<dataDir>/sidecars/<encodeURIComponent(id)>.json`). */
   sidecarPath(id: string): string;
+  /**
+   * Difficulty of every playable arrangement (`SongMeta.difficulty`): the default arrangement's comes
+   * from the index, others are analysed on first request and cached. Rejects for unknown ids.
+   */
+  arrangementDifficulties(id: string): Promise<Record<number, DifficultyReport>>;
+  /** Indexing state of one source (`idle` with `lastRefresh: null` before its first scan). */
+  sourceState(source: SourceId): SourceIndexState;
+  /** Merge library-side facts (enabled flag, indexed count, indexing state) into an adapter's status. */
+  decorateStatus(status: SourceStatus): SourceStatus;
   close(): Promise<void>;
 }
 

@@ -10,9 +10,8 @@
  */
 import { openDB, type DBSchema, type IDBPDatabase, type IDBPTransaction } from 'idb';
 import type { Settings } from '@shared/settings';
-import type { AudioLink, BestRecord, PracticeDay, RunRecord, SongCacheEntry, StoreName, StreakState } from '@shared/storage';
+import type { AudioLink, BestRecord, PracticeDay, RunRecord, SectionProgress, SongCacheEntry, StoreName, StreakState } from '@shared/storage';
 import { DB_VERSION } from '@shared/storage';
-import type { SectionProgressRecord } from '@core/progress';
 
 /** Fixed key of the single record in the `settings` store. */
 export const SETTINGS_KEY = 'settings';
@@ -36,7 +35,7 @@ export interface RiffwayDB extends DBSchema {
   bests: { key: [string, number, number]; value: BestRecord };
   sectionProgress: {
     key: [string, number, number];
-    value: SectionProgressRecord;
+    value: SectionProgress;
     indexes: { [PROGRESS_BY_CHECK]: number };
   };
   practiceDays: { key: string; value: PracticeDay };

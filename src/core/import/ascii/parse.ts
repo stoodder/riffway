@@ -37,15 +37,20 @@ export interface BlockBar {
   end: number;
 }
 
-/** A block as played (blocks with `x2` markers are played several times). */
+/**
+ * A run of consecutive bars of one block as played. A block is played whole once per `x2` pass;
+ * `|*` … `*|` repeat signs split it into runs (the repeated bars are played again).
+ */
 export interface PlayedBlock {
   block: number;
+  /** Earlier runs of the same block in played order (0 for the first). */
   pass: number;
-  /** Index of the block's first bar in played order. */
+  /** Index of the run's first bar in played order. */
   firstBar: number;
-  /** Index of the pass's first group in {@link AsciiTab.groups}; the pass owns `groupCount` groups. */
+  /** Index of the run's first group in {@link AsciiTab.groups}; the run owns `groupCount` groups. */
   firstGroup: number;
   groupCount: number;
+  /** The run's bars (a contiguous slice of the block's bars). */
   bars: BlockBar[];
   /** Beat-ruler marks (aligned columns), when the block has a ruler. */
   ruler?: RulerMark[];
@@ -108,6 +113,70 @@ function blockBars(barColumns: readonly number[], bodyStart: number, bodyEnd: nu
   return bars;
 }
 
+/** Bar indexes of a block that open (`|*`) or close (`*|`) a repeat. */
+interface RepeatSigns {
+  open: Set<number>;
+  close: Set<number>;
+}
+
+/**
+ * Repeat signs: a `*` on at least {@link REPEAT_DOT_LINES} strings in one column, right after (`|*`,
+ * opens) or right before (`*|`, closes) a `|` on those lines. Each sign belongs to the bar holding
+ * its column.
+ */
+function repeatSigns(lines: readonly string[], bodies: readonly { from: number; to: number }[], bars: readonly BlockBar[]): RepeatSigns {
+  const open = new Map<number, number>();
+  const close = new Map<number, number>();
+  lines.forEach((text, idx) => {
+    const { from, to } = bodies[idx];
+    for (let c = from; c < to; c++) {
+      if (text[c] !== '*') continue;
+      if (text[c - 1] === '|') open.set(c, (open.get(c) ?? 0) + 1);
+      if (text[c + 1] === '|') close.set(c, (close.get(c) ?? 0) + 1);
+    }
+  });
+  const barsOf = (dots: Map<number, number>): Set<number> => {
+    const out = new Set<number>();
+    for (const [c, n] of dots) {
+      const b = bars.findIndex((bar) => c > bar.start && c < bar.end);
+      if (n >= REPEAT_DOT_LINES && b >= 0) out.add(b);
+    }
+    return out;
+  };
+  return { open: barsOf(open), close: barsOf(close) };
+}
+
+/** One bar of a block in written order (block `x2` passes already unrolled). */
+interface WrittenBar {
+  block: number;
+  bar: number;
+  open: boolean;
+  close: boolean;
+}
+
+/**
+ * Expand `|*` … `*|` repeats: a closing sign sends playback back once to the latest opening sign
+ * (else to the bar after the previous closing sign, else to the start). Nested repeats are not
+ * modelled: the inner opening sign wins.
+ */
+function expandRepeats(written: readonly WrittenBar[]): WrittenBar[] {
+  const out: WrittenBar[] = [];
+  const repeated = new Set<number>();
+  let from = 0;
+  for (let i = 0; i < written.length; i++) {
+    if (written[i].open) from = i;
+    out.push(written[i]);
+    if (!written[i].close) continue;
+    if (repeated.has(i)) {
+      from = i + 1;
+      continue;
+    }
+    repeated.add(i);
+    i = from - 1;
+  }
+  return out;
+}
+
 /** Tuning from six labels (top line = string 1); null unless all six are note names. */
 function labelTuning(labels: readonly (string | null)[]): number[] | null {
   const pcs = labels.map((l) => (l === null ? null : pitchClassOf(l)));
@@ -115,6 +184,9 @@ function labelTuning(labels: readonly (string | null)[]): number[] | null {
 }
 
 const isStandard = (t: readonly number[]): boolean => t.every((p, i) => p === STANDARD_TUNING[i]);
+
+/** Strings that must carry a `*` for it to count as a repeat sign (tabs write the dots on two). */
+const REPEAT_DOT_LINES = 2;
 
 /** Parse ASCII tab text into blocks, header, tuning and played-order groups (no rhythm applied). */
 export function parseTabDetailed(text: string, opts: ParseOptions = {}): DetailedTab {
@@ -199,6 +271,7 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const blockGroups: BlockGroup[][] = [];
   const blockBarList: BlockBar[][] = [];
   const blockRulers: (RulerMark[] | undefined)[] = [];
+  const blockRepeats: RepeatSigns[] = [];
   const blockChords: { column: number; name: string }[][] = [];
   let tuningFromLabels: number[] | null = null;
 
@@ -283,9 +356,11 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
 
     tuningFromLabels ??= labelTuning(block.labels);
     const groups = groupBlockNotes(notes);
+    const bars = blockBars(barColumns, maxStart, bodyEnd, groups);
     blocks.push(block);
     blockGroups.push(groups);
-    blockBarList.push(blockBars(barColumns, maxStart, bodyEnd, groups));
+    blockBarList.push(bars);
+    blockRepeats.push(repeatSigns(aligned, bodies, bars));
     blockRulers.push(ruler);
     blockChords.push(chords);
   });
@@ -300,35 +375,60 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const labelled: number[] | null = tuningFromLabels;
   const tuning = labelled && !isStandard(labelled) ? labelled : header.tuning ?? labelled ?? [...STANDARD_TUNING];
 
-  // 5. Played order.
+  // 5. Played order: blocks × `x2` passes, then `|*` … `*|` repeats, cut into runs of consecutive bars.
+  const written: WrittenBar[] = [];
+  blocks.forEach((block, bi) => {
+    const { open, close } = blockRepeats[bi];
+    for (let pass = 0; pass < (block.repeat ?? 1); pass++) {
+      blockBarList[bi].forEach((_, b) => written.push({ block: bi, bar: b, open: open.has(b), close: close.has(b) }));
+    }
+  });
+  // Bar of each group within its block (notes outside every bar go to the nearest edge bar).
+  const groupBars = blockGroups.map((bg, bi) => {
+    const bars = blockBarList[bi];
+    return bg.map((g) => {
+      const bIdx = bars.findIndex((b) => g.column > b.start && g.column < b.end);
+      return bIdx >= 0 ? bIdx : g.column <= bars[0].start ? 0 : bars.length - 1;
+    });
+  });
   const played: PlayedBlock[] = [];
   const groups: AsciiOnsetGroup[] = [];
   const sections: { bar: number; name: string }[] = [];
+  const runsOfBlock = new Array<number>(blocks.length).fill(0);
   let bar = 0;
-  blocks.forEach((block, bi) => {
+  const order = expandRepeats(written);
+  for (let i = 0; i < order.length; ) {
+    const bi = order[i].block;
+    const from = order[i].bar;
+    let to = from;
+    let j = i + 1;
+    while (j < order.length && order[j].block === bi && order[j].bar === to + 1) to = order[j++].bar;
+    i = j;
+
+    const block = blocks[bi];
     const bars = blockBarList[bi];
     const chords = blockChords[bi];
-    for (let pass = 0; pass < (block.repeat ?? 1); pass++) {
-      if (pass === 0 && block.section) sections.push({ bar, name: block.section });
-      played.push({ block: bi, pass, firstBar: bar, bars, ruler: blockRulers[bi], firstGroup: groups.length, groupCount: blockGroups[bi].length });
-      for (const g of blockGroups[bi]) {
-        let bIdx = bars.findIndex((b) => g.column > b.start && g.column < b.end);
-        if (bIdx < 0) bIdx = g.column <= bars[0].start ? 0 : bars.length - 1;
-        const chordName = g.notes.length > 1 ? chords.find((c) => Math.abs(c.column - g.column) <= 2)?.name : undefined;
-        groups.push({
-          index: groups.length,
-          bar: bar + bIdx,
-          column: g.column,
-          barStartColumn: bars[bIdx].start,
-          barEndColumn: bars[bIdx].end,
-          notes: g.notes.map(stripSpan),
-          block: bi,
-          ...(chordName ? { chordName } : {}),
-        });
-      }
-      bar += bars.length;
-    }
-  });
+    const pass = runsOfBlock[bi]++;
+    if (pass === 0 && from === 0 && block.section) sections.push({ bar, name: block.section });
+    const firstGroup = groups.length;
+    blockGroups[bi].forEach((g, k) => {
+      const bIdx = groupBars[bi][k];
+      if (bIdx < from || bIdx > to) return;
+      const chordName = g.notes.length > 1 ? chords.find((c) => Math.abs(c.column - g.column) <= 2)?.name : undefined;
+      groups.push({
+        index: groups.length,
+        bar: bar + bIdx - from,
+        column: g.column,
+        barStartColumn: bars[bIdx].start,
+        barEndColumn: bars[bIdx].end,
+        notes: g.notes.map(stripSpan),
+        block: bi,
+        ...(chordName ? { chordName } : {}),
+      });
+    });
+    played.push({ block: bi, pass, firstBar: bar, bars: bars.slice(from, to + 1), ruler: blockRulers[bi], firstGroup, groupCount: groups.length - firstGroup });
+    bar += to - from + 1;
+  }
 
   const tab: AsciiTab = {
     header,

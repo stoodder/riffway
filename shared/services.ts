@@ -20,7 +20,7 @@
 import type { AnalysisEvent, AmpParams } from './audio-events';
 import type { ScheduledSource, SongClock, Transport, TransportLoop, Unsubscribe } from './clock';
 import type { InputEvent, Judgement, JudgeState, PracticeMessage, RunSummary, StrayEvent } from './judge';
-import type { AmpPresetId, MixerLevels } from './settings';
+import type { AmpPresetId, MixerLevels, SettingsStore } from './settings';
 import type { HandPositionAnalysis, Song, SongBundle } from './song';
 import type { AudioLink, RunMode } from './storage';
 
@@ -31,8 +31,14 @@ export type MixerBus = keyof MixerLevels;
 export interface EngineOptions {
   /** Match the input device's sample rate so Chrome does not resample (default 48000). */
   sampleRate?: number;
-  /** Output device (`setSinkId`); `''` = default. */
+  /** Output device (`setSinkId`); `''` = default. Defaults to the settings' `output.sinkId`. */
   sinkId?: string;
+  /**
+   * Settings to follow (the app passes `ctx.settings`): mixer levels, `practice.countInBars` /
+   * `practice.metronome` defaults, `calibration.visualOffsetMs` (for `heardSongTime`) and
+   * `output.sinkId`, applied at creation and on every change.
+   */
+  settings?: Pick<SettingsStore, 'get' | 'subscribe'>;
 }
 
 /** The audio engine (T-016): one `AudioContext`, clock, transport, scheduler, metronome, mixer. */

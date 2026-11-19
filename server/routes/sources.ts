@@ -5,7 +5,6 @@
  */
 import type { SourcesResponse } from '@shared/api';
 import type { SourceStatus } from '@shared/sources';
-import { LibraryIndex } from '../indexer/library-index';
 import { idleStatus } from '../sources/stub';
 import type { RouteModule } from '../types';
 
@@ -19,7 +18,7 @@ export const register: RouteModule = async (app, ctx) => {
         } catch (err) {
           status = { ...idleStatus(adapter, `status failed: ${String(err)}`), state: 'error' };
         }
-        return ctx.library instanceof LibraryIndex ? ctx.library.decorateStatus(status) : status;
+        return ctx.library.decorateStatus(status);
       }),
     );
     return { sources };

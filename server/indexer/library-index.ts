@@ -28,8 +28,8 @@ import type { Unsubscribe } from '@shared/clock';
 import { lowerExt } from '../fs-safety';
 import { isRecord, readJsonFile, writeJsonFile } from '../json-file';
 import { APP_VERSION } from '../paths';
-import type { ConfigStore, EventBus, LibraryService, ServerPaths } from '../types';
-import { isSkippableImportError, mergeTags, type SongAnalyzer } from './analyzer';
+import type { ConfigStore, EventBus, LibraryService, ServerPaths, SongAnalyzer, SourceIndexState } from '../types';
+import { isSkippableImportError, mergeTags } from './analyzer';
 import { SearchIndex } from './search';
 
 /** Bump when the cached record shape or indexing rules change (the cache is then rebuilt). */
@@ -84,13 +84,6 @@ interface IndexDiff {
   removed: string[];
 }
 
-/** Indexing state per source (merged into `GET /api/sources`). */
-export interface SourceIndexState {
-  state: 'idle' | 'indexing' | 'error';
-  lastRefresh: number | null;
-  message?: string;
-}
-
 /** Thrown by {@link LibraryIndex.readBundle} for unknown ids. */
 export class SongNotFoundError extends Error {
   constructor(id: string) {
@@ -136,7 +129,7 @@ function isStale(entry: IndexEntry | null): boolean {
   return !!entry && (!!entry.error || (entry.defaultArrangement >= 0 && entry.difficulty === null));
 }
 
-/** The library index; implements {@link LibraryService} plus status/difficulty helpers for routes. */
+/** The library index ({@link LibraryService}). */
 export class LibraryIndex implements LibraryService {
   readonly ready: Promise<void>;
   /** Context handed to adapters. */

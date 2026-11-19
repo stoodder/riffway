@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_SETTINGS, defaultSettings } from '@shared/settings';
-import { type NotImplementedError, isNotImplemented } from '@shared/errors';
+import { NotImplementedError, isNotImplemented, notImplemented } from '@shared/errors';
 import { SOURCE_IDS, type Song } from '@shared/song';
 import { OUTCOMES } from '@shared/judge';
 import { DB_NAME, DB_VERSION } from '@shared/storage';
-import { midiToName, onsetGroups } from '@core/model';
+import { midiToName, onsetGroups, validateSong } from '@core/model';
 import { loadSong } from '@core/import/load-song';
 import { ImportError, isImportError } from '@core/import/errors';
 import { WINDOWS } from '@core/judge/constants';
@@ -32,15 +32,26 @@ describe('shared contracts', () => {
     expect(Object.values(WEIGHTS).reduce((a, b) => a + b, 0)).toBeCloseTo(1, 10);
   });
 
-  it('stubs throw NotImplementedError naming the owning task', () => {
+  it('loadSong (the isomorphic entry point) turns alphaTex into a valid Song', () => {
+    const tex = '\\title "Contract"\n\\tempo 120\n.\n:4 0.6 2.5 3.3 0.1';
+    const song = loadSong({ fileName: 'contract.atex', data: new TextEncoder().encode(tex) }, { id: 'local:contract' });
+    expect(song).toMatchObject({ schema: 1, id: 'local:contract', arrangement: 0, meta: { title: 'Contract', rhythm: 'exact' } });
+    expect(song.notes.map((n) => [n.string, n.fret, midiToName(n.midi)])).toEqual([[6, 0, 'E2'], [5, 2, 'B2'], [3, 3, 'A#3'], [1, 0, 'E4']]);
+    expect(song.notes.map((n) => n.time)).toEqual([0, 0.5, 1, 1.5]);
+    expect(validateSong(song)).toEqual([]);
+  });
+
+  it('notImplemented throws an error naming the feature and the owning task', () => {
     let caught: unknown;
     try {
-      loadSong({ fileName: 'x.atex', data: new Uint8Array() });
+      notImplemented('laterFeature', 'T-999');
     } catch (err) {
       caught = err;
     }
     expect(isNotImplemented(caught)).toBe(true);
-    expect((caught as NotImplementedError).task).toBe('T-011');
+    expect(caught).toBeInstanceOf(NotImplementedError);
+    expect(caught).toMatchObject({ feature: 'laterFeature', task: 'T-999', message: 'laterFeature is not implemented yet (T-999)' });
+    expect(isNotImplemented(new Error('x'))).toBe(false);
   });
 
   it('ImportError carries code and diagnostics', () => {

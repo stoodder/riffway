@@ -72,6 +72,17 @@ export interface BestRecord {
   at: number;
 }
 
+/**
+ * The practice session of a section's latest run. Mastery needs 2 clean runs at 100% **in one
+ * session**, so the counter resets when a run arrives with another `sessionId`.
+ */
+export interface SectionSession {
+  /** The `sessionId` of the last run on this section. */
+  id: string;
+  /** Clean runs at 100% in that session. */
+  cleanRunsAt100: number;
+}
+
 /** Per-section progress (store `sectionProgress`, key `[songId, arrangement, sectionIdx]`; index `nextCheckAt`). */
 export interface SectionProgress {
   songId: string;
@@ -91,6 +102,8 @@ export interface SectionProgress {
   bestAccuracy: number;
   /** Passes since `bestAccuracy` last improved (plateau nudge after 6). */
   passesSinceGain: number;
+  /** Session of the latest run (absent before the first run with a session id). */
+  session?: SectionSession;
 }
 
 /** Active practice per local day (store `practiceDays`, key `date`). A practice day = ≥ 5 min active. */

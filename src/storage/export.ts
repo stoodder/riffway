@@ -6,9 +6,9 @@
  * @module
  */
 import type { Settings } from '@shared/settings';
-import type { ExportFile, ExportStores, ImportPreview, RunRecord, StreakState } from '@shared/storage';
+import type { ExportFile, ExportStores, ImportPreview, RunRecord, SectionProgress, StreakState } from '@shared/storage';
 import { DB_VERSION } from '@shared/storage';
-import { localDate, type SectionProgressRecord } from '@core/progress';
+import { localDate } from '@core/progress';
 import { SCHEMA_STEPS, stepsBetween, type RawExport, type SchemaStep } from './schema';
 import {
   arrayOf,
@@ -235,8 +235,8 @@ export function mergeStores(local: ExportStores, incoming: ExportStores): Export
       (inc, loc) => inc.score > loc.score,
     ),
     sectionProgress: mergeByKey(
-      local.sectionProgress as SectionProgressRecord[],
-      incoming.sectionProgress as SectionProgressRecord[],
+      local.sectionProgress as SectionProgress[],
+      incoming.sectionProgress as SectionProgress[],
       (p) => JSON.stringify([p.songId, p.arrangement, p.sectionIdx]),
       (inc, loc) => compareProgress(inc, loc) > 0,
     ),
@@ -292,8 +292,8 @@ function mergeRuns(local: readonly RunRecord[], incoming: readonly RunRecord[]):
   return { runs, idMap };
 }
 
-function compareProgress(a: SectionProgressRecord, b: SectionProgressRecord): number {
-  const latest = (p: SectionProgressRecord): number => Math.max(p.masteredAt ?? 0, p.lockedInAt ?? 0);
+function compareProgress(a: SectionProgress, b: SectionProgress): number {
+  const latest = (p: SectionProgress): number => Math.max(p.masteredAt ?? 0, p.lockedInAt ?? 0);
   return a.cleanRuns - b.cleanRuns || a.cleanRunsAt100 - b.cleanRunsAt100 || latest(a) - latest(b);
 }
 

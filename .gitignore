@@ -8,7 +8,7 @@ test-results/
 *.log
 .DS_Store
 # Local song library & downloaded source data are never committed
-library/
+/library/
 .riffway/
 data/classtab/
 !e2e/screenshots/

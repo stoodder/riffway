@@ -28,22 +28,6 @@ export const PLATEAU_MESSAGE = 'Good place to stop — this usually improves aft
 /** Tolerance when comparing speed fractions (0.7 + 6 × 0.05 is not exactly 1). */
 const SPEED_EPSILON = 1e-6;
 
-/**
- * Per-session counter persisted with a section. Mastery needs 2 clean runs at 100% **in one session**,
- * which the shared `SectionProgress` record cannot express on its own (it has no session identity).
- */
-export interface SectionSession {
-  /** The `sessionId` of the last run on this section. */
-  id: string;
-  /** Clean runs at 100% in that session. */
-  cleanRunsAt100: number;
-}
-
-/** Section progress as stored: the shared record plus the current-session counter. */
-export interface SectionProgressRecord extends SectionProgress {
-  session?: SectionSession;
-}
-
 /** Run facts needed to update one section's progress. */
 export interface SectionRunInput {
   songId: string;
@@ -87,7 +71,7 @@ export function isPlateau(p: SectionProgress): boolean {
  * and the plateau counter. Returns a new record (the input is not mutated); optional fields that no
  * longer apply are omitted rather than set to `undefined`, so records stay JSON round-trip stable.
  */
-export function applySectionRun(prev: SectionProgressRecord | null, run: SectionRunInput): SectionProgressRecord {
+export function applySectionRun(prev: SectionProgress | null, run: SectionRunInput): SectionProgress {
   const full = isFullSpeed(run.speed);
   const cleanAtFull = run.clean && full;
   const trainerBefore = prev?.trainer ?? initialTrainerState(run.sectionTier, run.comfortTier);
@@ -95,7 +79,7 @@ export function applySectionRun(prev: SectionProgressRecord | null, run: Section
   const sessionBefore = prev?.session?.id === run.sessionId ? prev.session.cleanRunsAt100 : 0;
   const gained = prev === null || run.accuracy > prev.bestAccuracy;
 
-  const next: SectionProgressRecord = {
+  const next: SectionProgress = {
     songId: run.songId,
     arrangement: run.arrangement,
     sectionIdx: run.sectionIdx,

@@ -26,9 +26,7 @@ export {
   PLATEAU_PASSES,
   songMastery,
   speedBucket,
-  type SectionProgressRecord,
   type SectionRunInput,
-  type SectionSession,
   type SongMastery,
 } from './mastery';
 export {

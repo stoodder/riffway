@@ -174,6 +174,22 @@ describe('parseAsciiTab: annotations', () => {
     expect(tab.groups.map((g) => g.bar)).toEqual([0, 1, 2]);
   });
 
+  it('expands `|*` … `*|` repeat signs (dots on two strings) across bars and blocks', () => {
+    // Bar 0 once, bars 1–2 twice, bar 3 once.
+    const inBlock = parseAsciiTab(['e|-0-||*-1-|-2-*||-3-|', 'B|---||---|---*||---|', 'G|---||*--|---*||---|', 'D|---||*--|----||---|', 'A|---||---|----||---|', 'E|---||---|----||---|'].join('\n'));
+    expect(flat(inBlock)).toEqual(['s1f0', 's1f1', 's1f2', 's1f1', 's1f2', 's1f3']);
+    expect(inBlock.groups.map((g) => g.bar)).toEqual([0, 1, 2, 3, 4, 5]);
+    // An opening sign in one block and the closing sign in the next; a lone `*` is not a sign.
+    const across = parseAsciiTab(
+      ['e|-0-|*-1-|', 'B|---|----|', 'G|---|*---|', 'D|---|*---|', 'A|---|----|', 'E|---|----|', '', 'e|-2-*|*-3-|', 'B|---*|----|', 'G|----|----|', 'D|----|----|', 'A|----|----|', 'E|----|----|'].join('\n'),
+    );
+    expect(flat(across)).toEqual(['s1f0', 's1f1', 's1f2', 's1f1', 's1f2', 's1f3']);
+    expect(across.groups.map((g) => g.block)).toEqual([0, 0, 1, 0, 1, 1]);
+    // A closing sign without an opening one repeats from the start.
+    const fromStart = parseAsciiTab(['e|-0-|-1-*|-2-|', 'B|---|---*|---|', 'G|---|----|---|', 'D|---|----|---|', 'A|---|----|---|', 'E|---|----|---|'].join('\n'));
+    expect(flat(fromStart)).toEqual(['s1f0', 's1f1', 's1f0', 's1f1', 's1f2']);
+  });
+
   it('takes tuning from labels (Drop D, three-character Eb labels)', () => {
     const drop = parseAsciiTab(['e|-0-|', 'B|---|', 'G|---|', 'D|---|', 'A|---|', 'D|---|'].join('\n'));
     expect(drop.tuning).toEqual(DROP_D);

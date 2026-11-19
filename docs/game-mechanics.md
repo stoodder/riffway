@@ -122,12 +122,23 @@ informational, never guilt-based.
   bar's length repeats).
 
 ## Hand-position cue
-`src/core/handpos/` segments fretted notes into positions: a position is a window
-`[lo, lo + 3]` (4 frets; 5 when `lo ≥ 7`). Walk notes in time order; when a fretted note falls outside
-the window, the new `lo` = minimum fret of the longest upcoming run of notes that fits one window.
-Open strings never force a shift. A **cue** is shown when |Δlo| ≥ 2: a fret-labelled bracket
-("7fr") on the highway, appearing ≥ 1.5 beats and ≥ 0.75 real seconds before the first note of the new
-position. Shifts also feed [difficulty.md](difficulty.md).
+`src/core/handpos/` (`computePositions`) segments the song into hand positions. A position is a
+window `[lo, hi]`: `hi = lo + 3` (4 frets), or `lo + 4` (5 frets) when `lo ≥ 7`.
+- Work on onset groups (`onsetGroups`: chords and onsets within 10 ms; tied destinations excluded).
+  Only **fretted** notes count: fret > 0 and not a dead note. Open strings and dead notes never move
+  the hand (a group of only those stays in the current position).
+- A group whose fretted notes all fit the current window stays in it. Otherwise (and for the first
+  fretted group) the new `lo` is the minimum fret of the longest run of upcoming fretted groups, starting
+  with this one, that fits one window (open/dead-only groups are skipped in the run).
+- If that `lo` equals the current one (a chord stretching wider than the window), it is not a shift.
+- Each position records `start` (its first group's time), `end` (the next position's start; the last
+  one ends with the last sounding note) and its first/last note ids.
+- Every `lo` change is a shift (difficulty counts 1-fret ones too). A **cue** is shown only when
+  |Δlo| ≥ 2: a fret-labelled bracket ("7fr") on the highway at `time` = the new position's start,
+  appearing at `showAt = time − max(1.5 beats, 0.75 s)`. The beat is the containing bar's
+  `dur / beats` (else 60 / BPM from the tempo map, else 0.5 s), in song seconds at 100% speed; at
+  slower practice speeds the real lead only grows.
+Shifts also feed [difficulty.md](difficulty.md).
 
 ## Highway and technique glyphs
 Horizontal lanes, high e on top. x = `hitX + (note.time − heardSongTime) / speed × pxPerSec`

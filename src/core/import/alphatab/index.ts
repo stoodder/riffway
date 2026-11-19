@@ -9,7 +9,7 @@
  * lowest (1 = low E); the model numbers from the highest, so `string = strings − n.string + 1`.
  * @module
  */
-import { importer, midi, model, Settings } from '@coderline/alphatab';
+import { importer, Logger, LogLevel, midi, model, Settings } from '@coderline/alphatab';
 import type {
   Bar,
   Chord,
@@ -90,6 +90,21 @@ function errorMessage(err: unknown): string {
 }
 
 /**
+ * Run `fn` with alphaTab's global logger off. `ScoreLoader` logs (with a stack trace) every corrupt
+ * file before throwing; the failure already surfaces as an `ImportError`, so the log is only noise
+ * in the indexer and the worker. Synchronous, so no other alphaTab call can observe the change.
+ */
+function withoutAlphaTabLogging<T>(fn: () => T): T {
+  const level = Logger.logLevel;
+  Logger.logLevel = LogLevel.None;
+  try {
+    return fn();
+  } finally {
+    Logger.logLevel = level;
+  }
+}
+
+/**
  * Load the alphaTab `Score` (bytes via `loadScoreFromBytes`, `.atex` text via `AlphaTexImporter`).
  * Throws `ImportError`: `syntax` (alphaTex errors with line/column diagnostics), `unsupported`
  * (bytes alphaTab cannot read), `empty` (no tracks).
@@ -113,7 +128,7 @@ export function loadAlphaTabScore(bundle: SongBundle): AlphaTabScore {
     diagnostics = texDiagnostics(tex);
   } else {
     try {
-      score = importer.ScoreLoader.loadScoreFromBytes(bundle.data, settings);
+      score = withoutAlphaTabLogging(() => importer.ScoreLoader.loadScoreFromBytes(bundle.data, settings));
     } catch (err) {
       throw new ImportError('unsupported', `${bundle.fileName} could not be read: ${errorMessage(err)}`, [], { cause: err });
     }

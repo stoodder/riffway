@@ -1,10 +1,14 @@
 // @vitest-environment happy-dom
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { AppContext, PanelId, ScreenId, ServiceMap } from '@shared/ui';
 import { buildPath, matchRoute, SCREENS } from '../../src/ui/screens';
 import { mountPanel, PANELS } from '../../src/ui/panels';
 import { createServiceRegistry } from '../../src/app/services';
 import { installTestHooks } from '../../src/test-hooks';
+
+// The real engine needs Web Audio (browser tests cover it); here we only check the factory's wiring.
+const createEngine = vi.hoisted(() => vi.fn(async (opts: unknown) => ({ tag: 'engine', opts })));
+vi.mock('../../src/audio/engine', () => ({ createEngine }));
 
 const ALL_SCREENS: ScreenId[] = ['home', 'library', 'import', 'song', 'game', 'results', 'settings', 'audio-setup', 'dev-components', 'dev-highway'];
 const ALL_PANELS: PanelId[] = ['input', 'tuner', 'monitor', 'calibration', 'backing', 'practice', 'mixer'];
@@ -67,9 +71,15 @@ describe('service registry', () => {
     expect(reg.peek('engine')).toBe(engine);
   });
 
-  it('real factories reject with NotImplementedError until their tasks land', async () => {
-    const reg = createServiceRegistry(() => ({ settings: { get: () => ({ output: { sinkId: '' } }) } }) as unknown as AppContext);
-    await expect(reg.get('engine')).rejects.toMatchObject({ name: 'NotImplementedError', task: 'T-016' });
+  it('the engine factory hands the app settings store to createEngine', async () => {
+    const settings = { get: vi.fn(), set: vi.fn(), subscribe: vi.fn() };
+    const reg = createServiceRegistry(() => ({ settings }) as unknown as AppContext);
+    const engine = await reg.get('engine');
+    expect(createEngine).toHaveBeenCalledTimes(1);
+    expect(createEngine).toHaveBeenCalledWith({ settings });
+    expect(engine).toEqual({ tag: 'engine', opts: { settings } });
+    expect(await reg.get('engine')).toBe(engine);
+    expect(createEngine).toHaveBeenCalledTimes(1);
   });
 });
 

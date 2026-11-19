@@ -11,8 +11,7 @@ import type { DifficultyReport, SongBundle, Tier } from '@shared/song';
 import type { SourceAdapterFactory, StarterManifest } from '@shared/sources';
 import { ImportError } from '@core/import/errors';
 import { createApp } from '../../server/app';
-import type { AppOptions } from '../../server/context';
-import type { SongAnalysis, SongAnalyzer } from '../../server/indexer/analyzer';
+import type { ServerOptions, SongAnalysis, SongAnalyzer } from '../../server/types';
 import { createLocalAdapter, type LocalAdapterOptions } from '../../server/sources/local';
 import { createStarterAdapter } from '../../server/sources/starter';
 import type { EventBus, ServerContext } from '../../server/types';
@@ -126,7 +125,7 @@ export function writeStarter(dir: string, items: { slug: string; title: string; 
 }
 
 /** Options for {@link startApp}. */
-export interface StartOptions extends Partial<AppOptions> {
+export interface StartOptions extends Partial<ServerOptions> {
   /** Extra adapter factories appended after local + starter. */
   extraSources?: SourceAdapterFactory[];
   local?: LocalAdapterOptions;

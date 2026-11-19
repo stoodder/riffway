@@ -18,8 +18,9 @@ export { splitVersions, type VersionRegion } from './parse';
 
 /**
  * Parse ASCII tab text (no rhythm applied). Groups and bars are in played order (blocks marked `x2`
- * repeat); staves after a ClassTab "Notes & Legend" heading are skipped. For a multi-version file,
- * parse one region from {@link splitVersions}; `lineOffset` keeps line numbers file-relative.
+ * repeat; `|*` … `*|` repeat signs are expanded); staves after a ClassTab "Notes & Legend" heading are
+ * skipped. For a multi-version file, parse one region from {@link splitVersions}; `lineOffset` keeps
+ * line numbers file-relative.
  */
 export function parseAsciiTab(text: string, opts: { lineOffset?: number } = {}): AsciiTab {
   return parseTabDetailed(text, opts).tab;

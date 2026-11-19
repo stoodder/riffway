@@ -6,8 +6,9 @@
   tempo map + bar/beat grid, sections, tuning, capo, tags and a source ref.
 - **alphaTab 1.9.0** imports Guitar Pro (`.gp`, `.gpx`, `.gp3–5`), MusicXML (`.musicxml`, `.xml`,
   `.mxl`) and alphaTex (`.atex`, the starter-library format). Its string numbering is flipped.
-- **ASCII tab** (paste, `.txt`/`.tab`, ClassTab) uses our parser. Rhythm comes from a paired MIDI, a
-  beat ruler, a saved alignment, or the alignment UI; otherwise the song is "needs rhythm alignment".
+- **ASCII tab** (paste, `.txt`/`.tab`, ClassTab) uses our parser. Rhythm precedence: a saved alignment
+  (sidecar) > a paired MIDI > a beat ruler > proportional column spacing ("needs rhythm alignment",
+  fixed in the alignment UI).
 
 ## Internal model (abridged; `shared/song.ts` is authoritative)
 ```ts
@@ -34,7 +35,9 @@ type RhythmStatus = 'exact' | 'midi' | 'ruler' | 'aligned' | 'needs-alignment';
 type SongTags = { style: ('pick'|'fingerstyle')[]; genre: string[]; skills: string[] };
 type SourceRef = { source: SourceId; path?: string; url?: string; origin?: string };
 // SourceId = 'local'|'starter'|'classtab'|'songsterr'|'ultimate-guitar'|'gp-pack'
-// loadSong(bundle: SongBundle, {arrangement?, id?}) → Song; errors are ImportError (src/core/import/errors.ts)
+// loadSong(bundle: SongBundle, {arrangement?, id?, version?}) → Song; errors are ImportError (src/core/import/errors.ts)
+//   arrangement: track index (default: first playable); id: stamped on the Song (else bundle.id);
+//   version: 1-based version of a multi-version ASCII tab (default 1; other formats ignore it)
 ```
 Invariants (validated by `validateSong`, `src/core/model/validate.ts`; issue codes in brackets): ids equal
 indexes [`id-order`]; notes sorted by time, then string [`time-order`]; `midi = tuning[string−1] + capo + fret`
@@ -83,7 +86,8 @@ playable track. `noteCount` counts written notes (repeats not expanded, ties exc
 (`AT202`, line, column); alphaTex warnings on a successful load are kept (hints are dropped);
 `overfull-bar` (notes past the bar end are dropped), `string-collision` (duplicate onsets on one string
 are dropped), `fret-assigned`, `out-of-range`. Grace notes before the very first beat are dropped. Unreadable
-bytes throw `unsupported`; a non-`ImportError` failure during conversion becomes `internal`.
+bytes throw `unsupported` (alphaTab's own console logging is switched off while it reads bytes, so a corrupt
+file produces only the `ImportError`); a non-`ImportError` failure during conversion becomes `internal`.
 
 **MusicXML.** Imported by alphaTab (`.musicxml`, `.xml` with a `score-partwise`/`score-timewise` root,
 compressed `.mxl`); repeats are expanded and `<rehearsal>` marks become sections. If notes lack string/fret
@@ -94,11 +98,13 @@ distinct strings; costs: 0.25 per fret height, +6 per fret above 15, a shift cos
 (every window covering the group is a candidate), an assignment wider than one window +50. Open strings
 never move the hand. Pitches outside the range move by octaves (diagnostic `out-of-range`).
 
-**alphaTex.** `ScoreLoader.loadAlphaTex`; diagnostics (code, line, column) are surfaced to the author.
+**alphaTex.** `importer.AlphaTexImporter`; diagnostics (code, line, column) are surfaced to the author.
 Starter files use `\title`, `\artist`, `\tempo`, `\tuning`, `\section` and per-note effects
-(`{h}`, `{sl}`, `{b (0 4)}`, `{pm}`, …), plus an optional `// riffway: tags=pick,rock` comment for tags
-(`pick`/`fingerstyle` → style, anything else → genre; merged with `SongBundle.tags`). alphaTex has no `%`
-comments.
+(`{h}`, `{sl}`, `{b (0 4)}`, `{pm}`, …). `{h}` marks **both** hammer-ons and pull-offs (alphaTab takes the
+direction from the pitches; `{p}` is a slap-bass pop, not a pull-off). Comments are `//` and `/* */`
+(`%` is not a comment in alphaTab 1.9). An optional `// riffway: tags=pick,rock` comment line gives tags
+(`pick`/`fingerstyle` → style, anything else → genre; merged with `SongBundle.tags`); other
+`// riffway:` lines (the starter's `melody` checks, `starter/README.md`) are ignored by the importer.
 
 **Test fixtures** (`tests/fixtures/import/`, all authored for Riffway): alphaTex sources, one file per
 technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generated from them by
@@ -111,16 +117,29 @@ technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generat
    (labels optional). Top line = string 1. Labels give tuning (`D|A|D|G|B|e|` → Drop D); ClassTab
    writes `E` for both e strings, so position, not case, decides.
 3. Tokenise column-wise: multi-digit frets, `h p / \ b r ~ x`, `(n)` ghost, `<n>` harmonic,
-   `=` sustain (ignored), `*` repeat dots (ignored), `|` and `||` bar lines. Each note keeps its column.
+   `=` sustain (ignored), `|` and `||` bar lines. Each note keeps its column.
+   **Repeats:** `x2` / `(x3)` / `repeat 2 times` markers on or under a block play the whole block that
+   many times. ClassTab repeat signs `|*` (open) and `*|` (close), with the `*` on at least two strings,
+   are expanded bar-wise, also across blocks: a close sends playback back once to the latest open (else
+   to the bar after the previous close, else to the start). Nested repeats and repeat counts on signs are
+   not modelled. A lone `*` is ignored.
 4. Lines between blocks: `PM----` spans → palm mute; beat-ruler lines (below) → rhythm; headers
    (`tuning:`, `key:`, `time:`, `tempo: Q=100`, `capo`, `MIDI: …`) → meta via tolerant regexes.
 5. Without bar lines, each block is one bar of the given time signature.
 6. Output: notes with `column`, `bar` and estimated proportional onsets; `rhythm = 'needs-alignment'`
-   unless step 7 or a sidecar applies. Unparsed lines are reported with line numbers for the preview.
+   unless step 7, a paired MIDI or a sidecar applies. Unparsed lines are reported with line numbers for
+   the preview.
 7. **Beat ruler** (ClassTab house style, e.g. `0   .   | . . | . .`): ruler marks are column-aligned
    with the staff; each mark is one subdivision. Marks per bar ÷ beats per bar (from `time:`) gives the
    subdivision; notes on a mark get its time, notes between marks interpolate. Tempo from `tempo:` else
    80 BPM with `tempoEstimated`. Result `rhythm = 'ruler'`.
+8. **Rhythm precedence** (`asciiToSong`): a sidecar whose onset count matches the tab's onset groups
+   (`'aligned'`; a mismatch keeps the other rhythm and warns `sidecar-mismatch`) > a paired MIDI with
+   ≥ 80% of onset groups matched (`'midi'`) > a beat ruler on every block (`'ruler'`) > proportional
+   column spacing (`'needs-alignment'`).
+9. **Multi-version tabs** (ClassTab "version 2 …", or a second `MIDI:` header between staves) are split
+   into versions; `loadSong(bundle, {version})` / `asciiToSong(bundle, {version})` imports one (default 1)
+   with an info diagnostic `multiple-versions`.
 
 ## Rhythm alignment UX (ASCII paste/file, needs-alignment songs)
 Goal: playable in under a minute.
@@ -143,5 +162,6 @@ Files indexed from the data dir only; nothing from ClassTab is committed (D2).
 3. **Align** the tab's onset groups to MIDI onset groups with Needleman–Wunsch (score = Jaccard of
    pitch sets, octave-insensitive fallback 0.5; gap −0.4). If ≥ 80% of tab groups match, take MIDI times,
    interpolate unmatched groups linearly, take tempo/bars from the MIDI → `rhythm = 'midi'`.
-4. Else use the beat ruler if present (`'ruler'`), else `'needs-alignment'`.
+4. Else use the beat ruler if present (`'ruler'`), else `'needs-alignment'`. A saved sidecar beats all
+   of these (precedence in § ASCII tab parser step 8).
 Tests use **synthetic** tab/MIDI files we author in ClassTab's style (`tests/fixtures/classtab-synthetic/`).

@@ -70,6 +70,28 @@ describe('asciiToSong: beat ruler', () => {
   });
 });
 
+describe('asciiToSong: repeat signs', () => {
+  it('times repeated bars from the beat ruler and keeps the song valid', () => {
+    const text = [
+      'time: 2/4  tempo: Q=60',
+      '',
+      '0  | . | .     | . | .     | . | .',
+      'e|-0-0-0-0-||*-1-1-1-1-*||-3-3-3-3-|',
+      'B|---------||----------*||---------|',
+      'G|---------||*---------*||---------|',
+      'D|---------||*----------||---------|',
+      'A|---------||-----------||---------|',
+      'E|---------||-----------||---------|',
+    ].join('\n');
+    const song = asciiToSong({ fileName: 'repeat.txt', data: bytes(text) });
+    expectValidSong(song);
+    expect(song.meta.rhythm).toBe('ruler');
+    expect(song.notes.map((n) => n.fret)).toEqual([0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 3, 3, 3, 3]);
+    onsets(song).forEach((t, i) => expect(t).toBeCloseTo(i * 0.5, 9));
+    expect(song.timing.bars).toHaveLength(4);
+  });
+});
+
 describe('asciiToSong: paired MIDI', () => {
   it('takes onset times and bars from the MIDI (study, ornament skipped, rest bar before the pickup)', () => {
     const song = asciiToSong(bundle('riffway_study_no1_in_e.txt', 'riffway_study_no1_in_e.mid'));

@@ -11,7 +11,7 @@
  */
 import type { ScheduledSource, SongClock, Unsubscribe } from '@shared/clock';
 import type { AudioEngine, EngineOptions, MixerBus } from '@shared/services';
-import { DEFAULT_SETTINGS, type MixerLevels, type Settings, type SettingsStore } from '@shared/settings';
+import { DEFAULT_SETTINGS, type MixerLevels, type Settings } from '@shared/settings';
 import { type OutputClock, createSongClock, heardCtxTime } from './clock';
 import { type ClickPlayer, createClickPlayer } from './metronome';
 import { MIXER_BUSES, type Mixer, createMixer } from './mixer';
@@ -38,13 +38,8 @@ export {
 /** Default context sample rate (most USB interfaces run at 48 kHz). */
 export const DEFAULT_SAMPLE_RATE = 48000;
 
-/**
- * `createEngine` options. Beyond the frozen {@link EngineOptions}, the engine can follow the
- * settings store: mixer levels, `practice.countInBars` / `practice.metronome` defaults,
- * `calibration.visualOffsetMs` (for `heardSongTime`) and `output.sinkId`.
- */
+/** `createEngine` options: the shared {@link EngineOptions} plus a test seam for initial levels. */
 export interface CreateEngineOptions extends EngineOptions {
-  settings?: Pick<SettingsStore, 'get' | 'subscribe'>;
   /** Initial levels when no settings store is given (default `DEFAULT_SETTINGS.mixer`). */
   levels?: MixerLevels;
 }

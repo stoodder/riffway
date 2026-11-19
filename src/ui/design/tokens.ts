@@ -8,7 +8,7 @@
  * @module
  */
 import type { Outcome, Stars } from '@shared/judge';
-import type { StringNumber, Tier, TierName } from '@shared/song';
+import type { StringNumber, Tier } from '@shared/song';
 
 /** Surface and text colours (`--color-*`). */
 export const SURFACE_COLORS = {
@@ -88,13 +88,11 @@ export const NEON = {
   flameCool: '#ff3d5e',
 } as const;
 
-/** Tier band names (docs/difficulty.md): 1–2 Beginner … 9–10 Expert. */
-const TIER_BAND_NAMES: readonly TierName[] = ['Beginner', 'Developing', 'Intermediate', 'Advanced', 'Expert'];
-
-/** Band name for a tier, as in docs/difficulty.md (display helper for the difficulty pill). */
-export function tierBandName(tier: Tier): TierName {
-  return TIER_BAND_NAMES[Math.floor((tier - 1) / 2)] as TierName;
-}
+/**
+ * Band name for a tier (display helper for the difficulty pill): the core's `tierName`, so the pill
+ * and the difficulty report never disagree (1–2 Beginner … 9–10 Expert, docs/difficulty.md).
+ */
+export { tierName as tierBandName } from '@core/difficulty';
 
 /** Clamp any number to a valid tier (rounded; 1–10). */
 export function clampTier(value: number): Tier {

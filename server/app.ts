@@ -12,9 +12,9 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { LIMITS } from '@shared/api';
 import { sendError } from './http';
-import { createServerContext, type AppOptions } from './context';
+import { createServerContext } from './context';
 import { registerRoutes } from './routes';
-import type { ServerContext } from './types';
+import type { ServerContext, ServerOptions } from './types';
 
 const LOOPBACK_HOSTNAMES = new Set(['localhost', '127.0.0.1', '[::1]']);
 
@@ -40,7 +40,7 @@ export function isLoopbackOrigin(origin: string): boolean {
 }
 
 /** Build the app + context. Call `app.close()` to stop watchers. */
-export async function createApp(opts: AppOptions = {}): Promise<{ app: FastifyInstance; ctx: ServerContext }> {
+export async function createApp(opts: ServerOptions = {}): Promise<{ app: FastifyInstance; ctx: ServerContext }> {
   const app = Fastify({
     logger: opts.logger ?? false,
     logController: new LogController({ disableRequestLogging: true }),

@@ -1,7 +1,6 @@
 /** Record factories and helpers for storage tests (fake-indexeddb). */
 import 'fake-indexeddb/auto';
-import type { AudioLink, BestRecord, RunRecord, SongCacheEntry } from '@shared/storage';
-import type { SectionProgressRecord } from '@core/progress';
+import type { AudioLink, BestRecord, RunRecord, SectionProgress, SongCacheEntry } from '@shared/storage';
 import { openStorage, type RiffwayStorage } from '../../src/storage';
 
 let n = 0;
@@ -40,7 +39,7 @@ export function makeBest(over: Partial<BestRecord> = {}): BestRecord {
   return { songId: 'starter:ode', arrangement: 0, speedBucket: 70, score: 1200, accuracy: 91.5, stars: 4, runId: 1, at: 61_000, ...over };
 }
 
-export function makeProgress(over: Partial<SectionProgressRecord> = {}): SectionProgressRecord {
+export function makeProgress(over: Partial<SectionProgress> = {}): SectionProgress {
   return {
     songId: 'starter:ode',
     arrangement: 0,

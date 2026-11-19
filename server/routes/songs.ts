@@ -7,20 +7,12 @@
 import { createReadStream } from 'node:fs';
 import { realpath, stat } from 'node:fs/promises';
 import type { SongMeta } from '@shared/api';
-import type { DifficultyReport } from '@shared/song';
 import type { IndexEntry } from '@shared/sources';
 import { isInside } from '../fs-safety';
 import { sendError } from '../http';
-import { LibraryIndex } from '../indexer/library-index';
 import type { RouteModule, ServerContext } from '../types';
 
 const songUrl = (id: string, suffix: string): string => `/api/songs/${encodeURIComponent(id)}/${suffix}`;
-
-/** Difficulty per playable arrangement (default arrangement from the index, others on demand). */
-async function difficulties(ctx: ServerContext, entry: IndexEntry): Promise<Record<number, DifficultyReport>> {
-  if (ctx.library instanceof LibraryIndex) return ctx.library.arrangementDifficulties(entry.id);
-  return entry.difficulty && entry.defaultArrangement >= 0 ? { [entry.defaultArrangement]: entry.difficulty } : {};
-}
 
 /** Absolute path of an entry's file, or null if it is missing or (local) escapes the library. */
 async function servablePath(ctx: ServerContext, entry: IndexEntry): Promise<string | null> {
@@ -40,7 +32,7 @@ export const register: RouteModule = async (app, ctx) => {
     const meta: SongMeta = {
       entry,
       arrangements: entry.tracks,
-      difficulty: await difficulties(ctx, entry),
+      difficulty: await ctx.library.arrangementDifficulties(entry.id),
       files: { main: songUrl(entry.id, 'file') },
     };
     if (entry.hasMidi) meta.files.rhythm = songUrl(entry.id, 'rhythm');

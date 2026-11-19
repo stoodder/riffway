@@ -6,9 +6,9 @@ import {
   PLATEAU_PASSES,
   songMastery,
   speedBucket,
-  type SectionProgressRecord,
   type SectionRunInput,
 } from '@core/progress';
+import type { SectionProgress } from '@shared/storage';
 
 vi.mock('@core/practice', async (importOriginal) => {
   const { withTrainerFallback } = await import('./trainer-fallback');
@@ -35,8 +35,8 @@ function run(over: Partial<SectionRunInput> = {}): SectionRunInput {
 }
 
 /** Apply runs in order from scratch. */
-function play(...runs: SectionRunInput[]): SectionProgressRecord {
-  return runs.reduce<SectionProgressRecord | null>((p, r) => applySectionRun(p, r), null)!;
+function play(...runs: SectionRunInput[]): SectionProgress {
+  return runs.reduce<SectionProgress | null>((p, r) => applySectionRun(p, r), null)!;
 }
 
 describe('speedBucket', () => {
@@ -154,7 +154,7 @@ describe('plateau', () => {
 });
 
 describe('songMastery', () => {
-  const rec = (sectionIdx: number, extra: Partial<SectionProgressRecord> = {}): SectionProgressRecord => ({
+  const rec = (sectionIdx: number, extra: Partial<SectionProgress> = {}): SectionProgress => ({
     ...play(run({ sectionIdx, speed: 0.7 })),
     ...extra,
   });

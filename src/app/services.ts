@@ -10,8 +10,7 @@ import type { AppContext, ServiceFactory, ServiceId, ServiceMap, ServiceRegistry
 export const SERVICE_FACTORIES: { [K in ServiceId]: ServiceFactory<K> } = {
   engine: async (ctx) => {
     const { createEngine } = await import('../audio/engine');
-    const s = ctx.settings.get();
-    return createEngine({ sinkId: s.output.sinkId });
+    return createEngine({ settings: ctx.settings });
   },
   input: async (ctx) => {
     const { createInputService } = await import('../audio/input');

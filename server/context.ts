@@ -6,17 +6,11 @@
 import type { ServerEvent } from '@shared/api';
 import type { AdapterLogger } from '@shared/sources';
 import { loadConfigStore } from './config-store';
-import { defaultAnalyzer, type SongAnalyzer } from './indexer/analyzer';
+import { defaultAnalyzer } from './indexer/analyzer';
 import { LibraryIndex } from './indexer/library-index';
 import { APP_VERSION, defaultDataDir, defaultStaticDir, resolvePaths } from './paths';
 import { createAdapters } from './sources/registry';
 import type { EventBus, ServerContext, ServerOptions } from './types';
-
-/** `createApp` options: the frozen {@link ServerOptions} plus server-local test seams. */
-export interface AppOptions extends ServerOptions {
-  /** Song analysis for the indexer (default: real `loadSong` + `analyzeDifficulty`). */
-  analyzer?: SongAnalyzer;
-}
 
 /** A synchronous event bus; a throwing subscriber does not affect the others. */
 export function createEventBus(): EventBus {
@@ -39,7 +33,7 @@ export function createEventBus(): EventBus {
 }
 
 /** Assemble the context. The initial scan starts immediately; await `ctx.library.ready` for it. */
-export async function createServerContext(opts: AppOptions, log: AdapterLogger): Promise<ServerContext> {
+export async function createServerContext(opts: ServerOptions, log: AdapterLogger): Promise<ServerContext> {
   const dataDir = opts.dataDir ?? defaultDataDir();
   const paths = resolvePaths(dataDir, opts.staticDir === undefined ? defaultStaticDir() : opts.staticDir);
   const config = await loadConfigStore(paths.configFile, opts.libraryDir);

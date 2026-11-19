@@ -15,6 +15,8 @@ export interface LoadSongOptions {
   arrangement?: number;
   /** Song id to stamp (else `bundle.id`, else `''` and the caller fills it in). */
   id?: string;
+  /** 1-based version of a multi-version ASCII tab (ClassTab; default 1). Ignored for other formats. */
+  version?: number;
 }
 
 const EXTENSION_FORMATS: Readonly<Record<string, SongFormat>> = {
@@ -97,7 +99,9 @@ export function listTracks(bundle: SongBundle): TrackInfo[] {
 export function loadSong(bundle: SongBundle, opts: LoadSongOptions = {}): Song {
   const format = requireFormat(bundle);
   const id = opts.id ?? bundle.id;
-  if (format === 'ascii') return asciiToSong(bundle, id === undefined ? {} : { id });
+  if (format === 'ascii') {
+    return asciiToSong(bundle, { ...(id === undefined ? {} : { id }), ...(opts.version === undefined ? {} : { version: opts.version }) });
+  }
 
   const score = loadAlphaTabScore(bundle);
   const tracks = alphaTabTracks(score);
