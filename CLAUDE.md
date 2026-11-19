@@ -20,12 +20,14 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 | `npm test` | Vitest, both projects: `node` (`tests/**/*.test.ts`) and `browser` (`tests/**/*.browser.test.ts`, headless Chromium) |
 | `npm run test:node` / `npm run test:browser` | One Vitest project only (`npm run test:watch` for watch mode) |
 | `npm run test:e2e` | Builds, then Playwright e2e (`e2e/`, keyboard mode, fake media + autoplay) against the built server on 5175 |
+| `npm run test:e2e:input` | Playwright fake-capture tests for the input/tuner panels (`tests/input/e2e`; own Vite on a random port 5200–5999 or `RIFFWAY_INPUT_E2E_PORT`) |
 | `npm run typecheck` | `tsc` ×3: app/tests (DOM), `tsconfig.node.json` (server + `src/core`, no DOM), worklets (AudioWorklet scope) |
 | `npm run lint` | ESLint (flat config; also guards `src/core` purity and the Songsterr API ban) |
 | `npm run classtab:refresh` | Download/refresh the ClassTab zip and rebuild its index |
 
 Env: `RIFFWAY_DATA_DIR` (default `~/.riffway`), `RIFFWAY_PORT` (5174), `RIFFWAY_LIBRARY_DIR` (override the
 configured library folder), `RIFFWAY_LOG_LEVEL` (`info`). (Exact scripts live in `package.json`; keep this table in sync.)
+Env: `RIFFWAY_DATA_DIR` (data dir, default `~/.riffway`), `RIFFWAY_VITEST_BROWSER_PORT` (fixed Vitest browser-server port; default: a free OS-picked port on 127.0.0.1).
 
 ## Contracts and extension points (frozen by T-010)
 - Types: `shared/*.ts` (`@shared/*`); DOM-free except `shared/ui.ts` and `shared/services.ts`. Aliases
