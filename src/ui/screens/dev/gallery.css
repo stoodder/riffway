@@ -1,0 +1,344 @@
+/* Component gallery layout (T-018, dev only). */
+.gal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.gal-hero {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-bottom: var(--space-2);
+}
+
+.gal-hero h1 {
+  font-size: var(--text-3xl);
+}
+
+.gal-hero__lead {
+  max-width: 62ch;
+  color: var(--color-text-muted);
+  font-size: var(--text-md);
+}
+
+.gal-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.gal-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-1);
+}
+
+.gal-section__head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.gal-section__head h2 {
+  font-size: var(--text-md);
+}
+
+.gal-section__head p {
+  font-size: var(--text-sm);
+}
+
+.gal-section__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.gal-spacer {
+  flex: 1;
+}
+
+.gal-two {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+/* Strings: mini highway */
+.gal-highway {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: var(--space-4) var(--space-4) var(--space-4) var(--space-3);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(90deg, rgb(0 0 0 / 0.35), transparent 30%),
+    repeating-linear-gradient(90deg, transparent 0 79px, rgb(255 255 255 / 0.05) 79px 80px),
+    #090c11;
+  overflow: hidden;
+}
+
+.gal-highway__hit {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 64px;
+  width: 3px;
+  border-radius: 2px;
+  background: rgb(255 255 255 / 0.85);
+  box-shadow: 0 0 12px rgb(255 255 255 / 0.5);
+}
+
+.gal-lane {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  height: 26px;
+}
+
+.gal-lane__name {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 1px solid color-mix(in srgb, var(--lane) 55%, transparent);
+  border-radius: var(--radius-sm);
+  color: var(--lane);
+  font-weight: var(--weight-heavy);
+  font-size: var(--text-sm);
+}
+
+.gal-lane__track {
+  position: relative;
+  flex: 1;
+  height: 2px;
+  margin-left: 20px;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--lane) 70%, transparent);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--lane) 40%, transparent);
+}
+
+.gal-gem {
+  position: absolute;
+  top: 50%;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 22px;
+  border: 2px solid var(--lane);
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--lane) 22%, #0b0e14);
+  color: #fff;
+  font-size: var(--text-xs);
+  font-weight: var(--weight-heavy);
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lane) 45%, transparent);
+}
+
+/* Feedback */
+.gal-judges {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: #090c11;
+}
+
+.gal-judges .rw-judge--lg {
+  font-size: 30px;
+}
+
+.gal-stars {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3) var(--space-4);
+}
+
+.gal-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* Cards */
+.gal-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+}
+
+.gal-cards > .rw-card:focus-visible {
+  border-radius: var(--radius-lg);
+}
+
+/* Colour swatches */
+.gal-swatches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.gal-swatch {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.gal-swatch__chip {
+  height: 40px;
+  margin-bottom: var(--space-1);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: var(--radius-sm);
+}
+
+.gal-swatch__name {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+}
+
+.gal-swatch__var,
+.gal-type code,
+.gal-scale code {
+  overflow: hidden;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Typography */
+.gal-type {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.gal-type__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.gal-type__row > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gal-type--display {
+  font-family: var(--font-display);
+  font-size: var(--text-display);
+  font-weight: var(--weight-heavy);
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.gal-type--3xl,
+.gal-type--2xl,
+.gal-type--xl,
+.gal-type--lg {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+}
+
+.gal-type--3xl {
+  font-size: var(--text-3xl);
+}
+
+.gal-type--2xl {
+  font-size: var(--text-2xl);
+}
+
+.gal-type--xl {
+  font-size: var(--text-xl);
+}
+
+.gal-type--lg {
+  font-size: var(--text-lg);
+}
+
+.gal-type--md {
+  font-size: var(--text-md);
+}
+
+.gal-type--base {
+  font-size: var(--text-base);
+}
+
+.gal-type--sm {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.gal-type--xs {
+  color: var(--color-text-subtle);
+  font-size: var(--text-xs);
+}
+
+/* Space / radius / motion */
+.gal-scale {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.gal-scale__row {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.gal-scale__bar {
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  opacity: 0.8;
+}
+
+.gal-radius {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface-3);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+.gal-motion {
+  font-size: var(--text-xs);
+}
+
+/* Icons */
+.gal-icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
+  gap: var(--space-2);
+}
+
+.gal-icon {
+  display: grid;
+  place-items: center;
+  height: 44px;
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}

@@ -1,0 +1,272 @@
+/* Base styles (T-018): reset, typography, focus, utilities, shared keyframes. Uses ./tokens.css. */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+h1,
+h2,
+h3,
+h4,
+p,
+figure,
+blockquote,
+dl,
+dd {
+  margin: 0;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  line-height: var(--leading-tight);
+  text-wrap: balance;
+}
+
+h1 {
+  font-size: var(--text-2xl);
+}
+
+h2 {
+  font-size: var(--text-lg);
+}
+
+h3 {
+  font-size: var(--text-md);
+}
+
+h4 {
+  font-size: var(--text-base);
+}
+
+a {
+  color: var(--color-accent-strong);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+a:hover {
+  color: var(--color-text);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+img,
+svg {
+  display: block;
+  max-width: 100%;
+}
+
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.6em;
+  height: 1.6em;
+  padding: 0 0.4em;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius-xs);
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.75em;
+  font-weight: var(--weight-semibold);
+  line-height: 1;
+}
+
+::selection {
+  background: rgb(255 138 43 / 0.35);
+  color: var(--color-text);
+}
+
+/* Visible focus for keyboard users everywhere; mouse focus stays quiet. */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+  border-radius: var(--radius-sm);
+}
+
+/* ---- Utilities ------------------------------------------------------------------------------ */
+.rw-visually-hidden {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  margin: -1px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  clip: rect(0 0 0 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.rw-eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--color-text-subtle);
+}
+
+.rw-muted {
+  color: var(--color-text-muted);
+}
+
+.rw-num {
+  font-variant-numeric: tabular-nums;
+}
+
+.rw-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap, var(--space-4));
+}
+
+.rw-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--gap, var(--space-3));
+}
+
+.rw-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--min, 240px), 1fr));
+  gap: var(--gap, var(--space-4));
+}
+
+/* ---- Keyframes (durations come from motion tokens, so reduced motion collapses them) --------- */
+@keyframes rw-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes rw-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes rw-pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+}
+
+@keyframes rw-hit-flash {
+  0% {
+    transform: scale(1.35);
+    filter: brightness(1.8);
+    opacity: 1;
+  }
+  60% {
+    transform: scale(1);
+    filter: brightness(1.15);
+  }
+  100% {
+    transform: scale(1);
+    filter: none;
+  }
+}
+
+@keyframes rw-star-pop {
+  0% {
+    transform: scale(0.2) rotate(-30deg);
+    opacity: 0;
+  }
+  70% {
+    transform: scale(1.25) rotate(6deg);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) rotate(0);
+  }
+}
+
+@keyframes rw-pulse-ring {
+  0% {
+    transform: scale(0.9);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+}
+
+@keyframes rw-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes rw-flame {
+  0%,
+  100% {
+    transform: scaleY(1) translateY(0);
+  }
+  50% {
+    transform: scaleY(1.12) translateY(-1px);
+  }
+}
+
+/* Belt and braces: no animation or transition survives reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
