@@ -481,7 +481,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     part and ship the synthetic suite.
 
 ### T-091 · Review round R2 (integration, UX, performance, compliance)
-- **Status:** in-progress · **Deps:** wave 3 · **Parallel:** n · **Agent:** `review`
+- **Status:** done · **Deps:** wave 3 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R2.md`; adds fix tasks
 - **Acceptance:** walk the spec's Definition of Done in the running app (keyboard mode); 60 fps on a
   dense song; server security (localhost bind, traversal, zip-slip); source-terms compliance; docs vs
@@ -497,6 +497,18 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Status:** done · **Deps:** T-036 · **Parallel:** y (with T-040, T-041) · **Agent:** `impl-fix-core`
 - **Owns:** `src/core/dsp/` (except `amp/`), `tests/dsp/`, `tests/audio-pipeline/`, `docs/audio-input.md`
 - **Acceptance:** fix the failing cases T-036 documented in docs/audio-input.md: pre-attack pick/finger-noise onsets 20–50 ms early (and the double onset when gap > 40 ms), octave-down errors with expect hints at N=1024 on the mic clip, stray onsets, bend read as WrongNote (pitch tracking through bends). Raise GuitarSet floors toward 90/90/95 (recall/precision/pitch) without regressing Iowa or synthetic tests (pitch ≤ 2 cents, onsets ±5 ms, no double onsets on decays, single onset on hammer-on); convert `it.fails` to passing tests where fixed. Keep worklet hot path allocation-free. Report before/after table.
+
+### T-111 · R2 fixes: game runtime + game-screen UX
+- **Status:** in-progress · **Deps:** T-091 · **Parallel:** y (with T-112) · **Agent:** `impl-fix-game`
+- **Owns:** `src/game/**`, `src/audio/**`, `src/core/judge/`, `src/core/practice/`, `src/ui/screens/game/`, `src/ui/screens/results/`, `src/ui/design/` (tokens for outcome colours), `tests/` for those areas, `docs/game-mechanics.md`, `docs/timing.md`, `docs/monitoring.md`
+- **Findings:** R2-I-01…06, I-08, I-09; R2-U-01…06, U-14, U-16, U-17, U-18, U-21, U-22, U-30; T-041 notes 2 & 6 (`scratchpad/t041-ux.md`); flaky perf budgets (`tests/judge/scoring.test.ts`, `tests/highway/perf.browser.test.ts`, `tests/guide/render.test.ts`); verify T-104 held-onset delay (≤73 ms in worklet + main-thread delay) always lands inside the judge's input horizon.
+- **Acceptance:** each finding fixed (or rejected with reasoning) and marked in the review file's Status column; regression test per behavioural fix; screenshots verify UX fixes at 1440×900 and 1280×720; full suite + e2e green.
+
+### T-112 · R2 fixes: library/home/song/import/setup/practice UX, docs, storage, e2e flake
+- **Status:** in-progress · **Deps:** T-091 · **Parallel:** y (with T-111) · **Agent:** `impl-fix-ui`
+- **Owns:** `src/ui/screens/{home,song,library,import,settings,audio-setup}/`, `src/ui/panels/**`, `src/ui/shell/`, `src/core/progress/`, `src/storage/`, `server/sources/linkout/`, `e2e/`, `docs/sources/`, `docs/research/learning.md`, `docs/user-profile.md`, `docs/progress.md`, `docs/song-formats.md`
+- **Findings:** R2-I-07; R2-U-07…13, U-15, U-19, U-20, U-23…28; R2-S-03…10, S-13, S-15 (CLAUDE.md env line: send text in report); T-041 notes 1, 3, 4, 5, 7; `src/storage/validate.ts` union checks for new string settings. For S-09 remove the promise from the doc rather than implementing it. For S-10 show the loopback-measured round trip in the monitor panel when available.
+- **Acceptance:** as T-111.
 
 ## Wave 4
 
@@ -529,6 +541,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   for the owner (D1 acceptance, DEC-24), branch merged to `main` and pushed.
 
 ## Review fix tasks
+R1: T-101, T-102 (+ T-103, T-104 follow-ups). R2: T-111, T-112. See docs/reviews/.
 Added by R1–R3 as `T-1xx` with owner, owned files and acceptance. None yet.
 
 ## Candidate sources (not this iteration unless noted)
