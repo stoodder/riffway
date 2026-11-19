@@ -80,6 +80,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-019 | Starter library content | impl | done 8747edd: 14 alphaTex items tiers 1-6; 147 tests; Rising Sun is an arpeggio study (melody unverified) |
 | T-012 | ASCII tab parser + ClassTab rhythm derivation | impl | done d4aba88: 159 tests; synthetic fixtures; ref check 7/7 paired 97-100%; |* *| repeats not expanded |
 | T-089 | Wave 1 integration | impl | done db3b2ce: CCRs applied, 988 tests green; .gitignore fix surfaced uncommitted library screen stub |
+| T-025 | ClassTab adapter + refresh | impl | done 0f7c9da: 28 tests; real run: 3976 tabs, rhythm MIDI 1921 / ruler 432 / needs-align 1616 |
 
 ---
 
@@ -332,7 +333,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - `#/dev/highway` renders a fixture song with all glyphs for screenshots.
 
 ### T-025 · ClassTab adapter + refresh command
-- **Status:** in-progress · **Deps:** T-012, T-017 · **Parallel:** y · **Agent:** `impl-server`
+- **Status:** done · **Deps:** T-012, T-017 · **Parallel:** y · **Agent:** `impl-server`
 - **Owns:** `server/sources/classtab/`, `server/routes/classtab.ts`, `scripts/classtab-refresh.ts`,
   `tests/classtab/`, `docs/sources/classtab.md`
 - **Acceptance:**
