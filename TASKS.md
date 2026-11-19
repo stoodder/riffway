@@ -69,6 +69,8 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-005 | Architecture docs + this plan | architect | done: `docs/README.md`, `architecture.md`, `timing.md`, `game-mechanics.md`, `audio-input.md`, `monitoring.md`, `song-formats.md`, `difficulty.md`, `progress.md`, `TASKS.md` |
 | T-010 | Foundation, configs, shared contracts, stubs | impl-foundation | done 07019f4: 25 tests, all scripts green |
 
+| T-013 | Difficulty + hand-position analysis | impl | done 4bc1e80: 41 tests; worked example changed (old example contradicted window rule) |
+
 ---
 
 ## Wave 0
@@ -138,7 +140,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Sidecar applied → `rhythm: 'aligned'`. Fixture README states every file is authored by us (D2).
 
 ### T-013 · Difficulty + hand-position analysis
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
 - **Owns:** `src/core/difficulty/`, `src/core/handpos/`, `tests/difficulty/`, `tests/handpos/`, `docs/difficulty.md` (W1)
 - **Acceptance:**
   - `analyzeDifficulty(song)` → `DifficultyReport` (per section + song, every factor's measure and `c`)
