@@ -337,7 +337,7 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
       diagnostics.push({
         severity: 'info',
         code: 'staff-reversed',
-        message: `The staff at line ${lineNo(top)} is labelled low string first (${written.map((p) => p.label).join(' ')}); read bottom-up`,
+        message: `The staff at line ${lineNo(top)} is labeled low string first (${written.map((p) => p.label).join(' ')}); read bottom-up`,
         line: lineNo(top),
       });
     }

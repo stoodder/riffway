@@ -168,7 +168,7 @@ export function timingTendency(h: TimingHistogram): TimingTendency {
   const mean = sum / n;
   const ms = Math.round(Math.abs(mean));
   if (Math.abs(mean) <= TENDENCY_CENTRED_MS) {
-    return { meanMs: mean, samples: n, label: 'centred', text: 'Timing centred — no early or late tendency.' };
+    return { meanMs: mean, samples: n, label: 'centred', text: 'Timing centered — no early or late tendency.' };
   }
   return mean < 0
     ? { meanMs: mean, samples: n, label: 'early', text: `You tend to play early — about ${ms} ms ahead of the beat.` }

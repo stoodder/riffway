@@ -123,7 +123,7 @@ export function sectionEventText(name: string, ev: SectionEvent): string {
     case 'locked-in':
       return `${name} locked in — next-day check passed.`;
     case 'check-failed':
-      return `${name}: next-day check not clean yet — back to practising at 85%.`;
+      return `${name}: next-day check not clean yet — back to practicing at 85%.`;
     case 'plateau':
       return PLATEAU_MESSAGE;
   }
