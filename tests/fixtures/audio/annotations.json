@@ -1,0 +1,521 @@
+{
+  "schema": 1,
+  "generatedBy": "scripts/fetch-audio-fixtures.ts",
+  "attribution": "ATTRIBUTION.md",
+  "clips": [
+    {
+      "id": "iowa-single-notes",
+      "file": "iowa-single-notes.wav",
+      "sampleRate": 48000,
+      "durationSec": 9,
+      "dataset": "University of Iowa MIS — Guitar (2011), mono 24-bit/96 kHz, Earthworks QTC40 at 5 ft, anechoic",
+      "license": "Unrestricted (\"may be downloaded and used for any projects, without restrictions\")",
+      "homepage": "https://theremin.music.uiowa.edu/MISguitar.html",
+      "onsetReference": "derived",
+      "notes": [
+        {
+          "onsetSec": 0.12,
+          "offsetSec": 0.6,
+          "midi": 40,
+          "string": 6,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulE.E2B2.mono.aif @ 0.0935 s (YIN 39.62)"
+        },
+        {
+          "onsetSec": 0.72,
+          "offsetSec": 1.2,
+          "midi": 43,
+          "string": 6,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulE.E2B2.mono.aif @ 34.0426 s (YIN 42.65)"
+        },
+        {
+          "onsetSec": 1.32,
+          "offsetSec": 1.8,
+          "midi": 48,
+          "string": 5,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulA.C3B3.mono.aif @ 0.0369 s (YIN 47.78)"
+        },
+        {
+          "onsetSec": 1.92,
+          "offsetSec": 2.4,
+          "midi": 54,
+          "string": 5,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulA.C3B3.mono.aif @ 62.8452 s (YIN 53.72)"
+        },
+        {
+          "onsetSec": 2.52,
+          "offsetSec": 3,
+          "midi": 50,
+          "string": 4,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulD.D3B3.mono.aif @ 0.0306 s (YIN 49.76)"
+        },
+        {
+          "onsetSec": 3.12,
+          "offsetSec": 3.6,
+          "midi": 57,
+          "string": 4,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulD.D3B3.mono.aif @ 83.4649 s (YIN 56.86)"
+        },
+        {
+          "onsetSec": 3.72,
+          "offsetSec": 4.2,
+          "midi": 60,
+          "string": 3,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulG.C4B4.mono.aif @ 0.0394 s (YIN 59.85)"
+        },
+        {
+          "onsetSec": 4.32,
+          "offsetSec": 4.8,
+          "midi": 67,
+          "string": 3,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulG.C4B4.mono.aif @ 51.7414 s (YIN 66.89)"
+        },
+        {
+          "onsetSec": 4.92,
+          "offsetSec": 5.4,
+          "midi": 64,
+          "string": 1,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sul_E.E4B4.mono.aif @ 0.0387 s (YIN 63.78)"
+        },
+        {
+          "onsetSec": 5.52,
+          "offsetSec": 6,
+          "midi": 71,
+          "string": 1,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sul_E.E4B4.mono.aif @ 52.4423 s (YIN 70.82)"
+        },
+        {
+          "onsetSec": 6.12,
+          "offsetSec": 6.6,
+          "midi": 72,
+          "string": 2,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulB.C5Gb5.mono.aif @ 0.0200 s (YIN 71.84)"
+        },
+        {
+          "onsetSec": 6.72,
+          "offsetSec": 7.2,
+          "midi": 77,
+          "string": 2,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sulB.C5Gb5.mono.aif @ 32.0979 s (YIN 76.71)"
+        },
+        {
+          "onsetSec": 7.32,
+          "offsetSec": 7.8,
+          "midi": 81,
+          "string": 1,
+          "dynamic": "mf",
+          "origin": "Guitar.mf.sul_E.C5B5.mono.aif @ 53.7890 s (YIN 80.74)"
+        },
+        {
+          "onsetSec": 7.92,
+          "offsetSec": 8.4,
+          "midi": 41,
+          "string": 6,
+          "dynamic": "pp",
+          "origin": "Guitar.pp.sulE.E2B2.mono.aif @ 11.9896 s (YIN 40.66)"
+        },
+        {
+          "onsetSec": 8.52,
+          "offsetSec": 9,
+          "midi": 68,
+          "string": 1,
+          "dynamic": "pp",
+          "origin": "Guitar.pp.sul_E.E4B4.mono.aif @ 23.2857 s (YIN 67.82)"
+        }
+      ],
+      "sources": [
+        {
+          "file": "Guitar.mf.sulE.E2B2.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sulE.E2B2.mono.aif",
+          "sha256": "faef0e44dff6fcf99b2bd1cb50ab1ed519980e6c70951069cdbce38597c58b23"
+        },
+        {
+          "file": "Guitar.mf.sulA.C3B3.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sulA.C3B3.mono.aif",
+          "sha256": "df38afee2f363a8a4262384e496e7de0720318be10851f10b18f7285464ae985"
+        },
+        {
+          "file": "Guitar.mf.sulD.D3B3.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sulD.D3B3.mono.aif",
+          "sha256": "464a66a5fbd4c8f835bcddfeb9c875ee2d75e81e156cfe80a362473681c9ffa7"
+        },
+        {
+          "file": "Guitar.mf.sulG.C4B4.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sulG.C4B4.mono.aif",
+          "sha256": "fcf0e48ce128c8703219cea324a33842bdf5100aa35429100834fe67f8930704"
+        },
+        {
+          "file": "Guitar.mf.sul_E.E4B4.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sul_E.E4B4.mono.aif",
+          "sha256": "3c04d367aa3cdf9fa4c9cd6ba3591704de6da5917a714057b307699d1ed6128b"
+        },
+        {
+          "file": "Guitar.mf.sulB.C5Gb5.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sulB.C5Gb5.mono.aif",
+          "sha256": "c7f355b80f5c5c66e8c7dda34bac0cc0f48f080c368ac85d3ce4169a1c921b05"
+        },
+        {
+          "file": "Guitar.mf.sul_E.C5B5.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.mf.sul_E.C5B5.mono.aif",
+          "sha256": "eb107a42ac344d186c52ab82d4d668697045a23c48972728d3fd31f0f85ed1ec"
+        },
+        {
+          "file": "Guitar.pp.sulE.E2B2.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.pp.sulE.E2B2.mono.aif",
+          "sha256": "8523d89b6a8e6c29d1f3c81502343ff6fb5e13280c2c5d2ccbf5d1315add9350"
+        },
+        {
+          "file": "Guitar.pp.sul_E.E4B4.mono.aif",
+          "url": "https://theremin.music.uiowa.edu/sound%20files/MIS/Piano_Other/guitar/Guitar.pp.sul_E.E4B4.mono.aif",
+          "sha256": "ea9093ad964d99874da5caf300ef6ba15ab85cddf0d644824a63c7e9c4911f09"
+        }
+      ]
+    },
+    {
+      "id": "guitarset-rock1-mic",
+      "file": "guitarset-rock1-mic.wav",
+      "sampleRate": 48000,
+      "durationSec": 4.5,
+      "dataset": "GuitarSet v1.1.0, 01_Rock1-90-C#_solo (acoustic guitar, mono microphone), 9–13.5 s",
+      "license": "CC BY 4.0",
+      "homepage": "https://zenodo.org/records/3371780",
+      "onsetReference": "annotated",
+      "notes": [
+        {
+          "onsetSec": 0.172628,
+          "offsetSec": 0.323557,
+          "midi": 56,
+          "midiExact": 56.14209,
+          "string": 4
+        },
+        {
+          "onsetSec": 0.329272,
+          "offsetSec": 0.497616,
+          "midi": 58,
+          "midiExact": 58.116082,
+          "string": 4
+        },
+        {
+          "onsetSec": 0.502469,
+          "offsetSec": 0.688229,
+          "midi": 61,
+          "midiExact": 61.034433,
+          "string": 3
+        },
+        {
+          "onsetSec": 0.653852,
+          "offsetSec": 0.816392,
+          "midi": 58,
+          "midiExact": 58.149831,
+          "string": 4
+        },
+        {
+          "onsetSec": 0.828183,
+          "offsetSec": 0.955893,
+          "midi": 61,
+          "midiExact": 61.046641,
+          "string": 3
+        },
+        {
+          "onsetSec": 0.99138,
+          "offsetSec": 1.21197,
+          "midi": 63,
+          "midiExact": 63.031514,
+          "string": 3
+        },
+        {
+          "onsetSec": 1.198297,
+          "offsetSec": 1.314396,
+          "midi": 65,
+          "midiExact": 65.098073,
+          "string": 2
+        },
+        {
+          "onsetSec": 1.339725,
+          "offsetSec": 1.45002,
+          "midi": 65,
+          "midiExact": 65.13144,
+          "string": 2
+        },
+        {
+          "onsetSec": 1.481879,
+          "offsetSec": 1.656029,
+          "midi": 66,
+          "midiExact": 66.146567,
+          "string": 2
+        },
+        {
+          "onsetSec": 1.661766,
+          "offsetSec": 1.853331,
+          "midi": 66,
+          "midiExact": 66.167728,
+          "string": 2
+        },
+        {
+          "onsetSec": 1.855439,
+          "offsetSec": 2.023784,
+          "midi": 65,
+          "midiExact": 65.124645,
+          "string": 2
+        },
+        {
+          "onsetSec": 2.012174,
+          "offsetSec": 2.168909,
+          "midi": 63,
+          "midiExact": 63.10518,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.179521,
+          "offsetSec": 2.336256,
+          "midi": 65,
+          "midiExact": 65.126816,
+          "string": 2
+        },
+        {
+          "onsetSec": 2.335734,
+          "offsetSec": 2.480859,
+          "midi": 63,
+          "midiExact": 63.095353,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.505439,
+          "offsetSec": 2.633149,
+          "midi": 61,
+          "midiExact": 61.030887,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.662106,
+          "offsetSec": 2.801426,
+          "midi": 63,
+          "midiExact": 63.045345,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.80426,
+          "offsetSec": 2.995825,
+          "midi": 65,
+          "midiExact": 64.967951,
+          "string": 3
+        },
+        {
+          "onsetSec": 3.00095,
+          "offsetSec": 3.198319,
+          "midi": 68,
+          "midiExact": 68.092068,
+          "string": 2
+        },
+        {
+          "onsetSec": 3.167072,
+          "offsetSec": 3.271562,
+          "midi": 64,
+          "midiExact": 64.026507,
+          "string": 3
+        },
+        {
+          "onsetSec": 3.324464,
+          "offsetSec": 3.475394,
+          "midi": 63,
+          "midiExact": 63.116682,
+          "string": 3
+        },
+        {
+          "onsetSec": 3.501449,
+          "offsetSec": 3.658183,
+          "midi": 61,
+          "midiExact": 61.043839,
+          "string": 3
+        },
+        {
+          "onsetSec": 3.682061,
+          "offsetSec": 3.99553,
+          "midi": 61,
+          "midiExact": 61.275951,
+          "string": 3
+        },
+        {
+          "onsetSec": 4.03163,
+          "offsetSec": 4.188365,
+          "midi": 61,
+          "midiExact": 61.161658,
+          "string": 3
+        },
+        {
+          "onsetSec": 4.215145,
+          "offsetSec": 4.366074,
+          "midi": 61,
+          "midiExact": 61.359285,
+          "string": 3
+        }
+      ],
+      "sources": [
+        {
+          "file": "annotation.zip/01_Rock1-90-C#_solo.jams",
+          "url": "https://zenodo.org/api/records/3371780/files/annotation.zip/content",
+          "sha256": "422f00ed0c61cd26c5bef4738e72596ee3f831ec77b1cf686401ce5ad4e775d2"
+        },
+        {
+          "file": "audio_mono-mic.zip/01_Rock1-90-C#_solo_mic.wav",
+          "url": "https://zenodo.org/api/records/3371780/files/audio_mono-mic.zip/content",
+          "sha256": "978ac8c3e925704f8c7f1ef592bd0819ae2ec4fba961b25aaa713baefe01a243"
+        }
+      ]
+    },
+    {
+      "id": "guitarset-rock2-pickup",
+      "file": "guitarset-rock2-pickup.wav",
+      "sampleRate": 48000,
+      "durationSec": 4.6,
+      "dataset": "GuitarSet v1.1.0, 03_Rock2-142-D_solo (hexaphonic pickup summed to mono), 6.8–11.399999999999999 s",
+      "license": "CC BY 4.0",
+      "homepage": "https://zenodo.org/records/3371780",
+      "onsetReference": "annotated",
+      "notes": [
+        {
+          "onsetSec": 0.208027,
+          "offsetSec": 0.434422,
+          "midi": 58,
+          "midiExact": 58.025852,
+          "string": 4
+        },
+        {
+          "onsetSec": 0.471451,
+          "offsetSec": 0.703651,
+          "midi": 62,
+          "midiExact": 62.096396,
+          "string": 3
+        },
+        {
+          "onsetSec": 0.838957,
+          "offsetSec": 1.053741,
+          "midi": 64,
+          "midiExact": 64.074489,
+          "string": 3
+        },
+        {
+          "onsetSec": 1.080249,
+          "offsetSec": 1.260204,
+          "midi": 62,
+          "midiExact": 62.121712,
+          "string": 3
+        },
+        {
+          "onsetSec": 1.286508,
+          "offsetSec": 1.454853,
+          "midi": 64,
+          "midiExact": 64.105702,
+          "string": 3
+        },
+        {
+          "onsetSec": 1.494762,
+          "offsetSec": 1.941746,
+          "midi": 65,
+          "midiExact": 65.031801,
+          "string": 2
+        },
+        {
+          "onsetSec": 1.942676,
+          "offsetSec": 2.11102,
+          "midi": 63,
+          "midiExact": 63.064491,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.326304,
+          "offsetSec": 2.616553,
+          "midi": 60,
+          "midiExact": 60.103356,
+          "string": 3
+        },
+        {
+          "onsetSec": 2.727574,
+          "offsetSec": 2.901723,
+          "midi": 57,
+          "midiExact": 57.100445,
+          "string": 4
+        },
+        {
+          "onsetSec": 2.94034,
+          "offsetSec": 3.085465,
+          "midi": 55,
+          "midiExact": 55.079631,
+          "string": 4
+        },
+        {
+          "onsetSec": 3.172948,
+          "offsetSec": 3.306463,
+          "midi": 50,
+          "midiExact": 50.06055,
+          "string": 4
+        },
+        {
+          "onsetSec": 3.351383,
+          "offsetSec": 3.560363,
+          "midi": 53,
+          "midiExact": 53.091393,
+          "string": 4
+        },
+        {
+          "onsetSec": 3.597234,
+          "offsetSec": 3.672698,
+          "midi": 54,
+          "midiExact": 54.300775,
+          "string": 4
+        },
+        {
+          "onsetSec": 3.789342,
+          "offsetSec": 3.969297,
+          "midi": 60,
+          "midiExact": 60.143826,
+          "string": 3
+        },
+        {
+          "onsetSec": 3.969955,
+          "offsetSec": 4.138299,
+          "midi": 62,
+          "midiExact": 62.103327,
+          "string": 3
+        },
+        {
+          "onsetSec": 4.222177,
+          "offsetSec": 4.460181,
+          "midi": 65,
+          "midiExact": 65.039522,
+          "string": 2
+        },
+        {
+          "onsetSec": 4.426825,
+          "offsetSec": 4.6,
+          "midi": 69,
+          "midiExact": 69.055854,
+          "string": 1
+        }
+      ],
+      "sources": [
+        {
+          "file": "annotation.zip/03_Rock2-142-D_solo.jams",
+          "url": "https://zenodo.org/api/records/3371780/files/annotation.zip/content",
+          "sha256": "ba56a15060a2d6b83199ef2ee07cdeec81f4e436615abb07010df9c5f78604e9"
+        },
+        {
+          "file": "audio_mono-pickup_mix.zip/03_Rock2-142-D_solo_mix.wav",
+          "url": "https://zenodo.org/api/records/3371780/files/audio_mono-pickup_mix.zip/content",
+          "sha256": "79a461758856d9aa269af68eaa3186ad673e21c4c6cbacce9d1c0215fcf2109a"
+        }
+      ]
+    }
+  ]
+}
