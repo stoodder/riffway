@@ -89,6 +89,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-022 | Input device, analysis worklet, meter, tuner | impl | done 9d805c6: 69 node + 4 browser + 2 fake-mic e2e; flags verified via getSettings |
 | T-023 | Monitoring + amp/cab sim + latency display + feedback guard | impl | done 8f8ee10: 48 node + 22 browser; amp+cab adds <0.5 ms; feedback guard |
 | T-027 | Backing audio: attach, align, time-stretch | impl | done cafef53: 47 node + 7 browser; clicks within 2.3 ms at 100/70% through wrap/seek/speed |
+| T-021 | Guide synth renderer + song worker | impl | done 3ddb919: 27 node + 20 browser; notes ±10 ms; 3-min song renders in 449 ms; DEC-21 resolved (MIDI from Song works) |
 
 ---
 
@@ -295,7 +296,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 ## Wave 2 (parallel)
 
 ### T-021 · Guide synth renderer + song worker
-- **Status:** in-progress · **Deps:** T-011, T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-011, T-016 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Guide source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md). Two starter items use `\voice` (multi-voice) and natural-harmonic realValue is the sounding pitch.
 - **Owns:** `src/audio/guide/`, `tests/guide/`
 - **Acceptance:**
