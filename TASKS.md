@@ -99,6 +99,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-034 | Home dashboard + song page | impl | done 19f6603: 49 tests; first-run checklist, recommendations w/ reasons, streak w/o loss copy, song page w/ mastery map |
 | T-031 | Game session, keyboard mode, game + results screens | impl | done 5c6cd88: full song driven in real Chromium via keyboard mode; results rebuilt from storage |
 | T-036 | Audio-pipeline tests (tones + recorded guitar) | impl | done a820972: 18 tests + 2 it.fails; Iowa 93% recall/100% pitch; GuitarSet below target (pre-attack onsets, octave-down) -> T-104; input lag ~75-83 ms, keep 0.110 s |
+| T-040 | Wave 3 integration | impl | done 239cf93: CCRs, app-wide calibration profiles, rewire event, chord note once, failed-import label; built app walk-through clean |
 
 ---
 
@@ -485,7 +486,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   behaviour; fix tasks filed and scheduled before wave 4.
 
 ### T-040 · Wave 3 integration: contract changes, startup wiring, polish
-- **Status:** in-progress · **Deps:** Wave 3 · **Parallel:** y (with T-036, T-041) · **Agent:** `impl-integration`
+- **Status:** done · **Deps:** Wave 3 · **Parallel:** y (with T-036, T-041) · **Agent:** `impl-integration`
 - **Owns:** `shared/**`, `src/main.ts`, `src/app/`, `src/ui/screens/**` (except none), `src/ui/panels/**`, `src/game/**`, `src/audio/{input,monitor,backing,calibration}/`, `server/` (small fixes), `tests/` for those areas (not `tests/audio-pipeline/`), docs: `song-formats.md`, `sources/classtab.md`, `game-mechanics.md`, `progress.md`
 - **Must NOT touch:** T-036 paths (`tests/audio-pipeline/`, `tests/fixtures/audio/`, `scripts/fetch-audio-fixtures.ts`, `docs/audio-input.md`), T-041 paths (`e2e/`, `playwright.config.ts`, `docs/manual-test-checklist.md`).
 - **Acceptance:** (1) CCRs, then remove local workarounds: `RiffwayTestHook.getNotes()`; `CalibrationSettings.profiles` + `deviceKey`, `CalibrationMethod 'loopback'`; `MixerLevels` per-bus mute; `GameSession` getters `countInBars`/`metronome`/`trainerState` (show trainer fail streak); metronome-accent setting wired to engine; Settings `game.timingLeniency`, `game.inputMode`, `game.fretNumbers` (+ highway fret-number toggle). (2) App startup calls `followCalibrationProfiles(ctx.settings)` so offsets follow device switches app-wide. (3) Input service fires `onDevicesChanged` after a context-change rewire; drop the monitor's polling workaround. (4) `stretch.ts` drops local `RawStretchNode`. (5) Chord note shown once (keep highway's, or HUD chip — pick the clearer). (6) Home checklist deep-links to `#/audio-setup?step=`; session sets `songCache.lastPlayedAt`. (7) Library: entries with an import error show "Failed to import" and `rhythmCounts` skips them. (8) `tests/server/network-guard.test.ts` vs `tests/foundation/lint-guards.test.ts` conflict resolved without weakening the guard for shipped code. (9) Docs: T-103 ruler/duet/MIDI-retry text into song-formats.md; counts table + composer rule into sources/classtab.md; T-032 shortcut map in game-mechanics.md (verify present). Full `npm test`, typecheck, lint, build green (except T-036/T-041 files mid-edit — list them).
