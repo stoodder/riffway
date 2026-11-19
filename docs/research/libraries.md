@@ -155,6 +155,8 @@ Bends, slides, palm mutes and vibrato are already in the MIDI. For a speed chang
 
 Karplus-Strong would mean re-implementing techniques. Oscillators suit only the metronome and count-in.
 
+**Soundfont licence (T-021, verified):** `sonivox.sf2` (1.35 MB) ships in `@coderline/alphatab@1.9.0` at `dist/soundfont/` with a `LICENSE` stating Apache-2.0 (Copyright 2004–2006 Sonic Network Inc., from AOSP `external/sonivox`); the song worker imports it via Vite `?url` (`@coderline/alphatab/soundfont/sonivox.sf2`, an exported subpath), so it is emitted to `dist/assets/` and served from our own origin, never a CDN. alphaSynth 1.9.0 renders NaN at 22.05/32 kHz, so the guide renders at ≥ 44.1 kHz (`src/audio/guide/rate.ts`).
+
 ## 8. Highway rendering
 
 Use **Canvas 2D** on one full-window canvas. Keep the PixiJS (8.23.0) option behind a `HighwayRenderer` interface.
