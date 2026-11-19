@@ -7,6 +7,11 @@
  * segment timeline, never from timer arrival times, so late or throttled ticks cannot drift: they can
  * only skip clicks that are already in the past. Clicks are keyed by `(segment, song time)`, so
  * re-running a tick never duplicates one and a re-anchor cancels exactly the clicks it supersedes.
+ *
+ * Passes (docs/timing.md § Passes): every loop wrap, seek and jump (`play({from})` while running or
+ * paused) starts a new pass number; pause/resume, speed and loop changes continue the pass; `play()`
+ * from `stopped` starts a fresh run at pass 0. A `loop-wrap` is announced once the new pass has begun
+ * (detected by the tick), so a wrap that is scheduled and then superseded is never announced.
  * @module
  */
 import type {
@@ -133,6 +138,8 @@ export class TransportCore implements Transport {
   private requestedSpeed = 1;
   private speedToken = 0;
   private horizon = DEFAULT_HORIZON_SEC;
+  /** Id of the newest `loop-wrap` segment already announced (wraps are announced once begun). */
+  private announcedWrap = 0;
   /** Nesting depth of control operations; notifications wait until the outermost one finishes. */
   private depth = 0;
   private readonly pending: (() => void)[] = [];
@@ -186,6 +193,20 @@ export class TransportCore implements Transport {
     return this.timeline.ctxTimeAt(songTime, this.host.now(), this.playSpeed);
   }
 
+  /**
+   * Context time of `songTime` in pass `pass` (see {@link SegmentTimeline.ctxTimeInPass}): finite when
+   * the pass plays (played / will play) it, `-Infinity` when it never will, `NaN` while not yet known
+   * (paused or stopped before it). The judge's mapping (`PassClockMapping`).
+   */
+  ctxTimeInPass(songTime: number, pass: number): number {
+    return this.timeline.ctxTimeInPass(songTime, pass);
+  }
+
+  /** Pass of the segment in effect now (0 = first pass of the run). */
+  get pass(): number {
+    return this.timeline.at(this.host.now()).pass;
+  }
+
   /** Speed of the segment in effect at `ctxTime` (0 while paused). */
   speedAt(ctxTime: number): number {
     return this.timeline.at(ctxTime).speed;
@@ -233,13 +254,17 @@ export class TransportCore implements Transport {
       let from = opts.from ?? this.timeline.songTimeAt(t);
       if (opts.from === undefined && from >= this.song.durationSec) from = 0;
       from = this.clampSong(from);
+      // Fresh run from stopped: pass 0. Resume: the paused pass. A jump while running/paused: next pass.
+      const fresh = this._state === 'stopped';
+      const current = this.timeline.at(t).pass;
+      const pass = fresh ? 0 : opts.from === undefined ? current : current + 1;
       const bars = opts.countInBars ?? this.countInBars;
       const ci = bars > 0 ? countInClicks(this.song, from, bars) : null;
       const counting = ci !== null && ci.clicks.length > 0;
-      this.countIn = null;
+      this.countIn = counting ? { segId: Infinity, pass, from, clicks: ci.clicks } : null;
       this._state = counting ? 'count-in' : 'playing';
-      const seg = this.startPlaying(t, counting ? ci.start : from, 0, 'play');
-      if (counting) this.countIn = { segId: seg.id, pass: 0, from, clicks: ci.clicks };
+      const seg = this.startPlaying(t, counting ? ci.start : from, pass, 'play', this.playSpeed, undefined, fresh);
+      if (this.countIn) this.countIn.segId = seg.id;
       this.tick();
     });
   }
@@ -249,11 +274,12 @@ export class TransportCore implements Transport {
       this.tick();
       if (!this.running) return;
       const t = this.host.now() + this.lead;
-      const pos = this._state === 'count-in' && this.countIn ? this.countIn.from : segSong(this.timeline.at(t), t);
+      const seg = this.timeline.at(t);
+      const pos = this._state === 'count-in' && this.countIn ? this.countIn.from : segSong(seg, t);
       this.countIn = null;
       this._state = 'paused';
       this.stopSourcesAt(t);
-      this.reanchor(t, this.holdInit(pos, 'pause'), 'pause');
+      this.reanchor(t, this.holdInit(pos, 'pause', seg.pass), 'pause');
     });
   }
 
@@ -270,12 +296,16 @@ export class TransportCore implements Transport {
       this.tick();
       const pos = this.clampSong(songTime);
       if (this.running) {
+        const t = this.host.now() + this.lead;
         this.countIn = null;
         this._state = 'playing';
-        this.startPlaying(this.host.now() + this.lead, pos, 0, 'seek');
+        this.startPlaying(t, pos, this.timeline.at(t).pass + 1, 'seek');
         this.tick();
       } else {
-        this.reanchor(this.idleReanchorTime(), this.holdInit(pos, 'seek'), 'seek');
+        // Paused: the jump starts a new pass (resumed later). Stopped: the next play() is a fresh run.
+        const t = this.idleReanchorTime();
+        const pass = this.timeline.at(t).pass;
+        this.reanchor(t, this.holdInit(pos, 'seek', this._state === 'paused' ? pass + 1 : pass), 'seek');
       }
     });
   }
@@ -374,11 +404,12 @@ export class TransportCore implements Transport {
   rebase(songTime: number): void {
     this.op(() => {
       const wasRunning = this.running;
+      const pass = this.pass;
       this.cancelClicks(() => true);
       for (const s of this.sources) isolate(() => s.stop());
       this.countIn = null;
       this._state = wasRunning ? 'paused' : this._state;
-      const seg = this.timeline.reset(this.host.now(), songTime, 'pause');
+      const seg = this.timeline.reset(this.host.now(), songTime, 'pause', pass);
       if (wasRunning) this.emit('pause', seg);
     });
   }
@@ -435,13 +466,14 @@ export class TransportCore implements Transport {
         this.countIn = null;
         this._state = 'stopped';
         this.stopSourcesAt(boundCtx);
-        this.reanchor(boundCtx, this.holdInit(last.bound.song, 'stop'), 'stop', last.bound.song);
+        this.reanchor(boundCtx, this.holdInit(last.bound.song, 'stop', last.pass), 'stop', last.bound.song);
         this.pending.push(() => {
           for (const cb of [...this.endedListeners]) isolate(cb);
         });
       }
       break;
     }
+    this.announceWraps(now);
     if (this._state === 'count-in' && this.countIn) {
       const seg = this.timeline.at(now);
       const started = seg.id >= this.countIn.segId;
@@ -450,6 +482,15 @@ export class TransportCore implements Transport {
         this._state = 'playing';
         this.emit('count-in-end', this.timeline.last);
       }
+    }
+  }
+
+  /** Announce `loop-wrap` for every wrap segment that has begun by `now` (once each, in order). */
+  private announceWraps(now: number): void {
+    for (const seg of this.timeline.segments) {
+      if (seg.reason !== 'loop-wrap' || seg.id <= this.announcedWrap || seg.ctxStart > now) continue;
+      this.announcedWrap = seg.id;
+      this.emit('loop-wrap', seg);
     }
   }
 
@@ -480,7 +521,7 @@ export class TransportCore implements Transport {
       gridLo = Math.max(lo, ci.from);
     }
     const loop = this._loop;
-    if (loop && seg.pass > 0 && gridLo < loop.start) {
+    if (loop && seg.origin === 'loop-wrap' && gridLo < loop.start) {
       // Loop pre-roll always clicks (docs/timing.md: "1 bar of guide audio + click").
       for (const c of beatsInRange(this.song, gridLo, Math.min(hi, loop.start))) out.push({ ...c, kind: 'preroll' });
       gridLo = loop.start;
@@ -489,7 +530,11 @@ export class TransportCore implements Transport {
     return out;
   }
 
-  /** Re-anchor to a playing segment at `ctx` and schedule sources for it. */
+  /**
+   * Re-anchor to a playing segment at `ctx` and schedule sources for it. `fresh` starts a new run
+   * (new stretch even at an equal pass number). While counting in, the pass mapping covers song
+   * times from the count-in target on only.
+   */
   private startPlaying(
     ctx: number,
     songStart: number,
@@ -497,14 +542,28 @@ export class TransportCore implements Transport {
     reason: ClockChangeReason | null,
     speed: number = this.playSpeed,
     closeSongEnd?: number,
+    fresh = false,
   ): Segment {
-    const init: SegmentInit = { songStart, speed, pass, bound: this.boundFor(songStart), reason: reason ?? 'seek' };
+    const ci = this.countIn;
+    const coverStart = ci && ci.pass === pass ? Math.max(songStart, ci.from) : songStart;
+    const init: SegmentInit = {
+      songStart,
+      speed,
+      pass,
+      bound: this.boundFor(songStart),
+      reason: reason ?? 'seek',
+      coverStart,
+      newStretch: fresh,
+    };
     const { created } = this.reanchor(ctx, init, reason, closeSongEnd);
     for (const s of this.sources) isolate(() => s.schedule(toPlaybackSegment(created)));
     return created;
   }
 
-  /** Re-anchor and cancel the clicks the new segment supersedes; emit `reason` if non-null. */
+  /**
+   * Re-anchor and cancel the clicks the new segment supersedes; emit `reason` if non-null, except
+   * `loop-wrap`, which {@link announceWraps} emits once the wrap has begun.
+   */
   private reanchor(ctx: number, init: SegmentInit, reason: ClockChangeReason | null, closeSongEnd?: number): ReanchorResult {
     const res = this.timeline.reanchor(ctx, init, closeSongEnd);
     const droppedIds = new Set(res.dropped.map((s) => s.id));
@@ -512,7 +571,7 @@ export class TransportCore implements Transport {
     this.cancelClicks(
       (c) => droppedIds.has(c.segId) || (closed !== null && c.segId === closed.id && c.song >= segSongLimit(closed)),
     );
-    if (reason) this.emit(reason, res.created);
+    if (reason && reason !== 'loop-wrap') this.emit(reason, res.created);
     return res;
   }
 
@@ -523,8 +582,9 @@ export class TransportCore implements Transport {
     return Number.isFinite(this.song.durationSec) ? { kind: 'end', song: this.song.durationSec } : null;
   }
 
-  private holdInit(songStart: number, reason: ClockChangeReason): SegmentInit {
-    return { songStart, speed: 0, pass: 0, bound: null, reason };
+  /** A hold (speed 0) at `songStart`; it continues pass `pass` (a pause, a stop, a seek while idle). */
+  private holdInit(songStart: number, reason: ClockChangeReason, pass: number): SegmentInit {
+    return { songStart, speed: 0, pass, bound: null, reason };
   }
 
   /** Re-anchor time for changes while idle: now, but never before a pending (future) segment. */
@@ -539,7 +599,7 @@ export class TransportCore implements Transport {
     this.countIn = null;
     this._state = 'stopped';
     if (wasRunning) this.stopSourcesAt(t);
-    this.reanchor(t, this.holdInit(pos, 'stop'), 'stop');
+    this.reanchor(t, this.holdInit(pos, 'stop', this.timeline.at(t).pass), 'stop');
   }
 
   private stopSourcesAt(ctx: number): void {

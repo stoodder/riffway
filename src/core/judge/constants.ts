@@ -55,9 +55,24 @@ export const REFINE_MATCH_SEC = 0.0005;
 export const TIMING_BIAS_ALPHA = 0.2;
 
 /**
- * How long after an event's (calibrated) context time it can still reach the judge, per source,
- * excluding the calibration offset itself (s). Guitar: 25 ms pitch measurement + up to 40 ms
- * follow-up pitch + message hop. Keyboard: event dispatch. Test injections are immediate.
- * Used by `inputHorizon` in `./input.ts`.
+ * Worst-case analysis delay of a guitar onset message after the onset itself (s), per
+ * docs/audio-input.md: the worklet waits 25 ms after the onset, then measures pitch on the next
+ * window (the longest is N = 2048, i.e. 46.4 ms at the lowest supported rate of 44.1 kHz) and posts
+ * after that render quantum (128 frames). An unpitched onset is held open by the judge while its
+ * follow-up pitch is pending, so the follow-up does not add to this.
  */
-export const INPUT_LAG_SEC: Readonly<Record<InputSource, number>> = { guitar: 0.09, keyboard: 0.02, test: 0 };
+export const GUITAR_ANALYSIS_DELAY_SEC = 0.025 + 2048 / 44100 + 128 / 44100;
+/** Allowance for posting the message to the main thread and main-thread jank (s). */
+export const INPUT_DELIVERY_MARGIN_SEC = 0.035;
+
+/**
+ * How long after an event's (calibrated) context time it can still reach the judge, per source,
+ * excluding the calibration offset itself (s). Guitar: {@link GUITAR_ANALYSIS_DELAY_SEC} + delivery
+ * margin (≈ 0.110 s). Keyboard: event dispatch. Test injections are immediate.
+ * Used by `inputHorizon` in `./input.ts`; T-022 measures the real delivery delay.
+ */
+export const INPUT_LAG_SEC: Readonly<Record<InputSource, number>> = {
+  guitar: GUITAR_ANALYSIS_DELAY_SEC + INPUT_DELIVERY_MARGIN_SEC,
+  keyboard: 0.02,
+  test: 0,
+};

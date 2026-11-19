@@ -10,6 +10,7 @@
  * @module
  */
 import type { ScheduledSource, SongClock, Unsubscribe } from '@shared/clock';
+import type { PassClockMapping } from '@core/judge';
 import type { AudioEngine, EngineOptions, MixerBus } from '@shared/services';
 import { DEFAULT_SETTINGS, type MixerLevels, type Settings } from '@shared/settings';
 import { type OutputClock, createSongClock, heardCtxTime } from './clock';
@@ -68,7 +69,8 @@ function isHidden(): boolean {
 
 class Engine implements AudioEngine {
   ctx: AudioContext;
-  readonly clock: SongClock;
+  /** Also a {@link PassClockMapping}: hand it to `createJudge` as `config.clock`. */
+  readonly clock: SongClock & PassClockMapping;
   readonly transport: TransportCore;
   private mixer: Mixer;
   private clicks: ClickPlayer;

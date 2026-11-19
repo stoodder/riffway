@@ -19,7 +19,7 @@ Constants live in `src/core/judge/constants.ts`; tune them there and update this
 | WrongNote | onset ≤ 120 ms, pitch mismatch | 0 | reset |
 | Miss | no matching onset by note time + 120 ms | 0 | reset |
 
-`Δ = eventCtx − ctxTimeAt(note.time)` after calibration ([timing.md](timing.md)). Early/late labels
+`Δ = eventCtx − ` the note's context time in its loop pass, after calibration ([timing.md](timing.md)). Early/late labels
 appear only when |Δ| > Great window (bandwidth feedback, learning research row 7); the full timing
 histogram is on the results screen.
 
@@ -49,7 +49,7 @@ Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
    most one group.
 5. **Upgrade.** A provisional WrongNote becomes a hit if a matching onset arrives before its window
    closes (the better outcome wins). Hits are final at once: a hit group is no longer a candidate, so
-   the next onset goes to the next note. A WrongNote is fixed when `now > ctxTimeAt(t) + Good`.
+   the next onset goes to the next note. A WrongNote is fixed when `now > target + Good`.
 6. **Legato.** Notes flagged hammer/pull/slide-destination also accept a `pitch-change` event (no new
    pluck) as their onset. A `pitch-change` that matches no legato destination is ignored (vibrato and
    bends never create WrongNotes or strays).
@@ -68,22 +68,40 @@ the group get that outcome. HUD shows a small "Chords: any chord tone counts" no
 screen. Real chord verification is a stretch task (T-070).
 
 ### Driving the judge (time domains)
+- **One judge per run** (a fresh `play()` until song end or quit). `config.clock` is the engine's
+  `SongClock`, which is a `PassClockMapping` (`ctxTimeInPass`, [timing.md § Passes](timing.md#passes)).
+  Create the judge right before the run's `play()`.
 - **Events** arrive calibrated ([timing.md](timing.md)): `analysisToInputEvent(msg, sampleRate,
   inputOffsetMs)` for worklet messages (a `pitch` follow-up maps to exactly its onset's time) and
   `keyboardEventCtx(timeStamp, outputTimestamp, keyboardOffsetMs)` for keys.
-- **`advance(now)`** takes the *input horizon*, not `ctx.currentTime`: `inputHorizon(ctxNow, source,
-  offsetMs, outputLatency)` = `ctxNow − offset − INPUT_LAG_SEC[source]` (guitar 90 ms: pitch measurement
-  + 40 ms follow-up + message hop). A window therefore closes only after every onset that could land in
-  it has arrived, so a pluck 110 ms late is still a Good.
-- **Targets** of the current pass are read live from `clock.ctxTimeAt(note.time)`: speed changes are
-  followed exactly, and while paused (non-finite mapping, speed 0) nothing closes.
-- **Loops.** Call `startPass({pass})` synchronously in the transport's `loop-wrap` handler, after the
-  clock has switched. Open groups of the previous pass keep their last target and finish normally
-  (a note just before B is still judged after the wrap); the new pass re-opens the notes in the region.
-  Combo and the run tally carry across passes. `passStats(judgements, pass)` gives one pass's accuracy
-  and clean flag for the speed trainer.
-- **`finish(now)`** fixes open windows (Miss / WrongNote) and returns the `RunSummary`; notes not yet
-  reached stay unjudged.
+- **`advance(now)`** every frame (also while paused) takes the *input horizon*, not `ctx.currentTime`:
+  `inputHorizon(ctxNow, source, offsetMs, outputLatency)` = `ctxNow − offset − INPUT_LAG_SEC[source]`
+  (guitar ≈ 110 ms: 25 ms pitch wait + a 2048-sample window at 44.1 kHz + one render quantum + 35 ms
+  delivery margin; keyboard 20 ms). A window therefore closes only after every onset that could land
+  in it has arrived, so a pluck 110 ms late is still a Good.
+- **Targets** resolve live per pass from `clock.ctxTimeInPass(note.time, pass)`, so speed changes are
+  followed exactly. A finite value is the target. `NaN` means not known yet: **while paused** the
+  notes after the pause point are not candidates and never close, so onsets during a pause are strays
+  (notes already reached keep their real target and close normally). `-Infinity` means the pass never
+  plays the note (skipped by a seek, or in a count-in): it stays unjudged.
+- **Passes.** Whenever a transport `ClockChange` carries a `pass` other than the judge's, call
+  `startPass({pass: change.pass})` synchronously in the handler. That covers `loop-wrap` (announced once
+  the wrap has begun), `seek` and `play({from})`. The new pass re-opens the notes in the region; the
+  previous pass keeps opening and closing its own remaining notes on its own mapping (the notes just
+  before B are judged whenever the switch is announced). A forward seek leaves the skipped notes
+  unjudged; after a backward seek the replayed notes are judged again in the new pass. Combo and the run
+  tally carry across passes. `passStats(judgements, pass)` gives one pass's accuracy and clean flag for
+  the speed trainer. Count-in bars are never judged, so `judgeFrom` is not needed for them.
+- **Loop changes mid-pass** (`setLoop` without a wrap keeps the pass): call `startPass({pass:
+  samePass, region})`. With the current pass number `startPass` only applies the new `judgeFrom` /
+  `region` to the rest of the pass: notes already opened keep their judgement, notes whose window had
+  already closed are not judged.
+- **`finish(now)`** fixes the windows of notes already reached (Miss) and provisional WrongNotes, and
+  returns the `RunSummary`; notes not yet reached (ahead of `now`, or after the pause point) stay
+  unjudged.
+- A plain `SongClockMapping` without `ctxTimeInPass` (tests) works for one pass: only the current pass
+  resolves (`ctxTimeAt`, non-finite = wait); on `startPass` the previous pass's open notes keep their
+  last target and its notes not yet opened are dropped.
 
 ## Combo, score, accuracy, stars
 - Multiplier: combo 0–9 → ×1, 10–19 → ×2, 20–29 → ×3, 30+ → ×4. Score = Σ base × multiplier at the
@@ -137,7 +155,8 @@ window `[lo, hi]`: `hi = lo + 3` (4 frets), or `lo + 4` (5 frets) when `lo ≥ 7
   |Δlo| ≥ 2: a fret-labelled bracket ("7fr") on the highway at `time` = the new position's start,
   appearing at `showAt = time − max(1.5 beats, 0.75 s)`. The beat is the containing bar's
   `dur / beats` (else 60 / BPM from the tempo map, else 0.5 s), in song seconds at 100% speed; at
-  slower practice speeds the real lead only grows.
+  slower practice speeds the real lead only grows. Above 100% the renderer shows a cue at
+  `cueShowAt(cue, speed)` = `min(showAt, time − 0.75 × speed)`, which keeps ≥ 0.75 real seconds.
 Shifts also feed [difficulty.md](difficulty.md).
 
 ## Highway and technique glyphs

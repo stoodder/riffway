@@ -8,6 +8,10 @@
  * Re-anchors (play, seek, speed, loop wrap) append a segment at a *future* context time, so the
  * mapping at any context time, past or scheduled, is exact. A little history is kept so the judge
  * can map song times of the previous loop pass after a wrap.
+ *
+ * Consecutive segments of one pass form a **stretch** (a pause/resume or speed change continues it; a
+ * wrap, seek or fresh play starts a new one). {@link SegmentTimeline.ctxTimeInPass} maps song times
+ * within the newest stretch of a pass, which is what the judge needs (docs/timing.md § Passes).
  * @module
  */
 import type {
@@ -19,6 +23,7 @@ import type {
   TransportState,
   Unsubscribe,
 } from '@shared/clock';
+import type { PassClockMapping } from '@core/judge';
 
 /** Why a playing segment ends on its own: at loop B (wrap) or at the end of the song. */
 export type SegmentBound = { kind: 'loop' | 'end'; song: number };
@@ -31,8 +36,17 @@ export interface Segment {
   readonly songStart: number;
   /** 0 while paused/stopped. */
   readonly speed: number;
-  /** Loop pass (0 = first pass). */
+  /** Loop pass (0 = first pass; +1 on every loop wrap, seek or jump). */
   readonly pass: number;
+  /** Stretch id: increases whenever a segment does not continue its predecessor's pass. */
+  readonly stretch: number;
+  /** Reason of the first segment of this stretch (`'loop-wrap'` for a wrapped pass). */
+  readonly origin: ClockChangeReason;
+  /**
+   * First song time this segment *covers* for the pass mapping: `songStart`, or the count-in target
+   * for a count-in segment (song times played as count-in are not part of the pass).
+   */
+  readonly coverStart: number;
   /** Where a playing segment ends unless re-anchored earlier; null for holds or unbounded play. */
   readonly bound: SegmentBound | null;
   /** Re-anchor reason that created it. */
@@ -81,13 +95,17 @@ export function toPlaybackSegment(seg: Segment, ctxStart: number = seg.ctxStart)
   return out;
 }
 
-/** What a new segment looks like (the timeline assigns id and closes its predecessor). */
+/** What a new segment looks like (the timeline assigns id and stretch and closes its predecessor). */
 export interface SegmentInit {
   songStart: number;
   speed: number;
   pass: number;
   bound: SegmentBound | null;
   reason: ClockChangeReason;
+  /** See {@link Segment.coverStart} (default `songStart`). */
+  coverStart?: number;
+  /** Start a new stretch even if the pass number equals the predecessor's (a fresh run). */
+  newStretch?: boolean;
 }
 
 /** Result of {@link SegmentTimeline.reanchor}. */
@@ -103,10 +121,11 @@ export interface ReanchorResult {
 export class SegmentTimeline {
   private segs: Segment[];
   private nextId = 1;
+  private nextStretch = 1;
 
   /** Starts with a stopped hold at song time 0. */
   constructor(ctxNow: number) {
-    this.segs = [this.make(ctxNow, { songStart: 0, speed: 0, pass: 0, bound: null, reason: 'stop' })];
+    this.segs = [this.make(ctxNow, { songStart: 0, speed: 0, pass: 0, bound: null, reason: 'stop' }, null)];
   }
 
   /** All retained segments, oldest first. */
@@ -152,6 +171,34 @@ export class SegmentTimeline {
   }
 
   /**
+   * Context time at which `song` is played **in pass `pass`** (the newest stretch with that number):
+   * - finite: the playing segment of that stretch whose covered range `[coverStart, end)` contains it
+   *   (the oldest one, so a count-in replay after a pause never moves a time already played);
+   * - `-Infinity`: the pass will never play it (the pass is over, or the time lies before its start);
+   * - `NaN`: not known (yet): the pass is unknown, not playing yet or no longer retained (history),
+   *   paused or stopped before reaching it, or it lies past the current bound.
+   */
+  ctxTimeInPass(song: number, pass: number): number {
+    let stretch = -1;
+    for (let i = this.segs.length - 1; i >= 0; i--) {
+      if (this.segs[i]!.pass === pass) {
+        stretch = this.segs[i]!.stretch;
+        break;
+      }
+    }
+    if (stretch < 0) return NaN;
+    let minCover = Infinity;
+    for (const seg of this.segs) {
+      if (seg.stretch !== stretch || seg.speed <= 0) continue;
+      minCover = Math.min(minCover, seg.coverStart);
+      if (song >= seg.coverStart && song < segSongLimit(seg)) return segCtx(seg, song);
+    }
+    if (minCover === Infinity) return NaN; // nothing played yet in this pass (or no longer retained)
+    if (this.last.stretch !== stretch || song < minCover) return -Infinity;
+    return NaN;
+  }
+
+  /**
    * Start a new segment at context time `ctx`: segments starting at or after `ctx` are dropped, the
    * one before is closed at `ctx` with song end `closeSongEnd` (default: its own mapping at `ctx`).
    */
@@ -169,14 +216,14 @@ export class SegmentTimeline {
       closed.ctxEnd = ctx;
       closed.songEnd = closeSongEnd ?? segSong(closed, ctx);
     }
-    const created = this.make(ctx, init);
+    const created = this.make(ctx, init, closed);
     this.segs.push(created);
     return { created, closed, dropped };
   }
 
-  /** Replace everything with a single hold (context recreated). */
-  reset(ctxNow: number, songStart: number, reason: ClockChangeReason): Segment {
-    this.segs = [this.make(ctxNow, { songStart, speed: 0, pass: 0, bound: null, reason })];
+  /** Replace everything with a single hold in pass `pass` (context recreated). */
+  reset(ctxNow: number, songStart: number, reason: ClockChangeReason, pass = 0): Segment {
+    this.segs = [this.make(ctxNow, { songStart, speed: 0, pass, bound: null, reason }, null)];
     return this.segs[0]!;
   }
 
@@ -187,8 +234,20 @@ export class SegmentTimeline {
     if (n > 0) this.segs.splice(0, n);
   }
 
-  private make(ctxStart: number, init: SegmentInit): Segment {
-    return { id: this.nextId++, ctxStart, ...init, ctxEnd: null, songEnd: null };
+  /** A new segment continuing `prev`'s stretch when it keeps its pass (and is not a fresh run). */
+  private make(ctxStart: number, init: SegmentInit, prev: Segment | null): Segment {
+    const { coverStart, newStretch, ...rest } = init;
+    const continues = prev !== null && !newStretch && prev.pass === init.pass;
+    return {
+      id: this.nextId++,
+      ctxStart,
+      ...rest,
+      stretch: continues ? prev.stretch : this.nextStretch++,
+      origin: continues ? prev.origin : init.reason,
+      coverStart: coverStart ?? init.songStart,
+      ctxEnd: null,
+      songEnd: null,
+    };
   }
 }
 
@@ -228,6 +287,8 @@ export interface ClockSource {
   readonly anchor: Readonly<ClockAnchor>;
   songTimeAt(ctxTime: number): number;
   ctxTimeAt(songTime: number): number;
+  /** Pass-aware mapping (see {@link SegmentTimeline.ctxTimeInPass}). */
+  ctxTimeInPass(songTime: number, pass: number): number;
   /** Speed of the segment in effect at `ctxTime` (0 while paused). */
   speedAt(ctxTime: number): number;
   onChange(cb: (change: ClockChange) => void): Unsubscribe;
@@ -236,8 +297,9 @@ export interface ClockSource {
 /**
  * The read-only {@link SongClock}. `heardSongTime(perfNow)` =
  * `songTimeAt(heardCtxTime(perfNow)) − visualOffset × speed` (docs/timing.md § Rendering time).
+ * It is also a {@link PassClockMapping}, so the judge resolves note times per loop pass.
  */
-export function createSongClock(src: ClockSource, out: OutputClock, visualOffsetMs: () => number): SongClock {
+export function createSongClock(src: ClockSource, out: OutputClock, visualOffsetMs: () => number): SongClock & PassClockMapping {
   return {
     get state() {
       return src.state;
@@ -250,6 +312,7 @@ export function createSongClock(src: ClockSource, out: OutputClock, visualOffset
     },
     songTimeAt: (ctxTime) => src.songTimeAt(ctxTime),
     ctxTimeAt: (songTime) => src.ctxTimeAt(songTime),
+    ctxTimeInPass: (songTime, pass) => src.ctxTimeInPass(songTime, pass),
     nowCtx: () => out.now(),
     nowSong: () => src.songTimeAt(out.now()),
     heardSongTime(perfNow = out.perfNow()) {

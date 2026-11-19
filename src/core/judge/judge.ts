@@ -2,11 +2,15 @@
  * The judge state machine (docs/game-mechanics.md § Judge algorithm). Pure and deterministic: the
  * same song, config and event/advance sequence always yields the same judgements.
  *
- * Time model. Every group of the current pass resolves its target context time live through
- * `config.clock.ctxTimeAt(note.time)`, so speed changes and pauses (a non-finite mapping while
- * paused) are followed exactly. On {@link Judge.startPass} the open groups of the previous pass are
- * frozen at their last resolved target, so a loop wrap (the clock jumps back to A − pre-roll) cannot
- * move them. Windows are real seconds; the song speed never scales them.
+ * Time model. Every group resolves its target context time live, per pass, so speed changes and
+ * pauses are followed exactly. With a {@link PassClockMapping} (the engine's clock) a group of pass
+ * `p` resolves through `ctxTimeInPass(note.time, p)`: a finite time is its target, `NaN` means "not
+ * known yet" (paused before it: nothing closes), `-Infinity` means the pass never plays it (skipped
+ * by a seek), so it stays unjudged. Passes are independent: after {@link Judge.startPass} the
+ * previous pass keeps opening and closing its own remaining groups (the notes just before B) on its
+ * own mapping, whenever the switch happens. With a plain `SongClockMapping`, only the current pass
+ * resolves (`ctxTimeAt`); a previous pass's open groups freeze at their last target and its groups
+ * not yet opened are dropped. Windows are real seconds; the song speed never scales them.
  * @module
  */
 import type {
@@ -25,6 +29,7 @@ import type {
   TimingWindows,
 } from '@shared/judge';
 import type { SongClockMapping } from '@shared/clock';
+import type { PassClockMapping } from './pass-clock';
 import type { Song } from '@shared/song';
 import {
   BASE_POINTS,
@@ -64,14 +69,15 @@ interface Assignment {
 /** One target in one pass. */
 interface Slot {
   t: Target;
-  pass: number;
+  /** The pass this slot belongs to. */
+  ps: PassState;
   /** Pass-major note order (combo, clean-run order). */
   key: number;
   /** Last finite target context time. */
   target: number;
-  /** Current-pass slots resolve live; `live` is false while the clock gives no finite time (paused). */
+  /** False while the clock gives no time for it yet (paused before reaching it): not a candidate. */
   live: boolean;
-  /** Previous-pass slot: `target` no longer follows the clock. */
+  /** `target` no longer follows the clock (its pass mapping is gone): it finishes on its last target. */
   frozen: boolean;
   /** Provisional WrongNote (hits are final immediately and leave the active set). */
   assignment: Assignment | null;
@@ -87,9 +93,15 @@ interface EventRecord {
 
 interface PassState {
   pass: number;
+  /** Order of passes in this run (combo / clean-run order key). */
   seq: number;
+  /** Targets still to open, in time order (from `cursor` on). */
   targets: Target[];
   cursor: number;
+  /** Indices of targets already opened in this pass (kept across a same-pass `startPass`). */
+  opened: Set<number>;
+  /** Targets whose window had closed before this context time when the pass (re)started are skipped. */
+  notBefore: number;
 }
 
 interface Candidate {
@@ -107,6 +119,8 @@ const emptyCounts = (): OutcomeCounts => ({ Perfect: 0, Great: 0, Good: 0, Wrong
 export class JudgeImpl implements Judge {
   private readonly targets: Target[];
   private readonly clock: SongClockMapping;
+  /** The clock's pass-aware mapping, if it has one. */
+  private readonly passClock: PassClockMapping | null;
   private readonly windows: TimingWindows;
   private readonly strictOctave: boolean;
   private readonly sectionCount: number;
@@ -116,6 +130,8 @@ export class JudgeImpl implements Judge {
   private judgeFrom: number;
   private region: { start: number; end: number } | null;
   private current: PassState;
+  /** Passes that still have targets to open (the current one always included). */
+  private passes: PassState[];
   private active: Slot[] = [];
   private pending: InputEvent[] = [];
   private recent: EventRecord[] = [];
@@ -139,13 +155,15 @@ export class JudgeImpl implements Judge {
   constructor(song: Song, config: JudgeConfig) {
     this.targets = buildTargets(song);
     this.clock = config.clock;
+    this.passClock = isPassClock(config.clock) ? config.clock : null;
     this.windows = config.windows ?? WINDOWS;
     this.strictOctave = config.strictOctave ?? false;
     this.sectionCount = song.sections.length;
     this.stride = this.targets.length + 1;
     this.judgeFrom = config.judgeFrom ?? -Infinity;
     this.region = config.region ?? null;
-    this.current = this.makePass(0, 0);
+    this.current = this.makePass(0, 0, -Infinity);
+    this.passes = [this.current];
   }
 
   push(ev: InputEvent): JudgeOutput {
@@ -189,18 +207,45 @@ export class JudgeImpl implements Judge {
     };
   }
 
+  /**
+   * A new pass number starts a new pass: the notes in the region re-open on it, while the previous
+   * pass finishes its own remaining notes. The current pass number again only applies new
+   * `judgeFrom` / `region` to the rest of the pass (notes already opened keep their judgement, notes
+   * whose window had already closed are not judged).
+   */
   startPass(opts: { pass: number; judgeFrom?: number; region?: { start: number; end: number } | null }): void {
-    for (const slot of this.active) slot.frozen = true;
     if (opts.judgeFrom !== undefined) this.judgeFrom = opts.judgeFrom;
     if (opts.region !== undefined) this.region = opts.region;
-    this.current = this.makePass(opts.pass, this.current.seq + 1);
+    if (opts.pass === this.current.pass) {
+      const opened = this.current.opened;
+      const next = this.makePass(opts.pass, this.current.seq, this.lastNow);
+      next.targets = next.targets.filter((t) => !opened.has(t.index));
+      next.opened = opened;
+      this.passes[this.passes.indexOf(this.current)] = next;
+      for (const slot of this.active) if (slot.ps === this.current) slot.ps = next;
+      this.current = next;
+      return;
+    }
+    if (this.passClock === null) {
+      // A plain mapping only resolves the current pass: freeze the previous pass where it stands.
+      for (const slot of this.active) slot.frozen = true;
+      this.passes = [];
+    }
+    this.current = this.makePass(opts.pass, this.current.seq + 1, -Infinity);
+    this.passes.push(this.current);
   }
 
+  /**
+   * Song end / quit: closes what has been reached (Miss, or the provisional WrongNote) and leaves
+   * notes not yet reached unjudged.
+   */
   finish(nowCtx: number): RunSummary {
     const out: JudgeOutput = { judgements: [], strays: [] };
     this.advance(nowCtx);
     this.expirePending(Infinity, out);
-    for (const slot of [...this.active]) this.finalize(slot, out);
+    for (const slot of [...this.active]) {
+      if (slot.assignment !== null || (this.available(slot) && slot.target <= nowCtx + TIME_EPS_SEC)) this.finalize(slot, out);
+    }
     return this.summary();
   }
 
@@ -208,35 +253,64 @@ export class JudgeImpl implements Judge {
   // Passes and targets
   // -------------------------------------------------------------------------------------------
 
-  private makePass(pass: number, seq: number): PassState {
+  private makePass(pass: number, seq: number, notBefore: number): PassState {
     const from = this.judgeFrom - 1e-9;
     const region = this.region;
     const targets = this.targets.filter(
       (t) => t.time >= from && (region === null || (t.time >= region.start - 1e-9 && t.time < region.end - 1e-9)),
     );
-    return { pass, seq, targets, cursor: 0 };
+    return { pass, seq, targets, cursor: 0, opened: new Set(), notBefore };
   }
 
-  /** Re-resolve live targets of the current pass (speed change, pause/resume). */
+  /**
+   * Target context time of song time `time` in pass `ps`: finite, `NaN` (not known yet) or
+   * `-Infinity` (never played in that pass). A plain mapping resolves only the current pass.
+   */
+  private resolve(time: number, ps: PassState): number {
+    if (this.passClock !== null) return this.passClock.ctxTimeInPass(time, ps.pass);
+    if (ps !== this.current) return NaN;
+    const v = this.clock.ctxTimeAt(time);
+    return Number.isFinite(v) ? v : NaN;
+  }
+
+  /** Re-resolve the open slots (speed change, pause/resume, seek, a finished pass). */
   private refresh(): void {
-    for (const slot of this.active) {
+    for (const slot of [...this.active]) {
       if (slot.frozen) continue;
-      const v = this.clock.ctxTimeAt(slot.t.time);
-      slot.live = Number.isFinite(v);
-      if (slot.live) slot.target = v;
+      const v = this.resolve(slot.t.time, slot.ps);
+      if (Number.isFinite(v)) {
+        slot.target = v;
+        slot.live = true;
+      } else if (v === -Infinity && slot.assignment === null) {
+        this.remove(slot); // its pass never plays it (a seek skipped it): unjudged
+      } else if (Number.isNaN(v) && slot.ps === this.current) {
+        slot.live = false; // paused before it: wait
+      } else {
+        slot.frozen = true; // the mapping is gone: finish on the last target
+        slot.live = true;
+      }
     }
   }
 
-  /** Open the current-pass groups whose window has opened by `now`. */
+  /** Open every pass's groups whose window has opened by `now`; retire passes with nothing left. */
   private activate(now: number): void {
-    const p = this.current;
-    while (p.cursor < p.targets.length) {
-      const t = p.targets[p.cursor] as Target;
-      const v = this.clock.ctxTimeAt(t.time);
-      if (!Number.isFinite(v) || v - this.windows.good > now + TIME_EPS_SEC) break;
-      this.active.push({ t, pass: p.pass, key: p.seq * this.stride + t.index, target: v, live: true, frozen: false, assignment: null });
-      p.cursor++;
+    for (const p of this.passes) {
+      while (p.cursor < p.targets.length) {
+        const t = p.targets[p.cursor] as Target;
+        const v = this.resolve(t.time, p);
+        if (Number.isNaN(v) && p === this.current) break; // not known yet (paused)
+        if (!Number.isFinite(v)) {
+          p.cursor++; // never played in this pass
+          continue;
+        }
+        if (v - this.windows.good > now + TIME_EPS_SEC) break;
+        p.cursor++;
+        p.opened.add(t.index);
+        if (v + this.windows.good < p.notBefore - TIME_EPS_SEC) continue;
+        this.active.push({ t, ps: p, key: p.seq * this.stride + t.index, target: v, live: true, frozen: false, assignment: null });
+      }
     }
+    if (this.passes.length > 1) this.passes = this.passes.filter((p) => p === this.current || p.cursor < p.targets.length);
   }
 
   private available(slot: Slot): boolean {
@@ -404,7 +478,7 @@ export class JudgeImpl implements Judge {
       songTime: slot.t.time,
       ctxTime: slot.target + this.windows.good,
       final: true,
-      pass: slot.pass,
+      pass: slot.ps.pass,
     });
   }
 
@@ -436,7 +510,7 @@ export class JudgeImpl implements Judge {
       songTime: slot.t.time,
       ctxTime: a.ctxTime,
       final,
-      pass: slot.pass,
+      pass: slot.ps.pass,
       source: a.source,
     };
     if (a.playedMidi !== undefined) j.playedMidi = a.playedMidi;
@@ -508,4 +582,9 @@ function toMs(sec: number): number {
 
 function clamp(v: number, limit: number): number {
   return Math.max(-limit, Math.min(limit, v));
+}
+
+/** True when `clock` also maps song times per pass (the engine's `SongClock`). */
+function isPassClock(clock: SongClockMapping): clock is PassClockMapping {
+  return typeof (clock as Partial<PassClockMapping>).ctxTimeInPass === 'function';
 }

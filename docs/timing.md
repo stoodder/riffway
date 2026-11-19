@@ -25,14 +25,39 @@ is exact:
   bound (song end, or loop B before the wrap is appended) holds at the bound.
 - `ctxTimeAt(song)` = `anchorCtxTime + (song − anchorSongTime) / speed` of the **nearest occurrence**
   to now among retained segments (2 s of history). Right after a wrap a time near B maps to the pass
-  that just ended (the judge's late window); right before it a time near A maps to the coming pass.
-  While paused it extrapolates at the requested speed. Round trip `songTimeAt(ctxTimeAt(t)) = t` holds
-  to < 1 µs across speed changes and wraps.
-- `clock.anchor` and `ClockChange.anchor` are the **latest** anchor, which may start up to 50 ms (or a
-  horizon, for wraps) in the future. `state` changes immediately on a control call; `count-in-end` is
+  that just ended; right before it a time near A maps to the coming pass. While paused it
+  extrapolates at the requested speed (always finite: renderer, backing alignment). Round trip
+  `songTimeAt(ctxTimeAt(t)) = t` holds to < 1 µs across speed changes and wraps. The judge does not
+  use it (nearest-to-now is wrong for loops shorter than about the pre-roll); it uses
+  `ctxTimeInPass` (§ Passes).
+- `clock.anchor` and `ClockChange.anchor` are the **latest** anchor, which may start up to 50 ms (or
+  two horizons, for a scheduled wrap) in the future. `state` changes immediately on a control call; `count-in-end` is
   detected by the scheduler tick (≤ 25 ms late; the mapping itself is exact). `onChange` / `onEnded`
   listeners run after the control call has completed, so they may call back into the transport.
 - `heardSongTime()` and `perfToCtxTime()` are described below. Interface in `shared/clock.ts`.
+
+### Passes
+Every segment carries a **pass** number (`ClockChange.pass`, `PlaybackSegment.pass`):
+- a loop wrap, a `seek` (playing or paused) and a jump (`play({from})` while playing or paused) start
+  the next pass; a fresh `play()` from `stopped` starts a run at pass 0;
+- pause/resume, speed changes, loop changes (`setLoop`) and `stop` continue the pass. Within one run
+  pass numbers never repeat.
+
+Consecutive segments of a pass form a *stretch*. `ctxTimeInPass(song, pass)` (on `TransportCore` and
+the engine's `SongClock`; the judge's `PassClockMapping`) maps a song time within the newest stretch of
+that pass:
+- **finite**: the context time the pass played it, or will play it as now scheduled;
+- **`-Infinity`**: the pass never plays it — the pass is over (a later pass exists) and did not reach
+  it, or it lies before the pass's start (a seek target, or the count-in bars: song times played as
+  count-in are not covered);
+- **`NaN`**: not known yet — **paused or stopped before reaching it**, not started, past the current
+  bound, or no longer retained.
+
+`loop-wrap` is announced (`onChange`) once the wrap has **begun** — the tick that sees `now ≥` the
+wrap's anchor, at most one tick (25 ms; ~1 s in a hidden tab) late — not when it is scheduled two
+horizons ahead. A wrap that is scheduled and then superseded (a `setSpeed` / `setLoop` just before B
+re-anchors) is never announced, so each pass is announced exactly once. Other reasons are emitted
+when the control call is made (their anchor is up to 50 ms in the future).
 
 **Rendering time.** Audio scheduled at context time T is heard at about T + `outputLatency`.
 `ctx.getOutputTimestamp()` returns `{contextTime, performanceTime}` for the sample being heard now;
@@ -83,16 +108,20 @@ running, timestamp older than 1 s) the fallback is `currentTime − baseLatency 
   countInBeats × beatDur(start)`; notes before `start` are not judged. `countInBeats` = bars × the
   beat count of the bar at `start`; the first click of each count-in bar is accented. Count-in clicks
   play even with the metronome off (but through the metronome bus). Pausing during the count-in
-  rewinds to `start`; a seek cancels it. State `count-in` → `playing` emits `count-in-end`.
+  rewinds to `start`; a seek cancels it. State `count-in` → `playing` emits `count-in-end`. `play()`
+  after a pause counts in again (if set) and replays the bar before the pause point; that bar is
+  count-in, not part of the pass mapping.
 - **Loops (A/B):** A and B snap to section markers, then bar lines (minimum 1 bar). Pre-roll is
   **1 bar** (2 bars below 60% speed) of guide audio + click; count-in only on the first pass.
   Pre-roll clicks sound on every wrapped pass even with the metronome off. Setting a loop while
-  already past B jumps to `A − preroll` at `t0` (reason `loop-wrap`); clearing it plays on.
+  already past B jumps to `A − preroll` at `t0` (a new pass, announced as `loop-wrap` once it
+  begins); clearing it plays on in the same pass.
 - **Song end:** outside a loop the transport stops at the end (state `stopped`, position held at
   the duration, `onEnded`); `play()` from there restarts at 0. `stop()` returns to 0.
-- **Wrap:** when the scheduler sees `ctxTimeAt(B)` within two horizons, it schedules the next pass with
-  `anchorCtxTime = ctxTimeAt(B)`, `anchorSongTime = A − preroll`, slices the guide buffer from
-  `A − preroll`, and finalises notes before B after their window closes. There is no gap.
+- **Wrap:** when the scheduler sees B's context time within two horizons, it schedules the next pass
+  with `anchorCtxTime` = that time, `anchorSongTime = A − preroll`, and slices the guide buffer from
+  `A − preroll`; `loop-wrap` follows once it has begun. There is no gap. The judge finishes the notes
+  before B on the previous pass's mapping (game-mechanics.md § Driving the judge).
 
 ## Latency calibration (`src/audio/calibration/`)
 Stored in settings as `calibration = {inputOffsetMs, keyboardOffsetMs, visualOffsetMs, method,
@@ -117,7 +146,7 @@ and click coincide. Default 0; applied only to rendering.
 - Guitar event: `eventCtx = onsetFrame / sampleRate − inputOffsetMs/1000`.
 - Keyboard event: `eventCtx = contextTime + (event.timeStamp − performanceTime)/1000 −
   keyboardOffsetMs/1000`, using a fresh `getOutputTimestamp()` pair, so it is in the "heard" domain.
-- Judge: `Δ = eventCtx − ctxTimeAt(note.time)` in real seconds; windows from
+- Judge: `Δ = eventCtx − ctxTimeInPass(note.time, pass)` in real seconds; windows from
   [game-mechanics.md](game-mechanics.md). Speed never rescales windows.
 
 ## Backing audio alignment
@@ -150,5 +179,8 @@ at least `stretch.latency()` ahead, with a rate change scheduled at each anchor 
   the transport is ticked at render-time `suspend()` points like the live timer).
 - Clock round trip `songTimeAt(ctxTimeAt(t)) = t` across speed changes and loop wraps (≤ 1 µs), and
   throttled ticks (1 s gaps) never play a click late (`tests/engine/*.test.ts`, fake clock).
+- Pass numbering, `ctxTimeInPass`, one `loop-wrap` per pass (`tests/engine/transport.test.ts`), and the
+  judge driven through the real transport: 1–4-bar loops at 40–100%, hidden-tab horizon, pause/resume,
+  seeks, speed and loop changes just before B (`tests/judge/transport-integration.test.ts`).
 - Onset timestamp on generated plucks: |error| ≤ 5 ms at hop 128 (48 kHz).
 - Calibration on a synthetic click+delayed-pluck signal recovers the delay within ±3 ms.

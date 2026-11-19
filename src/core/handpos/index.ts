@@ -1,7 +1,8 @@
 /**
  * Hand-position segmentation and shift cues (T-013), per docs/game-mechanics.md § Hand-position cue:
  * window `[lo, lo+3]` (5 frets when `lo ≥ 7`), open strings never force a shift, cue when |Δlo| ≥ 2,
- * shown ≥ 1.5 beats and ≥ 0.75 s before the first note of the new position. Signature frozen by T-010.
+ * shown ≥ 1.5 beats and ≥ 0.75 s before the first note of the new position (`cueShowAt` keeps the
+ * 0.75 s in real seconds at any speed). Signature frozen by T-010.
  *
  * Pure and allocation-light: one pass over the onset groups, with an amortised O(n) look-ahead
  * (a look-ahead run is never re-scanned, because every group in it fits the window it produces).
@@ -97,6 +98,16 @@ export function computePositions(song: Song): HandPositionAnalysis {
     cues.push({ showAt: to.start - lead, time: to.start, fromLo: from.lo, lo: to.lo, hi: to.hi });
   }
   return { positions, cues };
+}
+
+/**
+ * When to show `cue` at playback speed `speed` (song s): its `showAt`, moved earlier when needed so
+ * the cue is on screen at least {@link CUE_LEAD_MIN_SEC} **real** seconds before its note
+ * (`time − 0.75 × speed`; only above 100% speed does this move it). The beat lead scales with speed
+ * by itself.
+ */
+export function cueShowAt(cue: Pick<PositionCue, 'showAt' | 'time'>, speed: number): number {
+  return Math.min(cue.showAt, cue.time - CUE_LEAD_MIN_SEC * speed);
 }
 
 /**

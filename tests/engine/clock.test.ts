@@ -78,6 +78,7 @@ describe('heardCtxTime / SongClock', () => {
       anchor: { anchorCtxTime: 9, anchorSongTime: 20, speed: 0.5 },
       songTimeAt: (c) => 20 + (c - 9) * 0.5,
       ctxTimeAt: (s) => 9 + (s - 20) / 0.5,
+      ctxTimeInPass: (s, pass) => (pass === 0 ? 9 + (s - 20) / 0.5 : NaN),
       speedAt: () => 0.5,
       onChange: (cb) => {
         listeners.push(cb);
@@ -89,6 +90,8 @@ describe('heardCtxTime / SongClock', () => {
     expect(clock.heardSongTime(5016)).toBeCloseTo(20 + 0.966 * 0.5 - 0.02 * 0.5, 12);
     expect(clock.heardSongTime()).toBeCloseTo(clock.heardSongTime(5016), 12);
     expect(clock.ctxTimeAt(21)).toBe(11);
+    expect(clock.ctxTimeInPass(21, 0)).toBe(11);
+    expect(clock.ctxTimeInPass(21, 1)).toBeNaN();
     clock.onChange(() => undefined);
     expect(listeners).toHaveLength(1);
   });

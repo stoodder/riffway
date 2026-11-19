@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beatLengthAt, computePositions, positionHi } from '@core/handpos';
+import { beatLengthAt, computePositions, cueShowAt, positionHi } from '@core/handpos';
 import { buildSong, line, powerChordDrive, type EventSpec } from '../difficulty/song-builder';
 
 const los = (events: EventSpec[], bpm = 120) => computePositions(buildSong({ bpm, events })).positions.map((p) => p.lo);
@@ -99,5 +99,20 @@ describe('beatLengthAt', () => {
     expect(beatLengthAt({ timing: { tempos: [{ time: 0, bpm: 60 }, { time: 4, bpm: 150 }], bars: [] } }, 5)).toBeCloseTo(0.4);
     expect(beatLengthAt({ timing: { tempos: [{ time: 0, bpm: 60 }, { time: 4, bpm: 150 }], bars: [] } }, 1)).toBeCloseTo(1);
     expect(beatLengthAt({ timing: { tempos: [], bars: [] } }, 1)).toBe(0.5);
+  });
+});
+
+describe('cueShowAt (R1-C-10)', () => {
+  it('keeps at least 0.75 real seconds of lead at any speed, never less than the song-time lead', () => {
+    const cue = { showAt: 9.25, time: 10, fromLo: 2, lo: 7, hi: 11 }; // lead 0.75 s at 100%
+    for (const speed of [0.4, 0.7, 1, 1.1]) {
+      const showAt = cueShowAt(cue, speed);
+      expect(showAt).toBeLessThanOrEqual(cue.showAt);
+      expect((cue.time - showAt) / speed).toBeGreaterThanOrEqual(0.75 - 1e-12);
+    }
+    expect(cueShowAt(cue, 1.1)).toBeCloseTo(10 - 0.825, 12);
+    expect(cueShowAt(cue, 0.5)).toBe(9.25);
+    const beatLed = { ...cue, showAt: 8.5 }; // 1.5 beats at 60 BPM: already longer
+    expect(cueShowAt(beatLed, 1.1)).toBe(8.5);
   });
 });

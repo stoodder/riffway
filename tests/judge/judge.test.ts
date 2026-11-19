@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { InputEvent, Judge, JudgeOutput, Judgement, Outcome, StrayEvent } from '@shared/judge';
 import { createJudge } from '@core/judge';
-import { WINDOWS } from '@core/judge/constants';
+import { INPUT_LAG_SEC, WINDOWS } from '@core/judge/constants';
 import { TestClock, finals, makeSong, onset, pitchChange, unpitched } from './helpers';
 
 /** Collects every judgement/stray a judge emits. */
@@ -465,6 +465,23 @@ describe('count-in, pre-roll, loops and passes', () => {
     expect(rec.final(0)).toMatchObject({ outcome: 'Miss', pass: 0 });
   });
 
+  it('startPass with the current pass number only updates judgeFrom/region for the rest of the pass', () => {
+    const song = makeSong([{ time: 1, midi: E4 }, { time: 2, midi: E4 }, { time: 3, midi: E4 }, { time: 5, midi: E4 }], { bars: 3 });
+    const clock = new TestClock();
+    const rec = new Recorder(createJudge(song, { clock, region: { start: 0, end: 2.5 } }));
+    rec.push(onset(1, E4));
+    rec.advance(1.95); // note 2 is open
+    rec.judge.startPass({ pass: 0, region: { start: 0, end: 4 } });
+    rec.push(onset(2, E4));
+    rec.push(onset(3, E4));
+    rec.advance(6);
+    expect(rec.judgements.filter((j) => j.final).map((j) => [j.pass, j.songTime, j.outcome])).toEqual([
+      [0, 1, 'Perfect'],
+      [0, 2, 'Perfect'],
+      [0, 3, 'Perfect'],
+    ]);
+  });
+
   it('follows speed changes live and freezes nothing while paused', () => {
     const song = makeSong([{ time: 1, midi: E4 }, { time: 2, midi: E4 }, { time: 3, midi: E4 }]);
     const clock = new TestClock(0, 0, 1);
@@ -486,7 +503,25 @@ describe('count-in, pre-roll, loops and passes', () => {
   });
 });
 
+describe('finish (R1-C-07)', () => {
+  it('finalises reached notes and open WrongNotes; notes not yet reached stay unjudged', () => {
+    const clock = new TestClock();
+    const song = makeSong([{ time: 1, midi: E4 }, { time: 2, midi: E4 }, { time: 2.06, midi: G4 }, { time: 2.1, midi: E4 }]);
+    const rec = new Recorder(createJudge(song, { clock }));
+    rec.advance(2.03); // notes 1, 2.0 reached; 2.06 and 2.1 are open but ahead
+    rec.push(onset(2.03, 50)); // wrong pitch: provisional WrongNote on the nearest open note (2.0)
+    const summary = rec.judge.finish(2.03);
+    expect(summary.counts).toMatchObject({ Miss: 1, WrongNote: 1, Perfect: 0 });
+    expect(summary.judgedNotes).toBe(2);
+    expect(rec.judge.state().judgedNotes).toBe(2);
+  });
+});
+
 describe('guitar latency offset', () => {
+  it('the guitar input lag covers pitch settle + the longest analysis window + a quantum at 44.1 kHz + delivery (R1-C-09)', () => {
+    expect(INPUT_LAG_SEC.guitar).toBeGreaterThanOrEqual(0.025 + 2048 / 44100 + 128 / 44100 + 0.03);
+  });
+
   it('a guitar onset arriving inputOffset late is judged on time after calibration', async () => {
     const { analysisToInputEvent } = await import('@core/judge');
     const sampleRate = 48000;

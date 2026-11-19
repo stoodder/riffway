@@ -4,6 +4,7 @@ import { analyzeDifficulty, tierName, tierOf } from '@core/difficulty';
 import { onsetGroups } from '@core/model/onset-groups';
 import { computePositions } from '@core/handpos';
 import { chordLoad, peakWindowCount, stringSkipping, techniqueWeight } from '@core/difficulty/factors';
+import { WEIGHTS } from '@core/difficulty/constants';
 import { effectiveBpm, mergeSections } from '@core/difficulty/sections';
 import { buildSong, line, odeToJoy, powerChordDrive, randomSpec, rng, type EventSpec, type SongSpec } from './song-builder';
 
@@ -306,6 +307,19 @@ describe('monotonicity', () => {
       prev = r;
     }
     expect(rating(shifted(7, 10))).toBeGreaterThan(rating(shifted(0, 10)));
+  });
+});
+
+describe('known limit: a shift can split a wide same-position stretch (R1-C-06)', () => {
+  it('lowers the section by at most the span term it removes', () => {
+    // One 8 s section, frets 7 9 11 8 (span 4 at lo 7) vs 7 9 12 8 (12 forces a 1-fret shift).
+    const mk = (frets: number[]) => buildSong({ bpm: 120, bars: 4, events: frets.map((f, i) => ({ at: i * 4, notes: [[3, f]] as const })) });
+    const wide = only(analyzeDifficulty(mk([7, 9, 11, 8])));
+    const shifted = only(analyzeDifficulty(mk([7, 9, 12, 8])));
+    expect(shifted.factors.shifts.measure).toBeGreaterThan(wide.factors.shifts.measure);
+    expect(shifted.factors.span.c).toBeLessThan(wide.factors.span.c);
+    // The only way more shifts lower a rating: the span term they remove (docs/difficulty.md § Known limits).
+    expect(shifted.raw).toBeGreaterThanOrEqual(wide.raw - WEIGHTS.span * wide.factors.span.c - 1e-12);
   });
 });
 

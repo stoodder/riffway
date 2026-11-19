@@ -315,9 +315,9 @@ describe('TransportCore: seek, pause, sources', () => {
     const shape = segs.map((s) => [Number(s.songStart.toFixed(9)), s.speed, s.pass]);
     expect(shape).toEqual([
       [0, 1, 0],
-      [5, 1, 0],
-      [5.5, 0.5, 0],
-      [2, 0.5, 1],
+      [5, 1, 1], // a seek starts a new pass
+      [5.5, 0.5, 1],
+      [2, 0.5, 2],
     ]);
     // Bounded at loop B; the wrap starts exactly where the previous segment ends.
     expect(segs.every((s) => s.songEnd === 8)).toBe(true);
@@ -386,5 +386,135 @@ describe('TransportCore: clock round trip', () => {
       expect(near(prev.songEnd!, segs[i]!.songStart)).toBe(true);
       expect(near(prev.songStart + (segs[i]!.ctxStart - prev.ctxStart) * prev.speed, segs[i]!.songStart, 1e-9)).toBe(true);
     }
+  });
+});
+
+describe('TransportCore: passes and the pass-aware mapping (R1-C-01…05)', () => {
+  /** 8 bars at 120 BPM, a 1-bar loop A = 4, B = 6 with a 1-bar pre-roll (the most common practice loop). */
+  const loopRig = (opts: { horizon?: number } = {}) => {
+    const rig = makeRig({ countInBars: 0 });
+    rig.core.load(makeTimeline([{ bpm: 120, num: 4, bars: 8 }]));
+    rig.core.setLoop({ start: 4, end: 6, preroll: 2 });
+    const changes: ClockChange[] = [];
+    rig.core.onChange((c) => changes.push(c));
+    const run = (until: number) => rig.run(until, opts.horizon === undefined ? 0.025 : 1, opts.horizon ?? 0.12);
+    return { ...rig, run, changes };
+  };
+
+  it('announces loop-wrap once the wrap has taken effect, not when it is scheduled', () => {
+    for (const horizon of [undefined, 1.5]) {
+      const { core, clock, run, changes } = loopRig({ horizon });
+      const seen: { pass: number; at: number; anchor: number }[] = [];
+      core.onChange((c) => {
+        if (c.reason === 'loop-wrap') seen.push({ pass: c.pass, at: clock.t, anchor: c.anchor.anchorCtxTime });
+      });
+      core.play({ from: 2 }); // pass 0: song 2 → 6 from ctx 0.05; wraps at ctx 4.05, 8.05, 12.05
+      run(13);
+      expect(seen.map((s) => s.pass)).toEqual([1, 2, 3]);
+      seen.forEach((s, i) => {
+        expect(s.anchor).toBeCloseTo(LEAD + 4 * (i + 1), 9);
+        expect(s.at).toBeGreaterThanOrEqual(s.anchor); // never before the new pass has begun
+        expect(s.at - s.anchor).toBeLessThanOrEqual(horizon === undefined ? 0.025 + 1e-9 : 1 + 1e-9);
+      });
+      expect(changes.filter((c) => c.reason === 'loop-wrap')).toHaveLength(3);
+    }
+  });
+
+  it('a re-anchor that drops a scheduled wrap never yields a phantom or duplicate loop-wrap (R1-C-04)', () => {
+    for (const poke of ['none', 'setLoop', 'setSpeed', 'setLoop(null)'] as const) {
+      const { core, clock, run, changes } = loopRig();
+      core.play({ from: 2 });
+      run(LEAD + 4 - 0.2); // the wrap at ctx 4.05 is already scheduled (two horizons ahead)
+      expect(core.segments.some((s) => s.reason === 'loop-wrap')).toBe(true);
+      if (poke === 'setLoop') core.setLoop({ start: 4, end: 6, preroll: 2 });
+      if (poke === 'setSpeed') core.setSpeed(0.8);
+      if (poke === 'setLoop(null)') core.setLoop(null);
+      run(clock.t + 1);
+      const wraps = changes.filter((c) => c.reason === 'loop-wrap').map((c) => c.pass);
+      expect(wraps, poke).toEqual(poke === 'setLoop(null)' ? [] : [1]);
+    }
+  });
+
+  it('numbers passes: pause/resume keeps the pass, seek and play({from}) start a new one, play after stop is 0', () => {
+    const { core, run, changes } = loopRig();
+    core.setLoop(null);
+    const pass = () => changes.at(-1)!.pass;
+    core.play({ from: 0 });
+    expect(pass()).toBe(0);
+    run(1);
+    core.pause();
+    expect(pass()).toBe(0);
+    run(2);
+    core.play();
+    expect([pass(), core.pass]).toEqual([0, 0]);
+    run(3);
+    core.seek(6);
+    expect(pass()).toBe(1);
+    run(4);
+    expect(core.pass).toBe(1);
+    core.pause();
+    core.seek(3);
+    expect(pass()).toBe(2);
+    core.play();
+    expect(pass()).toBe(2);
+    run(5);
+    core.play({ from: 1 });
+    expect(pass()).toBe(3);
+    run(6);
+    core.stop();
+    core.play();
+    expect(pass()).toBe(0);
+  });
+
+  it('ctxTimeInPass maps each pass to its own occurrence where nearest-to-now picks the wrong one (R1-C-01)', () => {
+    const { core, run } = loopRig();
+    core.play({ from: 2 }); // pass 0 plays song 2 → 6 at ctx 0.05 → 4.05; pass 1 from 4.05
+    run(LEAD + 4 - 0.1); // pass 1 is scheduled; note A = 4 of pass 1 is 2 s ahead
+    expect(core.ctxTimeInPass(4, 0)).toBeCloseTo(LEAD + 2, 9);
+    expect(core.ctxTimeInPass(4, 1)).toBeCloseTo(LEAD + 6, 9);
+    expect(core.ctxTimeAt(4)).toBeCloseTo(LEAD + 2, 9); // nearest-to-now: the past occurrence
+    expect(core.ctxTimeInPass(5.9, 0)).toBeCloseTo(LEAD + 3.9, 9);
+    expect(core.ctxTimeInPass(2.5, 1)).toBeCloseTo(LEAD + 4.5, 9);
+    expect(core.ctxTimeInPass(4, 2)).toBeNaN(); // not scheduled yet
+    run(LEAD + 4.5);
+    expect(core.ctxTimeInPass(5.9, 0)).toBeCloseTo(LEAD + 3.9, 9); // the pass that just ended
+    expect(core.ctxTimeInPass(6.5, 0)).toBe(-Infinity); // pass 0 is over and never played 6.5
+    expect(core.ctxTimeInPass(1, 1)).toBe(-Infinity); // before the pass's start
+  });
+
+  it('ctxTimeInPass is NaN while paused for times not yet played, exact for times already played (R1-C-03)', () => {
+    const { core, clock, run } = loopRig();
+    core.setLoop(null);
+    core.play({ from: 0 });
+    run(1.91 - LEAD);
+    core.pause(); // takes effect at ctx 1.91 = song 1.86
+    run(3);
+    expect(core.ctxTimeInPass(1.5, 0)).toBeCloseTo(LEAD + 1.5, 9);
+    expect(core.ctxTimeInPass(1.9, 0)).toBeNaN();
+    expect(core.ctxTimeInPass(2, 0)).toBeNaN();
+    expect(Number.isFinite(core.ctxTimeAt(2))).toBe(true); // the plain mapping still extrapolates
+    run(10);
+    expect(core.ctxTimeInPass(1.5, 0)).toBeNaN(); // no longer retained (2 s of history)
+    core.play(); // resumes pass 0 at ctx 10.05
+    expect(core.ctxTimeInPass(2, 0)).toBeCloseTo(clock.t + LEAD + 0.14, 9);
+    expect(core.ctxTimeInPass(1.5, 0)).toBe(-Infinity); // before the resumed stretch: already played
+  });
+
+  it('ctxTimeInPass after a seek: skipped and abandoned times are -Infinity; count-in times are never covered', () => {
+    const { core, run } = loopRig();
+    core.setLoop(null);
+    core.play({ from: 0 });
+    run(1);
+    core.seek(8); // pass 1 from ctx 1.05
+    expect(core.ctxTimeInPass(0.5, 0)).toBeCloseTo(LEAD + 0.5, 9);
+    expect(core.ctxTimeInPass(4, 0)).toBe(-Infinity); // skipped by the seek
+    expect(core.ctxTimeInPass(4, 1)).toBe(-Infinity); // before the new pass's start
+    expect(core.ctxTimeInPass(8.5, 1)).toBeCloseTo(1 + LEAD + 0.5, 9);
+    run(2);
+    core.pause();
+    core.seek(12); // pass 2 (a hold)
+    core.play({ countInBars: 1 }); // count-in plays song 10 → 12 first
+    expect(core.ctxTimeInPass(11, 2)).toBe(-Infinity);
+    expect(core.ctxTimeInPass(12, 2)).toBeCloseTo(2 + LEAD + 2, 9);
   });
 });
