@@ -7,7 +7,8 @@
 - Guitar onsets are timestamped in the analysis worklet (frame-accurate), then the calibrated input
   offset is subtracted. Keyboard events are mapped from `performance.now()` to context time.
 - Timing windows are in **real** seconds and are never scaled by speed.
-- Calibration: **play-to-click** (primary) and **tap-to-click** (fallback / keyboard), plus a visual offset.
+- Calibration: **play-to-click** (primary) and **tap-to-click** (fallback / keyboard), optional
+  **loopback**, plus a visual offset; results kept per input → output device pair.
 
 ## Clock model (`src/audio/engine/clock.ts`)
 Engine files: `index.ts` (`createEngine`, wiring), `clock.ts` (segment timeline, `SongClock`),
@@ -124,26 +125,79 @@ running, timestamp older than 1 s) the fallback is `currentTime − baseLatency 
   before B on the previous pass's mapping (game-mechanics.md § Driving the judge).
 
 ## Latency calibration (`src/audio/calibration/`)
-Stored in settings as `calibration = {inputOffsetMs, keyboardOffsetMs, visualOffsetMs, method,
+Files: `estimate.ts` (pairing + robust estimate, pure), `plan.ts` (click plan), `run.ts` (one run on an
+injected clock / click sink / event source), `live.ts` (wiring to the engine, input worklet, keyboard),
+`profiles.ts` (settings, per device pair, estimated fallback), `visual.ts` (visual offset). UI:
+`src/ui/panels/calibration/` (summary + Guitar / Keyboard / Visual tabs; loopback under Guitar ›
+Advanced). Settings: `calibration = {inputOffsetMs, keyboardOffsetMs, visualOffsetMs, method,
 measuredAt, spreadMs}`.
 
+**Clicks.** 1 bar (4 clicks) of count-in, then 16 measured clicks at 90 BPM, downbeats accented,
+scheduled up front from `ctx.currentTime + 0.3` with the engine's click voice straight into the
+**master** bus (normal output path, audible even with the metronome bus at 0). A sample-rate change
+(context recreated) aborts the run.
+
 **Play-to-click (primary, guitar).**
-1. 1 bar of count-in, then 16 clicks at 90 BPM through the normal output path.
-2. The player picks the open low E (or any string) on each click; the analysis worklet reports onsets.
-3. Pair each click with the nearest onset within ±250 ms; drop the first 2 pairs (settling).
-4. `inputOffsetMs = median(onsetCtx − clickCtx)`; reject pairs beyond 2.5 × MAD; need ≥ 8 valid pairs
-   and spread (MAD) ≤ 15 ms, otherwise ask to retry.
-This captures output latency + input latency + the player's habitual bias, which is what the judge needs.
+1. The player picks a muted or open string on each measured click; the analysis worklet reports onsets,
+   converted with the judge's `frameToEventCtx(frame, sampleRate, 0)` (uncalibrated).
+2. Events closer than 50 ms to the previous one are double triggers (the judge's retrigger guard; the
+   first is kept). Each click pairs with the nearest event within ±250 ms, each event at most once
+   (greedy from the closest pair outwards, so a missed pluck never steals its neighbour's onset).
+3. Drop the first 2 pairs (settling) — the first two *pairs*, whichever clicks they belong to.
+4. `med = median(onsetCtx − clickCtx)`, `MAD` = median |Δ − med| (unscaled). Reject pairs with
+   |Δ − med| > max(2.5 × MAD, **5 ms**) — the floor keeps a near-perfect run (loopback, MAD ≈ 0).
+   `inputOffsetMs` = median of the kept pairs, `spreadMs` = their MAD.
+5. Usable with ≥ 8 kept pairs and spread ≤ 15 ms. Otherwise the run fails with a reason —
+   `no-events` (nothing paired), `too-few` (< 8), `inconsistent` (spread > 15 ms) — and the panel
+   explains it and offers **Try again**; the provisional offset is shown but not saved.
+   Quality label: spread ≤ 5 ms "very consistent", ≤ 10 "consistent", ≤ 15 "a bit uneven".
+6. The run ends 250 ms + 150 ms (late delivery) after the last click, on the context clock.
+The result is saved at once (with **Undo**). It captures output + input latency + the player's habitual
+bias, which is what the judge needs. Live: one dot per click fills in as its pair arrives (kept /
+settling / rejected) with the running median; the result shows the offset, spread, clicks used/missed
+and a residual strip (each pair minus the offset, ±80 ms, Perfect window shaded).
 
-**Tap-to-click (fallback).** Same clicks, player taps Space. Result → `keyboardOffsetMs`. If guitar
-calibration fails (no onsets), the guitar offset falls back to `keyboardOffsetMs +
-track.getSettings().latency + ctx.baseLatency` and the UI marks it "estimated".
+Estimator accuracy (simulated, 14 pairs): jitter σ 3 ms → |error| ≤ 4 ms (95 % ≤ 2.5 ms); σ 6 ms → 95 %
+≤ 4.2 ms. Outliers, missed plucks, strays and double triggers do not move it.
 
-**Visual offset.** A flash crosses the hit line with each click; the player nudges ±5 ms until flash
-and click coincide. Default 0; applied only to rendering.
+**Tap-to-click (fallback / keyboard).** Same clicks; the player taps Space (or a keyboard-mode lane
+key; auto-repeat and modified keys ignored). Taps are mapped with `engine.perfToCtxTime(event.timeStamp)`
+(the heard domain, as in keyboard play), so the result → `keyboardOffsetMs` is key-event delay +
+habit relative to the *heard* click. `method` / `measuredAt` / `spreadMs` describe the guitar offset:
+a tap result only sets them (`method: 'tap-to-click'`) when nothing is calibrated yet; its own spread
+and time live in the device profile.
+
+**Estimated guitar offset.** If play-to-click finds no onsets the panel offers "Use an estimate":
+`keyboardOffsetMs + inputLatency + ctx.baseLatency + ctx.outputLatency` (input = `track.getSettings().latency`;
+unreported input/output latency counts as 10 ms, as in the monitoring estimate), saved with
+`method: 'estimated'`. (The output latency is included because tap offsets are relative to the heard
+click while guitar offsets are relative to the scheduled one.)
+
+**Loopback (optional).** Output cabled to the guitar input; the clicks themselves come back as onsets.
+Monitoring is switched off for the run (no feedback loop) and restored after. Same estimator. The
+result is the hardware round trip without player bias; it is stored in the device profile
+(`loopbackMs`) and "Use as guitar offset" saves it as `inputOffsetMs` with `method: 'estimated'`.
+
+**Visual offset.** Endless clicks (90 BPM); gems scroll right → left into a hit line that flashes when a
+click is drawn there, using the highway's formula (drawn time = heard ctx time − `visualOffsetMs`/1000,
+so positive = drawn later). The player nudges ±5 ms (buttons or ←/→ on the lane), range ±150 ms,
+saved on every nudge. Default 0; applied only to rendering (`heardSongTime`).
+
+**Storage, per device pair.** Every save also writes a copy under
+`calibration.profiles[deviceKey]` and sets `calibration.deviceKey`, where `deviceKey` =
+normalised input label (else device id, else "default") + ` → ` + output label (else sink id, else
+"default") — labels because Chrome rotates ids. A profile holds the six active fields plus the
+keyboard spread/time and `loopbackMs`. `followCalibrationProfiles(settings)` (run by the panel while
+mounted; the app should run it at startup — requested contract change) restores a pair's profile into
+the active fields when the input or output changes. A pair without a profile keeps the previous values;
+the panel says they were measured on another device, and the first save for the new pair marks carried
+guitar values `estimated`. These extension fields (`deviceKey`, `profiles`) are not in the frozen
+`CalibrationSettings` type; the settings store deep-merges and persists them and its validator ignores
+unknown fields, so they live in IndexedDB and exports.
 
 ## How offsets apply to scoring
-- Guitar event: `eventCtx = onsetFrame / sampleRate − inputOffsetMs/1000`.
+- Guitar event: `eventCtx = onsetFrame / sampleRate − inputOffsetMs/1000` (`frameToEventCtx`, applied by
+  the input service from the active `calibration.inputOffsetMs`).
 - Keyboard event: `eventCtx = contextTime + (event.timeStamp − performanceTime)/1000 −
   keyboardOffsetMs/1000`, using a fresh `getOutputTimestamp()` pair, so it is in the "heard" domain.
 - Judge: `Δ = eventCtx − ctxTimeInPass(note.time, pass)` in real seconds; windows from
@@ -159,6 +213,14 @@ Alignment UI: waveform + beat grid overlay, drag to set offset, ±10 ms nudge, "
 (taps at bar 1 and at a later bar create anchors), and a play-check with click on top. Playback:
 `stretch.schedule({output: ctxTimeAt(songTime), input: audioTimeAt(songTime), rate: speed × slope})`
 at least `stretch.latency()` ahead, with a rate change scheduled at each anchor boundary.
+
+signalsmith-stretch 1.3.2 limits (T-027): `schedule()` drops every queued change at or after the
+worklet's *current* time, not after the new change's `output`, so only one future change can be
+pending. `plan.ts` therefore posts a change only once all earlier ones are in the past and it is at most
+`lead` (≥ `latency()`) ahead. When a re-plan drops a posted change, it re-posts the earliest remaining
+future change to clear it. Load each file as **one buffer per channel**: the worklet mis-reads windows
+spanning two added buffers once playback passes the first, so chunked/streamed loading is unsafe.
+`setBuffer` calls `dropBuffers()` then a single `addBuffers(channels, transfer)`.
 
 ## Engine wiring (`index.ts`)
 - `createEngine({sampleRate = 48000, sinkId, settings})`: `new AudioContext({latencyHint: 0,
@@ -183,4 +245,8 @@ at least `stretch.latency()` ahead, with a rate change scheduled at each anchor 
   judge driven through the real transport: 1–4-bar loops at 40–100%, hidden-tab horizon, pause/resume,
   seeks, speed and loop changes just before B (`tests/judge/transport-integration.test.ts`).
 - Onset timestamp on generated plucks: |error| ≤ 5 ms at hop 128 (48 kHz).
-- Calibration on a synthetic click+delayed-pluck signal recovers the delay within ±3 ms.
+- Calibration (`tests/calibration/`): estimator on simulated onsets (jitter, outliers, missed plucks,
+  double triggers, strays, thresholds), run flow on a fake clock, profiles/persistence; in Chromium,
+  plucks 37 ms after the real plan's clicks through the analysis worklet recover 37 ms within ±3 ms
+  (also with jitter/missed/outlier), loopback of the real click voice through a 37 ms delay, a live
+  run on a running context, and the panel flows with screenshots in `test-results/calibration/`.
