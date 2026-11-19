@@ -42,3 +42,10 @@ the user's browser loads it. Do not use an iframe (§14 forbids framing).
 
 UG Pro/Guitar Pro files that the user downloaded by hand from their own UG account can simply be dropped into the
 library folder.
+
+## Implementation (T-026)
+`server/sources/linkout/ultimate-guitar.ts`: `ultimateGuitarSearchUrl(query)` builds the URL above; the adapter returns
+one link-out ("Search on Ultimate Guitar", hint: paste the tab on the Import screen or drop a Guitar Pro file) for a
+non-empty query and has no local matching (Songsterr's matcher already badges library songs). The Library screen
+opens it with `window.open(url, '_blank', 'noopener,noreferrer')` and links to the Import screen ("Paste a tab").
+No code or test requests `ultimate-guitar.com`.

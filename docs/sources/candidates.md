@@ -28,6 +28,9 @@ and low-effort**. "Rhythm" means the source gives machine-readable note duration
 - Rhythm: yes (GP files). Verdict: **no automated download, nothing committed to the repo.** Add a "Get the free
   Guitar Pro pack" link and tell the user to drop the files into the library folder for personal use. The blog packs
   (for example "20 legendary riffs", "15 blues licks", "Top 50 riffs" on guitar-pro.com/blog) work the same way.
+- Implemented (T-026): `server/sources/linkout/gp-pack.ts` returns a "Get the free Guitar Pro pack" link-out to
+  <https://www.guitar-pro.com/free-tabs> for any non-empty search, with the hint "unzip the download and drop the .gp
+  files here". Dropped files go through the normal import (`POST /api/library/import`) into the library folder.
 
 ### The Session (thesession.org): candidate, blocked by licence; owner decision needed
 - An official read-only API is documented at <https://thesession.org/api>: add `?format=json` to pages such as
