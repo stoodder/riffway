@@ -102,6 +102,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-040 | Wave 3 integration | impl | done 239cf93: CCRs, app-wide calibration profiles, rewire event, chord note once, failed-import label; built app walk-through clean |
 | T-041 | Playwright e2e + screenshots + manual checklist | impl | done 21567a6: 10/10 e2e on prod build, network guard, exact 94P/3W/4M results; 10 screenshots; 12-section manual checklist |
 | T-104 | DSP robustness on recorded guitar | impl | done 7a39e09: pickup clip 100/100/100 (was 94/89/94), Iowa 100%, mic 96/85/96; held onsets add <=73 ms event delay (within budget) |
+| T-112 | R2 UI/docs/storage fixes | impl | done 086b938: badge removed, ClassTab download card in library, tier-consistent recs, setup flow fixes, e2e deterministic 10/10 |
 
 ---
 
@@ -505,7 +506,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** each finding fixed (or rejected with reasoning) and marked in the review file's Status column; regression test per behavioural fix; screenshots verify UX fixes at 1440×900 and 1280×720; full suite + e2e green.
 
 ### T-112 · R2 fixes: library/home/song/import/setup/practice UX, docs, storage, e2e flake
-- **Status:** in-progress · **Deps:** T-091 · **Parallel:** y (with T-111) · **Agent:** `impl-fix-ui`
+- **Status:** done · **Deps:** T-091 · **Parallel:** y (with T-111) · **Agent:** `impl-fix-ui`
 - **Owns:** `src/ui/screens/{home,song,library,import,settings,audio-setup}/`, `src/ui/panels/**`, `src/ui/shell/`, `src/core/progress/`, `src/storage/`, `server/sources/linkout/`, `e2e/`, `docs/sources/`, `docs/research/learning.md`, `docs/user-profile.md`, `docs/progress.md`, `docs/song-formats.md`
 - **Findings:** R2-I-07; R2-U-07…13, U-15, U-19, U-20, U-23…28; R2-S-03…10, S-13, S-15 (CLAUDE.md env line: send text in report); T-041 notes 1, 3, 4, 5, 7; `src/storage/validate.ts` union checks for new string settings. For S-09 remove the promise from the doc rather than implementing it. For S-10 show the loopback-measured round trip in the monitor panel when available.
 - **Acceptance:** as T-111.
