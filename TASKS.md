@@ -100,6 +100,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-031 | Game session, keyboard mode, game + results screens | impl | done 5c6cd88: full song driven in real Chromium via keyboard mode; results rebuilt from storage |
 | T-036 | Audio-pipeline tests (tones + recorded guitar) | impl | done a820972: 18 tests + 2 it.fails; Iowa 93% recall/100% pitch; GuitarSet below target (pre-attack onsets, octave-down) -> T-104; input lag ~75-83 ms, keep 0.110 s |
 | T-040 | Wave 3 integration | impl | done 239cf93: CCRs, app-wide calibration profiles, rewire event, chord note once, failed-import label; built app walk-through clean |
+| T-041 | Playwright e2e + screenshots + manual checklist | impl | done 21567a6: 10/10 e2e on prod build, network guard, exact 94P/3W/4M results; 10 screenshots; 12-section manual checklist |
 
 ---
 
@@ -499,7 +500,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 ## Wave 4
 
 ### T-041 · Playwright e2e + screenshots + manual test checklist
-- **Status:** in-progress · **Deps:** wave 3, R2 fixes · **Parallel:** n · **Agent:** `test`
+- **Status:** done · **Deps:** wave 3, R2 fixes · **Parallel:** n · **Agent:** `test`
 - **Owns:** `e2e/` (incl. `e2e/screenshots/`, `e2e/fixtures/`), `docs/manual-test-checklist.md`
 - **Acceptance:**
   - Runs against the production build with a temp data dir and library (starter + authored GP + ASCII);
