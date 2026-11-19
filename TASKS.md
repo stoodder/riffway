@@ -79,6 +79,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-015 | DSP core: pitch, onset, level, tuner | impl | done d81438e: 86 tests; MPM <=2 cents E2-E6, no octave errors; onsets ±5ms; tuned on synthetic only |
 | T-019 | Starter library content | impl | done 8747edd: 14 alphaTex items tiers 1-6; 147 tests; Rising Sun is an arpeggio study (melody unverified) |
 | T-012 | ASCII tab parser + ClassTab rhythm derivation | impl | done d4aba88: 159 tests; synthetic fixtures; ref check 7/7 paired 97-100%; |* *| repeats not expanded |
+| T-089 | Wave 1 integration | impl | done db3b2ce: CCRs applied, 988 tests green; .gitignore fix surfaced uncommitted library screen stub |
 
 ---
 
@@ -256,7 +257,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     (`fake-indexeddb`).
 
 ### T-089 · Wave 1 integration: contract changes, doc fixes, stale tests
-- **Status:** in-progress · **Deps:** T-011…T-020 · **Parallel:** y (with T-090 review, read-only) · **Agent:** `impl-integration`
+- **Status:** done · **Deps:** T-011…T-020 · **Parallel:** y (with T-090 review, read-only) · **Agent:** `impl-integration`
 - **Owns:** `shared/**`, `src/app/services.ts`, `tests/foundation/`, `.gitignore`, `src/ui/design/tokens.ts`, `docs/game-mechanics.md`, `docs/song-formats.md`, `src/core/import/` (small fixes only), `server/` (CCR wiring only)
 - **Acceptance:** CCRs applied (SectionProgress.session; ServerOptions.analyzer; LibraryService difficulty + per-source indexing state, removing `instanceof LibraryIndex`; EngineOptions.settings + services.ts passes ctx.settings); foundation tests assert real behaviour instead of NotImplemented; `.gitignore` `/library/` root-only; tokens.ts uses core `tierName`; docs fixed (hand-position rules from T-013; alphaTex `{h}` for hammer/pull and `//` tags comment; rhythm precedence sidecar>MIDI>ruler>proportional; `version` option); `loadSong` passes `version`; alphaTab console noise on corrupt files silenced; `|*`…`*|` ASCII repeats expanded. Full `npm test`, typecheck, lint green.
 
