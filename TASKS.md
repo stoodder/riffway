@@ -88,6 +88,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-101 | R1 core fixes (judge <-> transport) | impl | done 6e58f87: 7 fixed, C-06 rejected, C-08 -> T-022, C-09 provisional; judge driven through real TransportCore |
 | T-022 | Input device, analysis worklet, meter, tuner | impl | done 9d805c6: 69 node + 4 browser + 2 fake-mic e2e; flags verified via getSettings |
 | T-023 | Monitoring + amp/cab sim + latency display + feedback guard | impl | done 8f8ee10: 48 node + 22 browser; amp+cab adds <0.5 ms; feedback guard |
+| T-027 | Backing audio: attach, align, time-stretch | impl | done cafef53: 47 node + 7 browser; clicks within 2.3 ms at 100/70% through wrap/seek/speed |
 
 ---
 
@@ -370,7 +371,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     drop zone → import with progress and toasts; live SSE refresh; arrangement picker → song page.
 
 ### T-027 · Backing audio: attach, align, time-stretch
-- **Status:** in-progress · **Deps:** T-016, T-017, T-020 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-016, T-017, T-020 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Backing source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md).
 - **Owns:** `server/routes/audio.ts`, `src/audio/backing/`, `src/ui/panels/backing/`, `tests/backing/`
 - **Acceptance:**
