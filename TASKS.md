@@ -98,6 +98,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-033 | Latency calibration wizard | impl | done c4c1a0b: 41 node + 16 browser; recovers synthetic 37 ms as 37.02 ms through real worklet; per device pair |
 | T-034 | Home dashboard + song page | impl | done 19f6603: 49 tests; first-run checklist, recommendations w/ reasons, streak w/o loss copy, song page w/ mastery map |
 | T-031 | Game session, keyboard mode, game + results screens | impl | done 5c6cd88: full song driven in real Chromium via keyboard mode; results rebuilt from storage |
+| T-036 | Audio-pipeline tests (tones + recorded guitar) | impl | done a820972: 18 tests + 2 it.fails; Iowa 93% recall/100% pitch; GuitarSet below target (pre-attack onsets, octave-down) -> T-104; input lag ~75-83 ms, keep 0.110 s |
 
 ---
 
@@ -466,7 +467,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   assembles input → tuner → monitoring → calibration panels in a guided order. All persist across reload.
 
 ### T-036 · Audio-pipeline tests (generated tones + recorded guitar)
-- **Status:** in-progress · **Deps:** T-014, T-015, T-016, T-022 · **Parallel:** y · **Agent:** `test`
+- **Status:** done · **Deps:** T-014, T-015, T-016, T-022 · **Parallel:** y · **Agent:** `test`
 - **Owns:** `tests/audio-pipeline/`, `tests/fixtures/audio/`, `scripts/fetch-audio-fixtures.ts`, `docs/audio-input.md` (W3)
 - **Acceptance:**
   - Browser `OfflineAudioContext`: scripted pluck melody (known onsets, one wrong pitch, one omitted note)
