@@ -85,6 +85,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-026 | Library & search UI + link-outs + drag-drop | impl | done e934f25: 80 tests; no external requests verified; 12 screenshots |
 | T-102 | R1 platform fixes | impl | done bdb1b54: R1-P-02..12 fixed w/ regression tests; P-01 open for owner |
 | T-028 | ASCII paste import + rhythm-alignment UI | impl | done 2ca0d10: 43 tests; snap-to-grid + tap-along + preview; UG link-out only |
+| T-101 | R1 core fixes (judge <-> transport) | impl | done 6e58f87: 7 fixed, C-06 rejected, C-08 -> T-022, C-09 provisional; judge driven through real TransportCore |
 
 ---
 
@@ -274,7 +275,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   tests); findings ranked with fix tasks assigned to the owning agent.
 
 ### T-101 · R1 fixes: judge ↔ transport integration (core)
-- **Status:** in-progress · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-core`
+- **Status:** done · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-core`
 - **Owns:** `src/core/judge/`, `src/core/practice/`, `src/audio/engine/`, `src/core/dsp/` (except `amp/`), `src/core/difficulty/` (except `constants.ts`), `src/core/handpos/`, their tests, `docs/timing.md`, `docs/game-mechanics.md`, `docs/reviews/R1-core.md` (status column)
 - **Acceptance:** every R1-C finding fixed or explicitly rejected with reasoning in R1-core.md; new tests drive the judge through the REAL `TransportCore` (multi-anchor, loops of 1–2 bars at 40–100% speed, hidden-tab horizon, pause/resume, seek fwd/back, setSpeed/setLoop near B) and fail on the old code; docs/timing.md and game-mechanics.md agree on paused-clock semantics. Full suite green.
 
