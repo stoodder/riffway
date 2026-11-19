@@ -103,6 +103,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-041 | Playwright e2e + screenshots + manual checklist | impl | done 21567a6: 10/10 e2e on prod build, network guard, exact 94P/3W/4M results; 10 screenshots; 12-section manual checklist |
 | T-104 | DSP robustness on recorded guitar | impl | done 7a39e09: pickup clip 100/100/100 (was 94/89/94), Iowa 100%, mic 96/85/96; held onsets add <=73 ms event delay (within budget) |
 | T-112 | R2 UI/docs/storage fixes | impl | done 086b938: badge removed, ClassTab download card in library, tier-consistent recs, setup flow fixes, e2e deterministic 10/10 |
+| T-111 | R2 game runtime + game UX fixes | impl | done 432cef0: I-01..09 fixed; outcome display in gutter, distinct outcome colours, earlier hand cues; held-onset worst 74.1 vs 74.3 ms budget (thin) |
 
 ---
 
@@ -500,7 +501,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** fix the failing cases T-036 documented in docs/audio-input.md: pre-attack pick/finger-noise onsets 20–50 ms early (and the double onset when gap > 40 ms), octave-down errors with expect hints at N=1024 on the mic clip, stray onsets, bend read as WrongNote (pitch tracking through bends). Raise GuitarSet floors toward 90/90/95 (recall/precision/pitch) without regressing Iowa or synthetic tests (pitch ≤ 2 cents, onsets ±5 ms, no double onsets on decays, single onset on hammer-on); convert `it.fails` to passing tests where fixed. Keep worklet hot path allocation-free. Report before/after table.
 
 ### T-111 · R2 fixes: game runtime + game-screen UX
-- **Status:** in-progress · **Deps:** T-091 · **Parallel:** y (with T-112) · **Agent:** `impl-fix-game`
+- **Status:** done · **Deps:** T-091 · **Parallel:** y (with T-112) · **Agent:** `impl-fix-game`
 - **Owns:** `src/game/**`, `src/audio/**`, `src/core/judge/`, `src/core/practice/`, `src/ui/screens/game/`, `src/ui/screens/results/`, `src/ui/design/` (tokens for outcome colours), `tests/` for those areas, `docs/game-mechanics.md`, `docs/timing.md`, `docs/monitoring.md`
 - **Findings:** R2-I-01…06, I-08, I-09; R2-U-01…06, U-14, U-16, U-17, U-18, U-21, U-22, U-30; T-041 notes 2 & 6 (`scratchpad/t041-ux.md`); flaky perf budgets (`tests/judge/scoring.test.ts`, `tests/highway/perf.browser.test.ts`, `tests/guide/render.test.ts`); verify T-104 held-onset delay (≤73 ms in worklet + main-thread delay) always lands inside the judge's input horizon.
 - **Acceptance:** each finding fixed (or rejected with reasoning) and marked in the review file's Status column; regression test per behavioural fix; screenshots verify UX fixes at 1440×900 and 1280×720; full suite + e2e green.
