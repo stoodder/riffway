@@ -17,8 +17,8 @@ For a `.xml` file, check that the root element is `score-partwise`/`score-timewi
 Skip unknown files silently. Cap the file size (for example 20 MB) and never execute anything.
 
 ## Watcher
-- The companion server watches the configured folder recursively: `chokidar` (v4) or Node's `fs.watch(dir,
-  {recursive: true})`, Node ≥ 20 on Linux, with a debounce of about 300 ms. Wait for writes to finish
+- The companion server watches the configured folder recursively: `chokidar` 5.0.0 (pinned; see
+  [libraries.md](../research/libraries.md)), with a debounce of about 300 ms. Wait for writes to finish
   (`awaitWriteFinish`) so half-copied files aren't parsed.
 - Index: path → `{mtime, size, sha1, title, artist, tracks, tuning, tempo, durationSec, difficulty,
   hasRhythm, source: 'local' | 'classtab' | origin tag}`. Persist it as a JSON (or SQLite) cache on the server,

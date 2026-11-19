@@ -55,4 +55,5 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 ## Docs map
 `docs/README.md` (index) · `docs/architecture.md` · `docs/audio-input.md` · `docs/monitoring.md` ·
 `docs/timing.md` · `docs/game-mechanics.md` · `docs/song-formats.md` · `docs/difficulty.md` ·
+`docs/progress.md` ·
 `docs/sources/` · `docs/research/` · `docs/reviews/` · `docs/manual-test-checklist.md`

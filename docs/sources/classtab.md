@@ -25,7 +25,8 @@ Last verified: 2026-11-19 · Status: **implement now** (download adapter)
   research."* Eight files contain the word "copyright".
 - Implications: downloading the zip the site offers and indexing it locally for the owner's practice
   is fine. **Never commit or redistribute the zip or the tab corpus.** The library folder is gitignored.
-  The unit-test fixtures in `tests/fixtures/classtab/` are a minimal sample that excludes the notice-bearing files.
+  Unit-test fixtures are **synthetic files we author** in ClassTab's style (`tests/fixtures/classtab-synthetic/`);
+  no ClassTab file is copied into the repo (TASKS.md D2).
 
 ## Layout (empirical)
 - One flat folder, `classtab/`. Besides tabs and MIDIs it holds `0_readme.txt`, `index.htm`, 9 other `.htm`
