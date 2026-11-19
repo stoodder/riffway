@@ -82,6 +82,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-089 | Wave 1 integration | impl | done db3b2ce: CCRs applied, 988 tests green; .gitignore fix surfaced uncommitted library screen stub |
 | T-025 | ClassTab adapter + refresh | impl | done 0f7c9da: 28 tests; real run: 3976 tabs, rhythm MIDI 1921 / ruler 432 / needs-align 1616 |
 | T-029 | Integration + difficulty calibration | impl | done b101151: 59 integration tests; all 14 starter items within ±1 tier; worked example now 4.6 |
+| T-026 | Library & search UI + link-outs + drag-drop | impl | done e934f25: 80 tests; no external requests verified; 12 screenshots |
 
 ---
 
@@ -347,7 +348,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     entry rejected, index counts and rhythm statuses. No request to classtab.org from tests.
 
 ### T-026 · Library & search UI + link-out adapters + drag-drop import
-- **Status:** in-progress · **Deps:** T-017, T-018 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-017, T-018 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `server/sources/linkout/`, `src/ui/screens/library/`, `tests/linkout/`, `tests/library-ui/`,
   `docs/sources/{README,songsterr,ultimate-guitar,candidates}.md`
 - **Acceptance:**
