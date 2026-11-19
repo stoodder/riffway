@@ -67,13 +67,14 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-003 | Sources research → `docs/sources/` | research | done; ClassTab files removed from fixtures (D2) |
 | T-004 | Library survey → `docs/research/libraries.md` | research | done |
 | T-005 | Architecture docs + this plan | architect | done: `docs/README.md`, `architecture.md`, `timing.md`, `game-mechanics.md`, `audio-input.md`, `monitoring.md`, `song-formats.md`, `difficulty.md`, `progress.md`, `TASKS.md` |
+| T-010 | Foundation, configs, shared contracts, stubs | impl-foundation | done 07019f4: 25 tests, all scripts green |
 
 ---
 
 ## Wave 0
 
 ### T-010 · Foundation: dependencies, configs, skeleton, contracts
-- **Status:** in-progress · **Deps:** T-005 · **Parallel:** n · **Agent:** `impl-foundation`
+- **Status:** done · **Deps:** T-005 · **Parallel:** n · **Agent:** `impl-foundation`
 - **Owns:** `package.json`, `package-lock.json`, `tsconfig*.json`, `vite.config.ts`, `vitest.config.ts`,
   `playwright.config.ts`, `eslint.config.js`, `index.html`, `.gitignore`, `shared/**`, all stub files and
   registries listed in `docs/architecture.md` (`server/routes/index.ts`, `server/sources/registry.ts`,
@@ -101,7 +102,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 ## Wave 1 (parallel)
 
 ### T-011 · Song model helpers + alphaTab importer
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
 - **Owns:** `src/core/model/`, `src/core/import/alphatab/`, `src/core/import/load-song.ts`,
   `src/core/import/fret-assign.ts`, `tests/model/`, `tests/import/`, `tests/fixtures/import/`, `docs/song-formats.md` (W1)
 - **Acceptance:**
@@ -121,7 +122,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - No DOM imports (runs in Node and in a worker).
 
 ### T-012 · ASCII tab parser + ClassTab rhythm derivation
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
 - **Owns:** `src/core/import/ascii/`, `src/core/import/align/`, `src/core/import/midi/`, `tests/ascii/`,
   `tests/align/`, `tests/fixtures/ascii/`, `tests/fixtures/classtab-synthetic/`
 - **Acceptance:**
@@ -137,7 +138,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Sidecar applied → `rhythm: 'aligned'`. Fixture README states every file is authored by us (D2).
 
 ### T-013 · Difficulty + hand-position analysis
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-core`
 - **Owns:** `src/core/difficulty/`, `src/core/handpos/`, `tests/difficulty/`, `tests/handpos/`, `docs/difficulty.md` (W1)
 - **Acceptance:**
   - `analyzeDifficulty(song)` → `DifficultyReport` (per section + song, every factor's measure and `c`)
@@ -149,7 +150,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - 5,000-note song analysed in < 20 ms (Node).
 
 ### T-014 · Judge, scoring and practice logic
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-game`
 - **Owns:** `src/core/judge/`, `src/core/practice/`, `tests/judge/`, `tests/practice/`, `docs/game-mechanics.md` (W1)
 - **Acceptance:**
   - `createJudge(song, config)` implements every step of the algorithm in `docs/game-mechanics.md`;
@@ -163,7 +164,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Deterministic; 10k events judged in < 50 ms.
 
 ### T-015 · DSP core: pitch, onset, level, tuner
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/core/dsp/` (except `amp/`), `tests/dsp/`, `tests/helpers/` (signal generators; others may import)
 - **Acceptance:**
   - Radix-2 FFT, MPM pitch (allocation-free after init), onset detector, pitch-change detector, level
@@ -173,7 +174,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Budget in Node: onset step < 0.1 ms per 128-sample hop; MPM N=2048 < 0.5 ms.
 
 ### T-016 · Audio engine: context, clock, scheduler, metronome, mixer
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/audio/engine/`, `tests/engine/`, `docs/timing.md` (W1)
 - **Acceptance:**
   - `createEngine()`: context (`latencyHint: 0`, sample rate parameter), resume on gesture, `setSinkId`,
@@ -186,7 +187,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     count-in click count, speed change continuity.
 
 ### T-017 · Companion server core, local + starter adapters, unified search
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-server`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-server`
 - **Owns:** `server/` except `server/routes/{classtab,audio,sidecars}.ts` and `server/sources/{classtab,linkout}/`;
   `tests/server/`, `docs/sources/local-folder.md`
 - **Acceptance:**
@@ -203,7 +204,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     traversal rejected; each filter; SSE event on change; starter items appear as `starter`.
 
 ### T-018 · App shell, design system, navigation
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/main.ts`, `src/ui/shell/`, `src/ui/design/`, `src/ui/components/`, `src/ui/router.ts`,
   `src/ui/screens/dev/`, `public/`, `tests/ui-shell/`
 - **Acceptance:**
@@ -216,7 +217,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - happy-dom tests for router and keyboard navigation.
 
 ### T-019 · Starter library content
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-content`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-content`
 - **Owns:** `starter/`, `tests/starter/`
 - **Acceptance:**
   - 14 alphaTex files + `starter/manifest.json` (`slug, title, credit, publicDomainNote, tags, targetTier, bpm`)
@@ -232,7 +233,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Notes:** Calibration against computed difficulty happens in T-029.
 
 ### T-020 · Storage and progress core
-- **Status:** todo · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-storage`
+- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-storage`
 - **Owns:** `src/storage/`, `src/core/progress/`, `tests/storage/`, `tests/progress/`, `docs/progress.md` (W1)
 - **Acceptance:**
   - `idb` schema v1 exactly per `docs/progress.md`, fall-through migrations harness; settings store
