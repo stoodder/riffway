@@ -1,0 +1,8 @@
+// Capo fixture: capo 2 in standard tuning; sounding pitch = open string + capo + fret.
+// Authored for Riffway.
+\title "Capo Two"
+\artist "Riffway"
+\tempo 80
+\tuning (E4 B3 G3 D3 A2 E2)
+\capo 2
+:4 0.6 2.5 0.3 3.2 | (0.6 2.5 2.4).2{ch "E5"} 7.3{nh}.2

@@ -1,0 +1,95 @@
+{
+  "meta": {
+    "title": "Voltas",
+    "source": {
+      "source": "local"
+    },
+    "tags": {
+      "style": [],
+      "genre": [],
+      "skills": []
+    },
+    "tuning": [
+      64,
+      59,
+      55,
+      50,
+      45,
+      40
+    ],
+    "capo": 0,
+    "durationSec": 9,
+    "rhythm": "exact",
+    "tracks": [
+      {
+        "index": 0,
+        "name": "Track 1",
+        "strings": 6,
+        "tuning": [
+          64,
+          59,
+          55,
+          50,
+          45,
+          40
+        ],
+        "capo": 0,
+        "playable": true,
+        "noteCount": 25
+      }
+    ]
+  },
+  "tempos": [
+    "0ms 100bpm",
+    "7800ms 150bpm"
+  ],
+  "bars": [
+    "0@0ms 4/4 x1 dur=600",
+    "1@600ms 6/8 x6 dur=1800",
+    "2@2400ms 6/8 x6 dur=1800",
+    "1@4200ms 6/8 x6 dur=1800",
+    "3@6000ms 6/8 x6 dur=1800",
+    "4@7800ms 6/8 x6 dur=1200"
+  ],
+  "sections": [
+    "Pickup [0,1) 0-600ms",
+    "A [1,3) 600-4200ms",
+    "A [3,5) 4200-7800ms",
+    "B [5,6) 7800-9000ms"
+  ],
+  "notes": [
+    "0 t=0 d=600 s1 f0 m64 bar0",
+    "1 t=600 d=300 s1 f1 m65 bar1",
+    "2 t=900 d=300 s1 f2 m66 bar1",
+    "3 t=1200 d=300 s1 f3 m67 bar1",
+    "4 t=1500 d=300 s1 f4 m68 bar1",
+    "5 t=1800 d=300 s1 f5 m69 bar1",
+    "6 t=2100 d=300 s1 f6 m70 bar1",
+    "7 t=2400 d=300 s1 f7 m71 bar2",
+    "8 t=2700 d=300 s1 f7 m71 bar2",
+    "9 t=3000 d=300 s1 f7 m71 bar2",
+    "10 t=3300 d=300 s1 f7 m71 bar2",
+    "11 t=3600 d=300 s1 f7 m71 bar2",
+    "12 t=3900 d=300 s1 f7 m71 bar2",
+    "13 t=4200 d=300 s1 f1 m65 bar3",
+    "14 t=4500 d=300 s1 f2 m66 bar3",
+    "15 t=4800 d=300 s1 f3 m67 bar3",
+    "16 t=5100 d=300 s1 f4 m68 bar3",
+    "17 t=5400 d=300 s1 f5 m69 bar3",
+    "18 t=5700 d=300 s1 f6 m70 bar3",
+    "19 t=6000 d=300 s1 f8 m72 bar4",
+    "20 t=6300 d=300 s1 f8 m72 bar4",
+    "21 t=6600 d=300 s1 f8 m72 bar4",
+    "22 t=6900 d=300 s1 f8 m72 bar4",
+    "23 t=7200 d=300 s1 f8 m72 bar4",
+    "24 t=7500 d=300 s1 f8 m72 bar4",
+    "25 t=7800 d=200 s1 f9 m73 bar5",
+    "26 t=8000 d=200 s1 f9 m73 bar5",
+    "27 t=8200 d=200 s1 f9 m73 bar5",
+    "28 t=8400 d=200 s1 f10 m74 bar5",
+    "29 t=8600 d=200 s1 f10 m74 bar5",
+    "30 t=8800 d=200 s1 f10 m74 bar5"
+  ],
+  "chords": [],
+  "diagnostics": []
+}

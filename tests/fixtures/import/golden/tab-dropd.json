@@ -1,0 +1,89 @@
+{
+  "meta": {
+    "title": "Drop D Tab",
+    "source": {
+      "source": "local"
+    },
+    "tags": {
+      "style": [],
+      "genre": [],
+      "skills": []
+    },
+    "tuning": [
+      64,
+      59,
+      55,
+      50,
+      45,
+      38
+    ],
+    "capo": 0,
+    "durationSec": 10.6667,
+    "rhythm": "exact",
+    "tracks": [
+      {
+        "index": 0,
+        "name": "Guitar",
+        "strings": 6,
+        "tuning": [
+          64,
+          59,
+          55,
+          50,
+          45,
+          38
+        ],
+        "capo": 0,
+        "playable": true,
+        "noteCount": 11
+      }
+    ],
+    "artist": "Riffway"
+  },
+  "tempos": [
+    "0ms 120bpm",
+    "8000ms 90bpm"
+  ],
+  "bars": [
+    "0@0ms 4/4 x4 dur=2000",
+    "1@2000ms 4/4 x4 dur=2000",
+    "0@4000ms 4/4 x4 dur=2000",
+    "1@6000ms 4/4 x4 dur=2000",
+    "2@8000ms 4/4 x4 dur=2666.7"
+  ],
+  "sections": [
+    "Riff [0,2) 0-4000ms",
+    "Riff [2,4) 4000-8000ms",
+    "Outro [4,5) 8000-10666.7ms"
+  ],
+  "notes": [
+    "0 t=0 d=500 s6 f0 m38 bar0",
+    "1 t=500 d=500 s6 f3 m41 bar0 {\"hammerOn\":true}",
+    "2 t=1000 d=500 s6 f5 m43 bar0 {\"legatoDest\":true}",
+    "3 t=1500 d=500 s6 f3 m41 bar0",
+    "4 t=2000 d=1000 s4 f0 m50 bar1 chord0",
+    "5 t=2000 d=1000 s5 f0 m45 bar1 chord0",
+    "6 t=2000 d=1000 s6 f0 m38 bar1 chord0",
+    "7 t=3000 d=1000 s4 f3 m53 bar1 chord1",
+    "8 t=3000 d=1000 s5 f3 m48 bar1 chord1",
+    "9 t=3000 d=1000 s6 f3 m41 bar1 chord1",
+    "10 t=4000 d=500 s6 f0 m38 bar2",
+    "11 t=4500 d=500 s6 f3 m41 bar2 {\"hammerOn\":true}",
+    "12 t=5000 d=500 s6 f5 m43 bar2 {\"legatoDest\":true}",
+    "13 t=5500 d=500 s6 f3 m41 bar2",
+    "14 t=6000 d=1000 s4 f0 m50 bar3 chord2",
+    "15 t=6000 d=1000 s5 f0 m45 bar3 chord2",
+    "16 t=6000 d=1000 s6 f0 m38 bar3 chord2",
+    "17 t=7000 d=1000 s4 f3 m53 bar3 chord3",
+    "18 t=7000 d=1000 s5 f3 m48 bar3 chord3",
+    "19 t=7000 d=1000 s6 f3 m41 bar3 chord3",
+    "20 t=8000 d=2666.7 s3 f2 m57 bar4"
+  ],
+  "chords": [
+    "0 @2000ms [4,5,6]",
+    "1 @3000ms [7,8,9]",
+    "2 @6000ms [14,15,16]",
+    "3 @7000ms [17,18,19]"
+  ],
+  "diagnostics": []
+}

@@ -1,0 +1,88 @@
+{
+  "meta": {
+    "title": "Riff Test",
+    "source": {
+      "source": "local"
+    },
+    "tags": {
+      "style": [],
+      "genre": [],
+      "skills": []
+    },
+    "tuning": [
+      64,
+      59,
+      55,
+      50,
+      45,
+      38
+    ],
+    "capo": 0,
+    "durationSec": 12,
+    "rhythm": "exact",
+    "tracks": [
+      {
+        "index": 0,
+        "name": "Guitar",
+        "strings": 6,
+        "tuning": [
+          64,
+          59,
+          55,
+          50,
+          45,
+          38
+        ],
+        "capo": 0,
+        "playable": true,
+        "noteCount": 13
+      }
+    ]
+  },
+  "tempos": [
+    "0ms 120bpm",
+    "2000ms 90bpm",
+    "4666.7ms 120bpm",
+    "6666.7ms 90bpm"
+  ],
+  "bars": [
+    "0@0ms 4/4 x4 dur=2000",
+    "1@2000ms 4/4 x4 dur=2666.7",
+    "0@4666.7ms 4/4 x4 dur=2000",
+    "1@6666.7ms 4/4 x4 dur=2666.7",
+    "2@9333.3ms 4/4 x4 dur=2666.7"
+  ],
+  "sections": [
+    "Intro [0,2) 0-4666.7ms",
+    "Intro [2,4) 4666.7-9333.3ms",
+    "Verse [4,5) 9333.3-12000ms"
+  ],
+  "notes": [
+    "0 t=0 d=500 s6 f0 m38 bar0",
+    "1 t=500 d=500 s6 f3 m41 bar0 {\"hammerOn\":true}",
+    "2 t=1000 d=500 s6 f5 m43 bar0 {\"legatoDest\":true}",
+    "3 t=1500 d=500 s6 f3 m41 bar0",
+    "4 t=2000 d=666.7 s5 f5 m50 bar1 {\"slide\":\"legato\"}",
+    "5 t=2666.7 d=666.7 s5 f7 m52 bar1 {\"legatoDest\":true}",
+    "6 t=3333.3 d=666.7 s3 f7 m62 bar1 {\"bend\":{\"semitones\":2}}",
+    "7 t=4000 d=666.7 s6 f0 m38 bar1 {\"palmMute\":true}",
+    "8 t=4666.7 d=500 s6 f0 m38 bar2",
+    "9 t=5166.7 d=500 s6 f3 m41 bar2 {\"hammerOn\":true}",
+    "10 t=5666.7 d=500 s6 f5 m43 bar2 {\"legatoDest\":true}",
+    "11 t=6166.7 d=500 s6 f3 m41 bar2",
+    "12 t=6666.7 d=666.7 s5 f5 m50 bar3 {\"slide\":\"legato\"}",
+    "13 t=7333.3 d=666.7 s5 f7 m52 bar3 {\"legatoDest\":true}",
+    "14 t=8000 d=666.7 s3 f7 m62 bar3 {\"bend\":{\"semitones\":2}}",
+    "15 t=8666.7 d=666.7 s6 f0 m38 bar3 {\"palmMute\":true}",
+    "16 t=9333.3 d=1333.3 s4 f2 m52 bar4 chord0",
+    "17 t=9333.3 d=1333.3 s5 f2 m47 bar4 chord0",
+    "18 t=9333.3 d=1333.3 s6 f0 m38 bar4 chord0",
+    "19 t=10666.7 d=1333.3 s4 f2 m52 bar4 chord1",
+    "20 t=10666.7 d=1333.3 s5 f3 m48 bar4 chord1"
+  ],
+  "chords": [
+    "0 @9333.3ms [16,17,18]",
+    "1 @10666.7ms [19,20]"
+  ],
+  "diagnostics": []
+}

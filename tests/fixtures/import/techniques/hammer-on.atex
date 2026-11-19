@@ -1,0 +1,3 @@
+// Technique fixture: hammer-on origin, legato destination. Authored for Riffway.
+\title "Technique" \tempo 120 \tuning (E4 B3 G3 D3 A2 E2)
+:4 5.3{h} 7.3 r r

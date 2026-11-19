@@ -1,0 +1,3 @@
+// Technique fixture: slide in from below. Authored for Riffway.
+\title "Technique" \tempo 120 \tuning (E4 B3 G3 D3 A2 E2)
+:4 7.3{sib} r r r

@@ -1,0 +1,85 @@
+{
+  "meta": {
+    "title": "Plain Melody",
+    "source": {
+      "source": "local"
+    },
+    "tags": {
+      "style": [],
+      "genre": [],
+      "skills": []
+    },
+    "tuning": [
+      64,
+      59,
+      55,
+      50,
+      45,
+      40
+    ],
+    "capo": 0,
+    "durationSec": 9.6,
+    "rhythm": "exact",
+    "tracks": [
+      {
+        "index": 0,
+        "name": "Guitar",
+        "strings": 6,
+        "tuning": [
+          64,
+          59,
+          55,
+          50,
+          45,
+          40
+        ],
+        "capo": 0,
+        "playable": true,
+        "noteCount": 18
+      }
+    ],
+    "artist": "Riffway"
+  },
+  "tempos": [
+    "0ms 100bpm"
+  ],
+  "bars": [
+    "0@0ms 4/4 x4 dur=2400",
+    "1@2400ms 4/4 x4 dur=2400",
+    "2@4800ms 4/4 x4 dur=2400",
+    "3@7200ms 4/4 x4 dur=2400"
+  ],
+  "sections": [
+    "Part 1 [0,4) 0-9600ms"
+  ],
+  "notes": [
+    "0 t=0 d=600 s4 f2 m52 bar0",
+    "1 t=600 d=600 s3 f0 m55 bar0",
+    "2 t=1200 d=600 s3 f2 m57 bar0",
+    "3 t=1800 d=600 s2 f0 m59 bar0",
+    "4 t=2400 d=600 s2 f3 m62 bar1",
+    "5 t=3000 d=600 s1 f0 m64 bar1",
+    "6 t=3600 d=600 s1 f3 m67 bar1",
+    "7 t=4200 d=600 s1 f5 m69 bar1",
+    "8 t=4800 d=600 s1 f8 m72 bar2",
+    "9 t=5400 d=600 s1 f10 m74 bar2",
+    "10 t=6000 d=600 s1 f12 m76 bar2",
+    "11 t=6600 d=600 s1 f15 m79 bar2",
+    "12 t=7200 d=2400 s1 f0 m64 bar3 chord0",
+    "13 t=7200 d=2400 s2 f0 m59 bar3 chord0",
+    "14 t=7200 d=2400 s3 f1 m56 bar3 chord0",
+    "15 t=7200 d=2400 s4 f2 m52 bar3 chord0",
+    "16 t=7200 d=2400 s5 f2 m47 bar3 chord0",
+    "17 t=7200 d=2400 s6 f0 m40 bar3 chord0"
+  ],
+  "chords": [
+    "0 @7200ms [12,13,14,15,16,17]"
+  ],
+  "diagnostics": [
+    {
+      "severity": "info",
+      "code": "fret-assigned",
+      "message": "18 notes had no tab data; strings and frets were assigned"
+    }
+  ]
+}

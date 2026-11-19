@@ -36,40 +36,74 @@ type SourceRef = { source: SourceId; path?: string; url?: string; origin?: strin
 // SourceId = 'local'|'starter'|'classtab'|'songsterr'|'ultimate-guitar'|'gp-pack'
 // loadSong(bundle: SongBundle, {arrangement?, id?}) → Song; errors are ImportError (src/core/import/errors.ts)
 ```
-Invariants (validated by `src/core/model/validate.ts`): times non-decreasing; `midi = tuning[string−1] +
-capo + fret` except harmonics; no two non-tied notes on one string at one time; bars contiguous;
-sections cover whole bars. Tied destinations keep `tiedFrom` and are not judge targets.
-When a source has no sections, auto-sections of 8 bars are named "Part 1…n".
+Invariants (validated by `validateSong`, `src/core/model/validate.ts`; issue codes in brackets): ids equal
+indexes [`id-order`]; notes sorted by time, then string [`time-order`]; `midi = tuning[string−1] + capo + fret`
+except harmonics [`midi-invariant`]; no two non-tied notes on one string at one time [`string-collision`];
+bars indexed in played order, contiguous from 0 s, beats inside their bar starting on the downbeat [`bar-gap`];
+sections cover whole bars, in order, without overlap [`section-bars`]; `note.bar` contains the onset
+[`note-bar`]; chord ↔ note references agree [`chord-ref`]; `tiedFrom` names an earlier note on the same
+string [`tie-ref`]. Tied destinations keep `tiedFrom` and are not judge targets.
+When a source has no sections, auto-sections of 8 bars are named "Part 1…n" (`autoSections`).
+
+**Helpers** (`src/core/model/`): `notesInRange(song, from, to)` (binary search, `[start, end)` indexes),
+`barAt`, `sectionAt` (clamped; −1 without sections), `beatTimes` (flattened beat grid, for the metronome),
+`autoSections`, `validateSong`, `describeTuning` (`standard`, `drop-d`, `eb-standard`, `d-standard`,
+`drop-c-sharp`, `drop-c`, `double-drop-d`, `dadgad`, `open-g`, `open-d`, `open-e`, else `custom` labelled
+low → high, e.g. `D# A D G B E`), `onsetGroups`, `midiToName`.
 
 ## alphaTab import (`src/core/import/alphatab/`)
-Uses `importer.ScoreLoader` and `midi.MidiFileGenerator` (verified recipe in
-[research/libraries.md](research/libraries.md#verified-alphatab-node-api)); the player is never used.
+Uses `importer.ScoreLoader.loadScoreFromBytes` (binary/MusicXML), `importer.AlphaTexImporter` (`.atex`) and
+`midi.MidiFileGenerator` (verified recipe in [research/libraries.md](research/libraries.md#verified-alphatab-node-api));
+the player is never used.
 | alphaTab | Song |
 |---|---|
-| `gen.tickLookup.masterBars` (played order, repeats/voltas/jumps expanded) | `timing.bars`, note times |
-| tempo changes per master bar → tick→time | `timing.tempos` |
-| `masterBar.section.text` | `sections` |
+| `gen.tickLookup.masterBars` (played order, repeats/voltas/jumps expanded) | `timing.bars` (`sourceIndex` = written bar), note times |
+| `masterBars[].tempoChanges` → tick→seconds | `timing.tempos` (first at 0 s, duplicates dropped) |
+| time signature + played bar length | `bar.num/den`, `bar.beats` (one beat per `1/den` note; a pickup keeps only the beats it has) |
+| `masterBar.section.text` (else `.marker`), per played pass | `sections` (a repeated section appears once per pass; bars before the first marker form "Start") |
 | `staff.tuning` (high → low) | `meta.tuning` (already high-first) |
 | `note.string` (**1 = lowest**) | `string = tuning.length − n.string + 1` |
-| `note.fret`, `note.realValue` | `fret`, `midi` (golden-test that `realValue` matches the invariant incl. capo) |
-| `isHammerPullOrigin` / destination | `hammerOn` or `pullOff` (by pitch direction) / `legatoDest` |
-| `slideInType`, `slideOutType` | `slide` |
-| `bendPoints` (values are quarter-tones: semitones = max value / 2; verify with a golden test) | `bend` |
-| `isPalmMute`, `isLetRing`, `vibrato`, `harmonicType`, `isDead`, `isTieDestination` | flags / `tiedFrom` |
-| `beat.chord?.name`, notes sharing a beat | `chords` |
-| `staff.capo`, `track.name`, `score.title/artist` | meta |
-Track selection: list tracks whose staff has 6 strings and a tab-capable guitar program; bass,
-drums and 7-string tracks are listed as unsupported. Default arrangement = first playable track.
-Grace notes take ~1/32 before the main beat; overfull bars are clipped and logged.
+| `note.fret`, `staff.capo` | `fret`; `midi = tuning + capo + fret` (golden-tested equal to `realValue` incl. capo) |
+| harmonics | `midi` = harmonic pitch (`realValue − realValueWithoutHarmonic` added; natural 12th = +12, 7th = +19) |
+| `isHammerPullOrigin` / destination | `hammerOn` (destination fret ≥ origin) or `pullOff` / `legatoDest` |
+| `slideOutType` (else `slideInType`) | `slide` (pick slides map to `out-up`/`out-down`); a legato slide's target gets `legatoDest` |
+| `bendPoints` (quarter-tones) | `bend.semitones = max / 2`; `release` when the curve ends below its peak (golden-tested) |
+| `isPalmMute`, `isLetRing`, `vibrato`, `harmonicType`, `isDead`, `isGhost`, `isTieDestination` | flags / `tiedFrom` |
+| notes sharing a beat (≥ 2, ties excluded), `beat.chord?.name` | `chords` |
+| `staff.capo`, `score.title/artist/music` | meta (`title` falls back to the file name; MusicXML composer credits arrive as `artist`) |
+Note onset = `masterBar.start + beat.playbackStart` ticks (simile bars play the bar they repeat; triplet
+feel is not applied). Text fields are whitespace-normalised (alphaTab's MusicXML importer emits U+00A0).
 
-**MusicXML.** Imported by alphaTab. If notes lack string/fret (no `<technical><string>/<fret>`), run
-`fret-assign.ts`: dynamic programming over candidate (string, fret) positions minimising
-hand-position shifts and span (same window rule as [game-mechanics.md](game-mechanics.md#hand-position-cue)),
-frets ≤ 15 preferred, open strings allowed.
+**Tracks** (`listTracks` / `alphaTabTracks`): drums (percussion or channel 10), bass (program 33–40 in 1-based
+GM or 4–5 strings), not-guitar (no tab data and no guitar program, or a non-guitar program not shown as tab),
+7-string (`string-count`), no notes. Everything else with 6 strings is playable. Default arrangement = first
+playable track. `noteCount` counts written notes (repeats not expanded, ties excluded).
+
+**Diagnostics** (`Song.diagnostics`): alphaTex errors throw `ImportError('syntax')` with every diagnostic
+(`AT202`, line, column); alphaTex warnings on a successful load are kept (hints are dropped);
+`overfull-bar` (notes past the bar end are dropped), `string-collision` (duplicate onsets on one string
+are dropped), `fret-assigned`, `out-of-range`. Grace notes before the very first beat are dropped. Unreadable
+bytes throw `unsupported`; a non-`ImportError` failure during conversion becomes `internal`.
+
+**MusicXML.** Imported by alphaTab (`.musicxml`, `.xml` with a `score-partwise`/`score-timewise` root,
+compressed `.mxl`); repeats are expanded and `<rehearsal>` marks become sections. If notes lack string/fret
+(no `<technical><string>/<fret>`), `fret-assign.ts` places them (standard tuning when the part has none):
+dynamic programming over onset groups (same time or chord) and hand windows `lo` (window rule from
+[game-mechanics.md](game-mechanics.md#hand-position-cue): `[lo, lo+3]`, `lo+4` from fret 7). Each group picks
+distinct strings; costs: 0.25 per fret height, +6 per fret above 15, a shift costs 2 + 0.5 per fret moved
+(every window covering the group is a candidate), an assignment wider than one window +50. Open strings
+never move the hand. Pitches outside the range move by octaves (diagnostic `out-of-range`).
 
 **alphaTex.** `ScoreLoader.loadAlphaTex`; diagnostics (code, line, column) are surfaced to the author.
 Starter files use `\title`, `\artist`, `\tempo`, `\tuning`, `\section` and per-note effects
-(`{h}`, `{sl}`, `{b (0 4)}`, `{pm}`, …), plus a `% riffway: tags=pick,rock` comment for tags.
+(`{h}`, `{sl}`, `{b (0 4)}`, `{pm}`, …), plus an optional `// riffway: tags=pick,rock` comment for tags
+(`pick`/`fingerstyle` → style, anything else → genre; merged with `SongBundle.tags`). alphaTex has no `%`
+comments.
+
+**Test fixtures** (`tests/fixtures/import/`, all authored for Riffway): alphaTex sources, one file per
+technique flag, hand-written MusicXML; `gp/*.gp` and `tab-dropd.mxl` are generated from them by
+`npx tsx tests/fixtures/import/build-fixtures.ts` (alphaTab `Gp7Exporter`). Golden summaries live in
+`tests/fixtures/import/golden/`.
 
 ## ASCII tab parser (`src/core/import/ascii/`)
 1. Decode UTF-8, fall back to windows-1252; normalise CRLF.
