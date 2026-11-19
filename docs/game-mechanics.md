@@ -127,7 +127,57 @@ Score, stars, accuracy, max combo, counts per outcome (per note), timing histogr
 bins from −120 to +120 ms, one entry per hit or WrongNote group),
 section heatmap (accuracy per section), **weakest section** with a one-click "Loop this" (opens
 practice with that section, speed trainer on), clean-run flag, and personal-best badges. Copy is
-informational, never guilt-based.
+informational, never guilt-based. Implemented in `src/ui/screens/results/` (`#/results/:runId`):
+- **Timing tendency** from the histogram's bin centres: fewer than 8 entries → unknown; mean within
+  ±10 ms → centred; else "You tend to play early/late — about N ms".
+- **Progress** lists this run's section-progress changes: clean runs (with the 2-at-100%-per-session
+  mastery count), mastered, locked in, failed next-day check, plateau nudge.
+- **Next up** (`nextSteps`, at most 3): loop the weakest section when it is below 90%; after a clean
+  run below 100% "Try it at +5%", at 100% "Go for mastery"; below 70% "Play it at −10%"; always "Play
+  again". Plus up to 3 stretch picks from the library (`recommend()`).
+- A just-played run is handed over in memory; a results URL opened later is rebuilt from the stored
+  run (no timing score, chord count or progress lines). Unsaved runs use the key `unsaved-<endedAt>`.
+
+## Game session (`src/game/session/`)
+`createGameSession` loads the song meta + bundle, the `Song` (song worker), renders the guide at the
+start speed, loads the backing link (guide muted per `guideShouldMute`), opens the guitar input
+(below) and creates a `GameSessionImpl`, which drives the judge as in § Driving the judge:
+- **Run** = one `play()` from `ready`/`ended` until song end, "End run" or quit. The judge is created
+  right before `transport.play()`; with a loop the run starts at `A − pre-roll`.
+- A session timer (20 ms `setInterval`, keeps ~1 Hz in a hidden tab) flushes test injections, adds
+  active time (transport playing or counting in), calls `advance()` with the **earliest** horizon of
+  the active sources (keyboard always, guitar when open), evaluates finished loop passes and the end.
+- **Song end:** the run is finished once the horizon passes the end + Good + 10 ms, so late input for
+  the last notes still counts. Then the run is saved (run record, best for its speed bucket — full-song
+  runs without a loop only, at the slowest speed played — practice time + streak, song cache) and
+  `onRunEnd(summary, runId)` fires; the screen opens the results.
+- **Section progress:** a full-song run counts for every section whose notes were all judged; a loop
+  pass whose loop is exactly one section counts for that section once its notes are final (wrap +
+  Good + 10 ms), which also steps the speed trainer (`trainerStep`) and, with the trainer on, sets the
+  new speed (bar-aligned) and posts "Clean run! +5% → 75%" / "Slow down a notch → 75%". Loops over
+  other bar ranges use an in-memory trainer. Mastery / lock-in / plateau post `info` / `plateau`
+  messages. Mastery counts clean runs at 100% within one practice session = one page load.
+- **Quit** records only the active time (no run); **restart** discards the run the same way.
+- Practice start speed: explicit `speed`, else for a looped section with the trainer on the stored
+  trainer speed (or 70% / 60% by tier), else 100%. Speeds clamp to 40–110%; crossing 60% re-applies the
+  loop with its 1- or 2-bar pre-roll.
+- **Guitar input:** `input=keyboard` never opens it; `auto` (default) uses an input that is already
+  open or the device chosen before (it never prompts on its own); `guitar` opens it. With `?e2e=1` the
+  default is `keyboard` (a fake capture device's beeps would add onsets). The session sends `expect`
+  hints (pitch range of notes from 0.25 s back to 3 s ahead, bends included, dead notes excluded) every
+  0.2 s when the range changes, and `expect(null)` on dispose.
+
+## Game screen (`src/ui/screens/game/`, `#/play/:id`)
+Query: `arr`, `mode` (`play` | `practice`), `section` (loop it), `speed`, `input`. HUD: song, mode,
+current section, score, combo + multiplier badge, accuracy, live star meter (stars + progress to the
+next threshold), speed. Stage: the highway, a central outcome pop (outcome + detail per the
+*feedback detail* setting: minimal = outcome only; standard = early/late outside Great and "played
+G3"; detailed = also ±ms), a "×N" burst when the multiplier steps up, the count-in number, coach
+messages, and the note "Chords: judged on timing + any chord tone" while chords are in view. Footer:
+section progress bar (live per-section accuracy colour, loop region, playhead; click to jump in
+practice mode). Start card (mode, speed, loop, input, key legend), pause menu (Resume, Restart,
+Practice tools, End run & see results, Quit to song); the tab going hidden pauses. Practice tools
+(drawer, open by default in practice mode on wide screens) mount the `practice` and `mixer` panels.
 
 ## Practice logic (`src/core/practice/`)
 - **Speed trainer** (D8, parameters in `TRAINER`): start 70% (60% when the section is ≥ 2 tiers above
@@ -182,10 +232,43 @@ Hit feedback: gem flash + particle burst + outcome text at the hit line; WrongNo
 "played G3"; Miss greys the gem. Combo flame grows with the multiplier.
 
 ## Keyboard input mode (D6)
-- Default keys `1`–`6`: `1` = high e … `6` = low E (remappable in settings).
-- A key press yields an onset with the pitch of the nearest open note on that lane within the Good
-  window, or the lane's open-string pitch. **Shift + key** adds +1 semitone → a deliberate WrongNote.
-- Events go through the same judge path as guitar events with `source: 'keyboard'` and the keyboard
-  calibration offset. `Esc` pauses.
-- e2e test hook (`?e2e=1`): `window.__riffwayTest.inject({lane, songTime, wrongPitch})` enqueues an
-  event at an exact song time through the same path.
+- Default keys `1`–`6`: `1` = high e … `6` = low E (remappable in settings, `keyboard.lanes`).
+- A key press yields an onset with the pitch of the nearest note on that lane within the Good
+  window (`0.12 s × speed` in song time), or the lane's open-string pitch (tuning + capo). **Shift +
+  key** adds +1 semitone → a deliberate WrongNote. Key repeats are ignored; lane keys also work while a
+  button has focus, never while typing in a field; Ctrl/Alt/Meta combos are left alone.
+- Events go through the same judge path as guitar events with `source: 'keyboard'`, timed in the heard
+  domain (`engine.perfToCtxTime(event.timeStamp)`) minus `keyboardOffsetMs`. `Esc` pauses / resumes;
+  `Space` / `Enter` (no control focused) start or resume.
+- **Practice-panel shortcuts** (T-032, `src/ui/panels/practice/shortcuts.ts`; physical keys, no
+  Ctrl/Alt/Meta; ignored while typing, while a modal is open and on auto-repeat except speed). The game
+  never binds or `preventDefault`s these:
+
+| Key | Action | Panel |
+|---|---|---|
+| `-` | Slower: −5% | practice |
+| `=` (`+`) | Faster: +5% | practice |
+| `A` | Set loop start (A) at the heard position | practice |
+| `B` | Set loop end (B) at the heard position | practice |
+| `L` | Loop the current section; again clears the loop | practice |
+| `[` / `]` | Loop the previous / next section | practice |
+| `T` | Speed trainer on/off | practice |
+| `M` | Metronome on/off | practice |
+| `C` | Count-in: 0 → 1 → 2 bars | practice |
+| `G` | Guide synth on/off | mixer |
+
+  Reserved for the game: the lane keys (a remapped lane wins over a shortcut), Shift, `Esc`, Space,
+  Enter, Tab and the arrows.
+
+### e2e test hook (`?e2e=1`, `src/test-hooks/`)
+`window.__riffwayTest` drives the game session on screen:
+- `ready()` — a session is loaded; `getState()` — route + `{songId, arrangement, state, songTime,
+  speed, judge}`.
+- `inject({lane, songTime, wrongPitch})` — an onset (`source: 'test'`) at exactly `songTime` in the
+  pass being played, pitched like keyboard mode. Injections are queued until that pass reaches the
+  time (dropped if the pass skips it), so a whole song can be scripted right after pressing Play;
+  an exact time gives Δ = 0 → Perfect.
+- `getJudgements()` — the run's final judgements (also after leaving for the results page).
+- `getNotes()` (extension) — the song's judge targets `{id, songTime, lane, midi, chord}`; inject one
+  event per chord.
+- `setSpeed(speed)` / `seek(songTime)` — like the practice panel.
