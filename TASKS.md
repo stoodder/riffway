@@ -512,6 +512,18 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Findings:** R2-I-07; R2-U-07…13, U-15, U-19, U-20, U-23…28; R2-S-03…10, S-13, S-15 (CLAUDE.md env line: send text in report); T-041 notes 1, 3, 4, 5, 7; `src/storage/validate.ts` union checks for new string settings. For S-09 remove the promise from the doc rather than implementing it. For S-10 show the loopback-measured round trip in the monitor panel when available.
 - **Acceptance:** as T-111.
 
+### T-121 · R3 fixes: correctness
+- **Status:** in-progress · **Deps:** T-092 · **Parallel:** y (with T-122) · **Agent:** `impl-fix-core`
+- **Owns:** `src/core/judge/`, `src/core/dsp/` (except `amp/`), `src/audio/input/`, `src/audio/worklets/analysis.worklet.ts`, `src/game/session/`, `playwright.config.ts`, `e2e/support/`, tests for those areas, `docs/timing.md`, `docs/audio-input.md`, `docs/game-mechanics.md` (judge sections only)
+- **Findings:** R3-C-01 (widen delivery margin to ~60 ms; document Miss-mark delay), R3-C-02 (no silent laptop-mic fallback in guitar/auto mode: pause with notice like I-04, or require explicit opt-in), R3-C-03 (pitch window scales with sample rate so E2–F#2 and Drop-D D2 work at 88.2/96 kHz; tests at 44.1/48/88.2/96 kHz), R3-C-04 (`npm run test:e2e` must not rewrite committed screenshots unless an explicit env flag is set, e.g. `RIFFWAY_UPDATE_SCREENSHOTS=1`; document in CLAUDE.md text in report).
+- **Acceptance:** each fixed with regression tests; Status column in R3-correctness.md; full suite + e2e green.
+
+### T-122 · R3 fixes: UX, copy, spelling sweep
+- **Status:** in-progress · **Deps:** T-092 · **Parallel:** y (with T-121) · **Agent:** `impl-fix-ui`
+- **Owns:** `src/ui/**`, `src/game/highway/`, `src/core/progress/`, `docs/manual-test-checklist.md`, `docs/progress.md`, `e2e/*.spec.ts` (selectors/copy only), tests for those areas
+- **Findings:** R3-U-01, 02, 04–24 (R3-U-03 is the orchestrator's). R3-U-21 = R2-U-29 spelling sweep: standardise ALL user-facing copy on US English (practice, favorite, recognize, color…) — UI strings only plus the manual checklist; keep code identifiers stable. Also lane letters on the hit-line target wells are partly occluded by the hit line (orchestrator observation) — make them readable.
+- **Acceptance:** each fixed or rejected with reason in R3-ux-dod.md Status column; screenshots at 1440×900 and 1280×720 verify; full suite + e2e green.
+
 ## Wave 4
 
 ### T-041 · Playwright e2e + screenshots + manual test checklist
@@ -531,7 +543,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     0–12, legato, chord leniency, backing-audio sync, human check that Songsterr/UG link-outs land on results.
 
 ### T-092 · Review round R3 (final)
-- **Status:** in-progress · **Deps:** T-041 · **Parallel:** n · **Agent:** `review`
+- **Status:** done · **Deps:** T-041 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R3.md`; adds fix tasks
 - **Acceptance:** all tests, typecheck, lint and e2e green; DoD checklist ticked with evidence; docs
   current; fix tasks closed or explicitly deferred with the owner's visibility.
@@ -543,7 +555,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   for the owner (D1 acceptance, DEC-24), branch merged to `main` and pushed.
 
 ## Review fix tasks
-R1: T-101, T-102 (+ T-103, T-104 follow-ups). R2: T-111, T-112. See docs/reviews/.
+R1: T-101, T-102 (+ T-103, T-104 follow-ups). R2: T-111, T-112. R3: T-121, T-122. See docs/reviews/.
 Added by R1–R3 as `T-1xx` with owner, owned files and acceptance.
 
 ## Candidate sources (not this iteration unless noted)
