@@ -105,6 +105,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-112 | R2 UI/docs/storage fixes | impl | done 086b938: badge removed, ClassTab download card in library, tier-consistent recs, setup flow fixes, e2e deterministic 10/10 |
 | T-111 | R2 game runtime + game UX fixes | impl | done 432cef0: I-01..09 fixed; outcome display in gutter, distinct outcome colours, earlier hand cues; held-onset worst 74.1 vs 74.3 ms budget (thin) |
 | T-121 | R3 correctness fixes | impl | done 817e710: delivery margin 60 ms; no silent mic fallback; pitch windows scale to 88.2/96/192 kHz; e2e screenshots only with RIFFWAY_UPDATE_SCREENSHOTS=1 |
+| T-122 | R3 UX/copy fixes + US spelling sweep | impl | done 98febd4: all R3-U fixed; 1969 tests, e2e 10/10 |
 
 ---
 
@@ -520,7 +521,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** each fixed with regression tests; Status column in R3-correctness.md; full suite + e2e green.
 
 ### T-122 · R3 fixes: UX, copy, spelling sweep
-- **Status:** in-progress · **Deps:** T-092 · **Parallel:** y (with T-121) · **Agent:** `impl-fix-ui`
+- **Status:** done · **Deps:** T-092 · **Parallel:** y (with T-121) · **Agent:** `impl-fix-ui`
 - **Owns:** `src/ui/**`, `src/game/highway/`, `src/core/progress/`, `docs/manual-test-checklist.md`, `docs/progress.md`, `e2e/*.spec.ts` (selectors/copy only), tests for those areas
 - **Findings:** R3-U-01, 02, 04–24 (R3-U-03 is the orchestrator's). R3-U-21 = R2-U-29 spelling sweep: standardise ALL user-facing copy on US English (practice, favorite, recognize, color…) — UI strings only plus the manual checklist; keep code identifiers stable. Also lane letters on the hit-line target wells are partly occluded by the hit line (orchestrator observation) — make them readable.
 - **Acceptance:** each fixed or rejected with reason in R3-ux-dod.md Status column; screenshots at 1440×900 and 1280×720 verify; full suite + e2e green.
