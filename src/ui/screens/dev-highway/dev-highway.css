@@ -1,0 +1,82 @@
+/* Highway dev screen (T-024, dev only). */
+.dh {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dh-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.dh-head h1 {
+  font-size: var(--text-2xl);
+}
+
+.dh-readouts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-1);
+}
+
+.dh-time {
+  font-family: var(--font-mono);
+  font-size: var(--text-lg);
+  color: var(--color-text);
+}
+
+.dh-stats {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--color-text-subtle);
+}
+
+.dh-stage {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg);
+  box-shadow: var(--shadow-2);
+}
+
+.dh-canvas {
+  display: block;
+  width: 100%;
+  height: clamp(320px, 52vh, 480px);
+}
+
+.dh-controls {
+  display: grid;
+  grid-template-columns: auto minmax(0, 2fr) minmax(0, 1.4fr);
+  gap: var(--space-5);
+  align-items: start;
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface-1);
+}
+
+.dh-transport {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-4);
+}
+
+.dh-sliders,
+.dh-toggles {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.dh-toggles {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.dh-unsupported {
+  padding: var(--space-6);
+  color: var(--color-text-muted);
+}
