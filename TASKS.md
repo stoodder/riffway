@@ -76,6 +76,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-014 | Judge, scoring and practice logic | impl | done 2d337d8: 159 tests incl. window-edge tables at 40-110% speed; bias-corrected matching |
 | T-018 | App shell, design system, navigation | impl | done 43884ab: 52 tests; gallery at #/dev/components; reduced motion in e2e |
 | T-016 | Audio engine: clock, scheduler, metronome, mixer | impl | done b438eea: 40 node + 9 OfflineAudioContext tests (clicks within 1 sample); limiter = waveshaper (compressor added 6ms) |
+| T-015 | DSP core: pitch, onset, level, tuner | impl | done d81438e: 86 tests; MPM <=2 cents E2-E6, no octave errors; onsets ±5ms; tuned on synthetic only |
 
 ---
 
@@ -172,7 +173,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Deterministic; 10k events judged in < 50 ms.
 
 ### T-015 · DSP core: pitch, onset, level, tuner
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/core/dsp/` (except `amp/`), `tests/dsp/`, `tests/helpers/` (signal generators; others may import)
 - **Acceptance:**
   - Radix-2 FFT, MPM pitch (allocation-free after init), onset detector, pitch-change detector, level
