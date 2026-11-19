@@ -26,8 +26,7 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 | `npm run classtab:refresh` | Download/refresh the ClassTab zip and rebuild its index |
 
 Env: `RIFFWAY_DATA_DIR` (default `~/.riffway`), `RIFFWAY_PORT` (5174), `RIFFWAY_LIBRARY_DIR` (override the
-configured library folder), `RIFFWAY_LOG_LEVEL` (`info`). (Exact scripts live in `package.json`; keep this table in sync.)
-Env: `RIFFWAY_DATA_DIR` (data dir, default `~/.riffway`), `RIFFWAY_VITEST_BROWSER_PORT` (fixed Vitest browser-server port; default: a free OS-picked port on 127.0.0.1).
+configured library folder), `RIFFWAY_LOG_LEVEL` (`info`), `RIFFWAY_VITEST_BROWSER_PORT` (fixed Vitest browser-server port; default: free port on 127.0.0.1). (Exact scripts live in `package.json`; keep this table in sync.)
 
 ## Contracts and extension points (frozen by T-010)
 - Types: `shared/*.ts` (`@shared/*`); DOM-free except `shared/ui.ts` and `shared/services.ts`. Aliases
