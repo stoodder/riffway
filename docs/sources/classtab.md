@@ -1,6 +1,6 @@
 # ClassTab.org
 
-Last verified: 2026-11-19 · Status: **implement now** (download adapter)
+Last verified: 2026-11-19 · Status: **implemented** (T-025, `server/sources/classtab/`)
 
 ## Access
 - Whole-site zip, offered on the home page as "updated monthly":
@@ -68,3 +68,28 @@ Free-form. Common elements:
 `Tuning : E A D F# B E - Time Signature: 2/4`, and prose such as `6th string = D`, `6=D` or `Tune 6th to D`.
 Drop D is the most common alternate tuning. The headers also include tempo (`tempo: Q=100`), capo (90 files)
 and a legend (`= note held`, `p pull off`). Parse them with tolerant regular expressions and fall back to standard tuning.
+
+## Implementation (T-025)
+- **Refresh:** `npm run classtab:refresh [-- --force] [--data-dir <dir>]`, or `POST /api/classtab/refresh`
+  (`{}` or `{"force": true}`; answers `202 {started: true}` or `200 {started: false, reason}`). Progress
+  and the outcome arrive as `classtab.progress` events (`checking → downloading → extracting → indexing →
+  done`, or `not-modified` / `error`) on `GET /api/events`. `GET /api/classtab/status` returns `ClassTabStatus`.
+- **Politeness:** one GET of the zip with `User-Agent: Riffway/0.1 (personal local app)` (no personal
+  data), `If-None-Match` / `If-Modified-Since` from the last download (only while the extracted files
+  exist). At most one contact per day unless forced. Network errors, `429` and `5xx` get 3 attempts with
+  10 s then 20 s waits (a longer `Retry-After` up to 5 min is honoured).
+- **Safe extraction** (yauzl, streaming): only `.txt` / `.mid` are written, flat, into a fresh temp folder
+  that replaces `files/` only after success. Entry names with `..`, an absolute path, a drive letter or
+  control characters are refused and logged; symlinks, encrypted entries, case-insensitive duplicates and
+  files over 10 MB are skipped. Limits: 100 MB zip, 20,000 entries, 300 MB unpacked; yauzl checks each
+  entry's real size. Files keep the zip's mtime, so unchanged tabs stay cached in the index after a monthly update.
+- **Layout** under `<dataDir>/classtab/`: `classtab.zip`, `files/`, `state.json` (validators, last check,
+  counts, last error), `pairs.json` (pairing cache keyed by a fingerprint of `files/`).
+- **Indexing:** T-012's `pairClassTab` (tab text decoded UTF-8 → windows-1252) gives each tab its MIDI;
+  a multi-version tab is indexed once with version 1's MIDI. Every entry is tagged `fingerstyle` and
+  `classical` (a search filter, never hidden), links to `https://www.classtab.org/<file>`, and takes
+  composer and title from the header line. `GET /api/songs/:id/rhythm` serves the paired MIDI.
+  A running server notices a refresh made by the CLI (`state.json` watcher) and re-indexes.
+- **First real run** (2026-11-19, snapshot of 2026-11-01): 3,976 tabs and 2,341 MIDI files; 2,276 tabs
+  paired; rhythm from MIDI 1,921, beat ruler 432, needs alignment 1,616; 5 files skipped as not tabs and
+  2 indexed as unplayable (bass / 7-string); composer found in 2,852 headers. About 70 s end to end.
