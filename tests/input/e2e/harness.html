@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Riffway input + tuner harness (T-022)</title>
+    <style>
+      body { margin: 0; }
+      .harness { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 24px; align-items: start; max-width: 1280px; margin: 0 auto; padding: 32px; }
+    </style>
+  </head>
+  <body>
+    <main class="harness">
+      <div id="input"></div>
+      <div id="tuner"></div>
+    </main>
+    <script type="module" src="./harness.ts"></script>
+  </body>
+</html>
