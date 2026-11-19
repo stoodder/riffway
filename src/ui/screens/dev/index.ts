@@ -81,7 +81,7 @@ function miniHighway(): HTMLElement {
       ),
     ),
   );
-  return h('div', { class: 'gal-highway', role: 'img', 'aria-label': 'String colours on a miniature highway' }, h('span', { class: 'gal-highway__hit' }), ...lanes);
+  return h('div', { class: 'gal-highway', role: 'img', 'aria-label': 'String colors on a miniature highway' }, h('span', { class: 'gal-highway__hit' }), ...lanes);
 }
 
 function songCard(title: string, artist: string, rating: number, tags: string[], stars: number, accentTier: Tier): HTMLElement {
@@ -233,7 +233,7 @@ export const mount: ScreenMount = (el, ctx) => {
     ['--text-2xl', 'Screen title', 'gal-type--2xl'],
     ['--text-xl', 'Section heading', 'gal-type--xl'],
     ['--text-lg', 'Card heading', 'gal-type--lg'],
-    ['--text-md', 'Emphasised body copy', 'gal-type--md'],
+    ['--text-md', 'Emphasized body copy', 'gal-type--md'],
     ['--text-base', 'Body copy for descriptions and settings.', 'gal-type--base'],
     ['--text-sm', 'Secondary text, labels and controls.', 'gal-type--sm'],
     ['--text-xs', 'Captions and hints.', 'gal-type--xs'],
@@ -258,12 +258,12 @@ export const mount: ScreenMount = (el, ctx) => {
       { class: 'gal-grid' },
       specimen(
         'Strings',
-        'Lane colours, 1 = high e (top) to 6 = low E. Rocksmith order; each ≥ 4.5:1 on the background.',
+        'Lane colors, 1 = high e (top) to 6 = low E. Rocksmith order; each ≥ 4.5:1 on the background.',
         miniHighway(),
       ),
       specimen(
         'Feedback',
-        'Judgements, combo multiplier and stars. Neon glow only here.',
+        'Judgments, combo multiplier and stars. Neon glow only here.',
         h('div', { class: 'gal-judges' }, ...tags),
         h('div', { class: 'rw-row' }, comboBadge(1, 4), comboBadge(2, 12), comboBadge(3, 27), comboBadge(4, 48), h('span', { class: 'gal-spacer' }), replay),
         h(
@@ -275,7 +275,7 @@ export const mount: ScreenMount = (el, ctx) => {
       ),
       specimen(
         'Difficulty',
-        'Ratings 1.0–10.0; colour per tier, band meter per name (Beginner … Expert).',
+        'Ratings 1.0–10.0; color per tier, band meter per name (Beginner … Expert).',
         h('div', { class: 'gal-pills' }, ...[1.0, 2.3, 3.4, 4.1, 5.0, 6.2, 7.4, 8.1, 9.3, 10.0].map((rating) => difficultyPill({ rating }))),
         h('div', { class: 'gal-pills' }, ...([2, 4, 6, 8, 10] as Tier[]).map((t) => difficultyPill({ tier: t, size: 'sm' }))),
       ),
@@ -324,10 +324,10 @@ export const mount: ScreenMount = (el, ctx) => {
       ),
       specimen(
         'Controls',
-        'Sliders, switches and selects, labelled and keyboard-operable.',
+        'Sliders, switches and selects, labeled and keyboard-operable.',
         h('div', { class: 'gal-two' }, h('div', { class: 'rw-stack' }, speed.el, guide.el), h('div', { class: 'rw-stack' }, metronome.el, handCues.el, preset.el)),
       ),
-      specimen('Meters', 'Level meter with zones and peak hold; progress meters take any colour.', h('div', { class: 'gal-two' }, h('div', { class: 'rw-stack' }, level.el, hot.el), h('div', { class: 'rw-stack' }, accuracy.el, goal.el))),
+      specimen('Meters', 'Level meter with zones and peak hold; progress meters take any color.', h('div', { class: 'gal-two' }, h('div', { class: 'rw-stack' }, level.el, hot.el), h('div', { class: 'rw-stack' }, accuracy.el, goal.el))),
       specimen(
         'Tabs and menus',
         'Arrow keys move between tabs and menu items; Enter chooses; Esc closes.',
@@ -353,7 +353,7 @@ export const mount: ScreenMount = (el, ctx) => {
       'div',
       { class: 'gal-grid' },
       specimen(
-        'Colour',
+        'Color',
         'Surfaces step up in lightness; text has three emphasis levels.',
         h(
           'div',

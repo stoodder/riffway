@@ -261,7 +261,10 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       title: q ? `No songs in your library match “${q}”` : 'No songs match these filters',
       message: hasFilters(query)
         ? 'Try a wider difficulty range or another tuning, or clear the filters.'
-        : 'Check the spelling, or find the song on Songsterr or Ultimate Guitar below and drop the file here.',
+        : offer.el.hidden
+          ? 'Check the spelling, or find the song on Songsterr or Ultimate Guitar below and drop the file here.'
+          : // ClassTab is on but not downloaded: its card is right below (R3-U-18).
+            'Check the spelling, find the song on Songsterr or Ultimate Guitar below and drop the file here, or download ClassTab below for classical and fingerstyle pieces.',
       icon: 'search',
       action: hasFilters(query) ? { label: 'Clear filters', onClick: () => apply({ ...DEFAULT_QUERY, q: query.q, sort: query.sort }) } : undefined,
       secondary: q ? { label: 'Clear search', onClick: () => apply({ ...query, q: '' }) } : undefined,
@@ -294,7 +297,10 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       if (my !== facetSeq || destroyed) return;
       config = cfg;
       folder.set(cfg);
-      void offer.load(cfg);
+      // The no-match text mentions the ClassTab card while it is offered: refresh it once known.
+      void offer.load(cfg).then(() => {
+        if (my === facetSeq && response?.results.length === 0) render();
+      });
       const indexed = sources.sources.filter((s) => s.kind !== 'link-out' && s.enabled && (s.indexed > 0 || query.sources.includes(s.id)));
       facets = {
         sources: indexed.map((s) => ({ id: s.id, label: SOURCE_LABEL[s.id], count: s.indexed })),

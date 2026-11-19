@@ -76,8 +76,8 @@ export function createVisualStep(ctx: AppContext, engine: AudioEngine): VisualSt
     h(
       'ol',
       { class: 'rw-calib__steps' },
-      h('li', null, 'Start the clicks and watch the gems reach the line.'),
-      h('li', null, 'If the flash comes before the click, press +5 ms; if after, −5 ms.'),
+      h('li', null, 'Start the clicks and watch each gem hit the line.'),
+      h('li', null, 'If the gem hits the line before you hear the click, press +5 ms (+ draws the gems later); if after, −5 ms.'),
       h('li', null, 'Stop when they feel simultaneous. This changes only the picture, not scoring.'),
     ),
     lane,

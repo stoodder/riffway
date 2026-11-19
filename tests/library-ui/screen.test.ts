@@ -290,6 +290,15 @@ describe('library screen', () => {
     expect(el.querySelector('.rw-empty__title')?.textContent).toBe('No songs in your library match “master of puppets”');
     expect(el.querySelector('.rw-empty__message')?.textContent).toMatch(/Songsterr or Ultimate Guitar below/);
     expect(el.querySelectorAll('.lib-linkouts__list .lib-linkout')).toHaveLength(2);
+    expect(el.querySelector('.rw-empty__message')?.textContent).not.toMatch(/ClassTab/);
+  });
+
+  it('points at the ClassTab card in the no-match text while ClassTab is offered (R3-U-18)', async () => {
+    server.classtab = classtabStatus();
+    await start({ q: 'lagrima' });
+    await flush();
+    expect(el.querySelector('.lib-classtab')?.hasAttribute('hidden')).toBe(false);
+    expect(el.querySelector('.rw-empty__message')?.textContent).toMatch(/or download ClassTab below for classical and fingerstyle pieces/);
   });
 
   it('changes the library folder with validation and shows server errors', async () => {

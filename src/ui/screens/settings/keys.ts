@@ -165,7 +165,7 @@ export function keyMapBlock(ctx: AppContext): KeyMapBlock {
     ev.preventDefault();
     ev.stopPropagation();
     if (ev.code === 'Escape') {
-      stop('Key change cancelled.');
+      stop('Key change canceled.');
       return;
     }
     const reason = reservedReason(ev.code);

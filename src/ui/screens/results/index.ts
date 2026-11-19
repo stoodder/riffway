@@ -24,12 +24,14 @@ import {
 } from '../../../game/session/results';
 import { badge, button, emptyState, h, starRating } from '../../components';
 import { displayArtist } from '../game/hud';
-import { nextStepCards, outcomeTiles, progressList, recommendationList, sectionHeatmap, timingHistogram } from './view';
+import { nextStepCards, notesSummary, outcomeTiles, progressList, recommendationList, sectionHeatmap, timingHistogram } from './view';
 import './results.css';
 
 const REQUIRED = ['api', 'router', 'storage'] as const;
 /** What "Timing precision" means (tooltip + screen-reader description). */
 const TIMING_PRECISION_HELP = 'How close your hits were to the beat: 100% if every hit was Perfect, 75% Great, 50% Good.';
+/** What the "Clean run" badge means (a section's own clean run is listed under Progress). */
+const CLEAN_RUN_HELP = 'A clean run is 90% or better across the whole run. Each section counts its own clean runs: see Progress.';
 const pct = (s: number): string => `${Math.round(s * 100)}%`;
 
 function unavailableView(el: HTMLElement, missing: readonly string[]): ScreenHandle {
@@ -119,7 +121,8 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
     r.newBest
       ? badge(`New best at ${pct(r.speed)}${r.previousBestScore !== null ? ` (+${(r.score - r.previousBestScore).toLocaleString('en-US')})` : ''}`, { tone: 'success', icon: 'star' })
       : null,
-    r.clean ? badge('Clean run', { tone: 'success', icon: 'check' }) : null,
+    // Overall accuracy; sections are judged on their own, so say which (R3-U-12).
+    r.clean ? badge('Clean run · 90%+ overall', { tone: 'success', icon: 'check', title: CLEAN_RUN_HELP }) : null,
   );
   const bestLine =
     r.best && !r.newBest
@@ -185,9 +188,16 @@ function render(ctx: AppContext, r: RunResult): HTMLElement {
     ),
     hero,
     actions,
-    h('section', { class: 'rs-block', 'aria-labelledby': 'rs-notes-h' }, h('h2', { id: 'rs-notes-h' }, 'Notes'), outcomeTiles(r), r.lenientChordNotes ? h('p', { class: 'rs-muted' }, `${r.lenientChordNotes} chord notes judged leniently (timing + any chord tone).`) : null),
+    h(
+      'section',
+      { class: 'rs-block', 'aria-labelledby': 'rs-notes-h' },
+      h('h2', { id: 'rs-notes-h' }, 'Notes'),
+      outcomeTiles(r),
+      h('p', { class: 'rs-notes-summary' }, notesSummary(r)),
+      r.lenientChordNotes ? h('p', { class: 'rs-muted' }, `${r.lenientChordNotes} chord notes judged leniently (timing + any chord tone).`) : null,
+    ),
     h('section', { class: 'rs-block', 'aria-labelledby': 'rs-timing-h' }, h('h2', { id: 'rs-timing-h' }, 'Timing'), timingHistogram(r)),
-    h('section', { class: 'rs-block rs-block--wide', 'aria-labelledby': 'rs-sec-h' }, h('h2', { id: 'rs-sec-h' }, 'Sections'), sectionHeatmap(r, loopSection)),
+    h('section', { class: 'rs-block rs-block--wide', 'aria-labelledby': 'rs-sec-h' }, h('h2', { id: 'rs-sec-h' }, 'Sections'), sectionHeatmap(r)),
     progress ? h('section', { class: 'rs-block rs-block--wide', 'aria-labelledby': 'rs-prog-h' }, h('h2', { id: 'rs-prog-h' }, 'Progress'), progress) : null,
     h(
       'section',

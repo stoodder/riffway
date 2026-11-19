@@ -67,6 +67,6 @@ describe('backing panel model', () => {
   it('formats offsets and tempo', () => {
     expect(formatOffset(412.4)).toBe('+412 ms');
     expect(formatOffset(-38)).toBe('−38 ms');
-    expect(formatTempo(98.765)).toBe('98.8 %');
+    expect(formatTempo(98.765)).toBe('98.8%');
   });
 });

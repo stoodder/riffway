@@ -200,11 +200,11 @@ function weekCard(w: WeekView, d: DailyView): HTMLElement {
         'li',
         {
           class: ['hm-day', day.practiced ? 'is-practiced' : '', day.today ? 'is-today' : '', day.future ? 'is-future' : ''].filter(Boolean).join(' '),
-          title: `${day.name}: ${day.practiced ? `practised ${day.minutes} min` : day.future ? 'still ahead' : day.minutes > 0 ? `${day.minutes} min` : 'rest day'}`,
+          title: `${day.name}: ${day.practiced ? `practiced ${day.minutes} min` : day.future ? 'upcoming' : day.minutes > 0 ? `${day.minutes} min` : 'rest day'}`,
         },
         h('span', { class: 'hm-day__dot', 'aria-hidden': 'true' }, day.practiced ? icon('check', { size: '14px' }) : null),
         h('span', { class: 'hm-day__letter', 'aria-hidden': 'true' }, day.letter),
-        h('span', { class: 'rw-visually-hidden' }, `${day.name}${day.today ? ' (today)' : ''}: ${day.practiced ? 'practised' : day.future ? 'ahead' : 'not practised'}`),
+        h('span', { class: 'rw-visually-hidden' }, `${day.name}${day.today ? ' (today)' : ''}: ${day.practiced ? 'practiced' : day.future ? 'upcoming' : 'not practiced'}`),
       ),
     ),
   );
@@ -217,11 +217,12 @@ function weekCard(w: WeekView, d: DailyView): HTMLElement {
   return h(
     'section',
     { class: w.met ? 'hm-card hm-week is-met' : 'hm-card hm-week', 'aria-labelledby': 'hm-week-title' },
-    h('header', { class: 'hm-week__head' }, h('p', { class: 'rw-eyebrow' }, 'This week'), w.repairing ? badge('Bonus week', { tone: 'accent' }) : null),
+    h('header', { class: 'hm-week__head' }, h('p', { class: 'rw-eyebrow' }, 'Practice time'), w.repairing ? badge('Bonus week', { tone: 'accent' }) : null),
     h(
       'div',
       { class: 'hm-week__top' },
-      h('div', { class: 'hm-week__ring' }, ring, h('p', { class: 'hm-week__daily' }, d.message)),
+      // The ring is today's goal, the rest of the card the week: label it so (R3-U-07).
+      h('div', { class: 'hm-week__ring' }, h('p', { class: 'hm-week__today' }, 'Today'), ring, h('p', { class: 'hm-week__daily' }, d.message)),
       h(
         'div',
         { class: 'hm-streak' },

@@ -8,6 +8,12 @@ import type { TunerReading } from '@core/dsp';
 import { freqToMidiFloat } from '@core/dsp';
 import { NOTE_NAMES } from '@core/model';
 
+/**
+ * DOM event the tuner panel dispatches (bubbling, from its root) the first time each string reads in
+ * tune; `detail.string` is the string number. Audio setup counts tuning as done on it (R3-U-15).
+ */
+export const TUNER_IN_TUNE_EVENT = 'riffway:tuner-in-tune';
+
 /** |cents| at or below this is in tune (the smoother also requires 0.5 s). */
 export const IN_TUNE_CENTS = 3;
 /** Allowed A4 reference range in the UI, Hz. */

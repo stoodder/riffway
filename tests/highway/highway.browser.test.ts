@@ -12,7 +12,7 @@ import { beatLengthAt } from '@core/handpos';
 import { createHighway, CUE_LEAD_BEATS, CUE_LEAD_REAL_SEC } from '../../src/game/highway';
 import { PARTICLE_CAP } from '../../src/game/highway/fx';
 import { computeLayout, timeToX } from '../../src/game/highway/layout';
-import { HighwayRenderer } from '../../src/game/highway/renderer';
+import { HighwayRenderer, TOO_EARLY_SUB, TOO_EARLY_TEXT } from '../../src/game/highway/renderer';
 import { glyphFixtureSong } from '../../src/ui/screens/dev-highway/songs';
 
 const W = 1000;
@@ -380,5 +380,59 @@ describe('HighwayRenderer pools', () => {
     r.resize(W, H, 1);
     expect(() => r.feedback(judgement([-1, 999], 'Miss'))).not.toThrow();
     expect(r.stateOf(0)).toBe(0);
+  });
+});
+
+describe('stray presses and loop flags (R3-U-23, R3-U-04)', () => {
+  it('names the note a stray press came too early for: the next unjudged note within 250 ms real time', () => {
+    const canvas = mountCanvas();
+    const { clock, state } = testClock({ now: 1.5 });
+    const r = new HighwayRenderer(canvas, tinySong(), clock, { noteSpeed: 1, handCues: false });
+    r.resize(W, H, 1);
+    // Notes at 2.00 (string 1), 2.05 (string 2) …: a press 140 ms before the first one.
+    expect(r.earlyTarget(2 - 0.14)).toBe(0);
+    // Too far ahead of any note: nothing.
+    expect(r.earlyTarget(2 - 0.4)).toBe(-1);
+    // At 50% speed 250 ms of real time is 125 ms of song time.
+    state.speed = 0.5;
+    expect(r.earlyTarget(2 - 0.14)).toBe(-1);
+    expect(r.earlyTarget(2 - 0.1)).toBe(0);
+    state.speed = 1;
+    // A judged note is skipped: the next unjudged one is named.
+    r.feedback(judgement([0], 'Miss'));
+    expect(r.earlyTarget(2 - 0.1)).toBe(1);
+    // A stray 100 ms before note 1 (string 2): "TOO EARLY" on its lane; its Miss keeps the reason.
+    r.stray({ ctxTime: 0, songTime: 1.95, source: 'keyboard' });
+    expect(r.fx.popupText(2)).toEqual({ word: TOO_EARLY_TEXT, sub: '' });
+    r.draw(100);
+    r.feedback(judgement([1], 'Miss'));
+    expect(r.fx.popupText(2)).toEqual({ word: 'MISS', sub: TOO_EARLY_SUB });
+    // A plain Miss (no early press) says nothing more.
+    r.feedback(judgement([3], 'Miss'));
+    expect(r.fx.popupText(4)?.sub).toBe('');
+    // Minimal feedback shows no early/late labels at all.
+    r.setFeedbackDetail('minimal');
+    r.stray({ ctxTime: 0, songTime: 2.1, source: 'keyboard' });
+    expect(r.fx.popupText(3)).toBeNull();
+    r.draw(400);
+  });
+
+  it('draws the A / B flags only where they fit, never clipped at the right edge', () => {
+    const canvas = mountCanvas();
+    const { clock } = testClock({ now: 0 });
+    const L = computeLayout(W, H, 1, 1);
+    // B lands 2 px inside the right edge at t = 0.
+    const end = (W - 2 - L.hitX) / L.pxPerSec;
+    const r = new HighwayRenderer(canvas, tinySong(), clock, { noteSpeed: 1, handCues: false, loop: { start: 0.5, end, preroll: 0 } });
+    r.resize(W, H, 1);
+    r.draw(0);
+    const flagY = Math.round(L.lanesBottom + (L.height - L.lanesBottom) / 2);
+    const xb = Math.round(timeToX(L, end, 0, 1));
+    // B would be drawn half-cut: it must not be drawn at all.
+    expect(xb).toBeGreaterThan(W - 12);
+    const [rr, gg] = pixel(canvas, W - 4, flagY - 6);
+    const [ra, ga] = pixel(canvas, Math.round(timeToX(L, 0.5, 0, 1)) - 8, flagY - 6);
+    // The A flag (fully on screen) is drawn in the loop-marker colour; the edge pixel is not.
+    expect(ra + ga).toBeGreaterThan(rr + gg + 60);
   });
 });

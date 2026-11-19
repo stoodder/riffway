@@ -462,3 +462,10 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Under the outcome tiles: hits of judged notes and what Wrong / Miss mean (R3-U-12). */
+.rs-notes-summary {
+  margin-top: var(--space-4);
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}

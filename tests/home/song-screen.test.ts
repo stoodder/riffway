@@ -79,6 +79,14 @@ describe('song page', () => {
     expect(el.querySelector('.sg-bar.is-hardest .sg-bar__name')?.textContent).toBe('Riff');
     const states = Array.from(el.querySelectorAll<HTMLElement>('.sg-sec')).map((r) => r.dataset.state);
     expect(states).toEqual(['new', 'practising', 'new']);
+    // Each section link names its section for screen readers (R3-U-09); the tip for new sections
+    // is said once under the map, and the rows use the legend's state names (R3-U-10).
+    expect(Array.from(el.querySelectorAll('.sg-sec a')).map((a) => a.getAttribute('aria-label'))).toEqual(['Loop Intro', 'Loop Riff', 'Loop Outro']);
+    expect(text('.sg-card__tip')).toEqual(['New sections: loop them slowly first. The speed trainer starts you at 70%.']);
+    expect(text('.sg-sec__detail')).toEqual(['New', 'Practicing · Trainer at 80% · 2 clean runs · best 84%', 'New']);
+    expect(text('.sg-legend li')).toEqual(['New', 'Practicing', 'Mastered', 'Locked in']);
+    // The Source card's row says where in the library the song lives (R3-U-11).
+    expect(text('.sg-dl dt')[0]).toBe('Library');
     expect(Array.from(el.querySelectorAll('.sg-sec a')).map((a) => a.getAttribute('href'))).toEqual([
       '#/play/starter%3Ahall?arr=0&mode=practice&section=0',
       '#/play/starter%3Ahall?arr=0&mode=practice&section=1&speed=0.8',
@@ -157,6 +165,26 @@ describe('song page', () => {
     handle!.unmount();
     handle = null;
     expect(panelMounts[0]!.unmounted).toBe(true);
+  });
+
+  it('attaches backing audio in one click: the picker opens from the first button (R3-U-19)', async () => {
+    await start({ id: 'starter:hall', arr: '0' });
+    await eventually(() => expect(buttonNamed('Attach backing audio').disabled).toBe(false));
+    const picker = el.querySelector<HTMLInputElement>('.sg-backing__picker')!;
+    let opened = 0;
+    picker.click = () => void (opened += 1);
+    buttonNamed('Attach backing audio').click();
+    expect(opened).toBe(1);
+    expect(panelMounts).toEqual([]);
+    // The player picks a file: it is attached, then the panel opens on it.
+    const file = new File([new Uint8Array(8)], 'my-take.wav', { type: 'audio/wav' });
+    Object.defineProperty(picker, 'files', { value: [file], configurable: true });
+    picker.dispatchEvent(new Event('change'));
+    await eventually(() => expect(el.querySelector('.fake-panel-backing')).not.toBeNull());
+    expect(t.attached).toEqual(['my-take.wav']);
+    expect(t.toasts.at(-1)?.message).toBe('Attached “my-take.wav”. Align it to the beat grid below.');
+    expect((await t.storage.getAudioLink('starter:hall', 0))?.fileName).toBe('my-take.wav');
+    expect(panelMounts[0]).toMatchObject({ id: 'backing', unmounted: false });
   });
 
   it('disables backing audio when the song model cannot be loaded', async () => {

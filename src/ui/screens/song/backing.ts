@@ -2,12 +2,15 @@
  * Backing-audio slot on the song page (T-034). Shows a short intro (and the attached file, if any)
  * and mounts the backing panel (T-027) only when the player opens it: the panel creates the audio
  * engine and its previews drive the engine transport, so it is never mounted on page load, never
- * inside a game session, and not while the transport is already playing something.
+ * inside a game session, and not while the transport is already playing something. With nothing
+ * attached yet, "Attach backing audio" opens the file picker straight away (one click, R3-U-19):
+ * the chosen file is attached through the backing service, then the panel opens on it.
  * @module
  */
 import type { Song } from '@shared/song';
 import type { AppContext, PanelHandle, PanelPropsMap } from '@shared/ui';
 import { mountPanel } from '../../panels';
+import { BACKING_ACCEPT } from '../../panels/backing/model';
 import { append, button, h, icon, setBusy } from '../../components';
 
 /** What the slot needs to mount the panel. */
@@ -35,6 +38,11 @@ export function transportBusy(ctx: AppContext): boolean {
   return state === 'playing' || state === 'count-in';
 }
 
+/** Same song and arrangement (a re-render of the page passes a new target object for the same one). */
+function sameSong(a: BackingTarget | null, b: BackingTarget): boolean {
+  return a !== null && a.songId === b.songId && a.arrangement === b.arrangement;
+}
+
 /** Create the slot. */
 export function backingSlot(ctx: AppContext): BackingSlot {
   const el = h('section', { class: 'sg-card sg-backing', 'aria-labelledby': 'sg-backing-title' });
@@ -42,6 +50,16 @@ export function backingSlot(ctx: AppContext): BackingSlot {
   let panel: PanelHandle<PanelPropsMap['backing']> | null = null;
   let opening = false;
   let destroyed = false;
+  // The slot's own picker: opened synchronously from the click (a picker needs the user gesture).
+  const fileInput = h('input', { type: 'file', accept: BACKING_ACCEPT, class: 'sg-backing__picker', hidden: true, tabindex: '-1' });
+  let pickFor: HTMLButtonElement | null = null;
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    fileInput.value = '';
+    const trigger = pickFor;
+    pickFor = null;
+    if (file && trigger) void attachAndOpen(file, trigger);
+  });
 
   function closePanel(): void {
     panel?.unmount();
@@ -55,7 +73,7 @@ export function backingSlot(ctx: AppContext): BackingSlot {
       label: t.attached ? 'Open backing audio' : 'Attach backing audio',
       icon: t.attached ? 'headphones' : 'plus',
       disabled: t.songState !== 'ready',
-      onClick: () => void openPanel(open),
+      onClick: () => (t.attached ? void openPanel(open) : pick(open)),
     });
     el.className = 'sg-card sg-backing';
     el.replaceChildren();
@@ -74,7 +92,38 @@ export function backingSlot(ctx: AppContext): BackingSlot {
         t.songState === 'loading' ? h('span', { class: 'rw-muted' }, 'Loading the song…') : null,
         t.songState === 'error' ? h('span', { class: 'rw-muted' }, 'The song couldn’t be loaded, so backing audio can’t be aligned.') : null,
       ),
+      fileInput,
     ]);
+  }
+
+  /** Open the picker for a first attachment (checks first that nothing else is playing). */
+  function pick(trigger: HTMLButtonElement): void {
+    if (!target?.song || opening || panel) return;
+    if (transportBusy(ctx)) {
+      ctx.ui.toast('Something is already playing. Stop it first: backing previews use the same transport.', { kind: 'warning' });
+      return;
+    }
+    pickFor = trigger;
+    fileInput.click();
+  }
+
+  /** Attach the picked file, then open the panel on it (its alignment tools come next). */
+  async function attachAndOpen(file: File, trigger: HTMLButtonElement): Promise<void> {
+    const t = target;
+    if (!t) return;
+    setBusy(trigger, true);
+    try {
+      const service = await ctx.services.get('backing');
+      const link = await service.attach(file, t.songId, t.arrangement);
+      if (destroyed || !sameSong(target, t)) return;
+      ctx.ui.toast(`Attached “${link.fileName}”. Align it to the beat grid below.`, { kind: 'success' });
+      target = { ...(target ?? t), attached: link.fileName };
+    } catch (err) {
+      ctx.ui.toast(err instanceof Error ? err.message : `Something went wrong: ${String(err)}`, { kind: 'error' });
+      setBusy(trigger, false);
+      return;
+    }
+    await openPanel(trigger);
   }
 
   async function openPanel(trigger: HTMLButtonElement): Promise<void> {
@@ -89,7 +138,7 @@ export function backingSlot(ctx: AppContext): BackingSlot {
     const host = h('div', { class: 'sg-backing__panel' });
     try {
       const handle = await mountPanel('backing', host, ctx, { songId: t.songId, arrangement: t.arrangement, song: t.song });
-      if (destroyed || target !== t) {
+      if (destroyed || !sameSong(target, t)) {
         handle.unmount();
         return;
       }
@@ -108,7 +157,7 @@ export function backingSlot(ctx: AppContext): BackingSlot {
     el,
     set(next) {
       const prev = target;
-      const same = prev !== null && prev.songId === next.songId && prev.arrangement === next.arrangement;
+      const same = sameSong(prev, next);
       target = next;
       if (!same) closePanel();
       if (panel) {

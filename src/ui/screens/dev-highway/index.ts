@@ -117,7 +117,7 @@ export const mount: ScreenMount = (el, _ctx, params) => {
   });
   const demoToggle = toggle({
     label: 'Demo player',
-    description: 'Scripted judgements and combo',
+    description: 'Scripted judgments and combo',
     checked: demoOn,
     onChange: (on) => {
       demoOn = on;

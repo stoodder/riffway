@@ -7,6 +7,14 @@ import type { Bar } from '@shared/song';
 import type { WarpAnchor } from '@shared/storage';
 import { audioTimeAt } from '../../../audio/backing/warp';
 
+/** File picker filter for backing audio (extensions plus the matching MIME types). */
+export const BACKING_ACCEPT = '.mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a';
+
+/** "100%" for a speed fraction (no space before %, as everywhere else; R3-U-19). */
+export function speedLabel(speed: number): string {
+  return `${Math.round(speed * 100)}%`;
+}
+
 /** Waveform peak resolution (s per bin). */
 export const PEAK_BIN_SEC = 0.005;
 /** Zoom choices: bars visible in the waveform. */
@@ -130,7 +138,7 @@ export function formatOffset(ms: number): string {
   return `${r < 0 ? '−' : '+'}${Math.abs(r)} ms`;
 }
 
-/** `98.8 %` recording tempo relative to the tab. */
+/** `98.8%` recording tempo relative to the tab. */
 export function formatTempo(percent: number): string {
-  return `${percent.toFixed(1)} %`;
+  return `${percent.toFixed(1)}%`;
 }

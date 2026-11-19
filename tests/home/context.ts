@@ -22,6 +22,8 @@ export interface TestCtx {
   songs: Map<string, Song>;
   /** Transport state the engine peek reports (null = no engine created). */
   transport: { state: 'stopped' | 'playing' | 'count-in' | 'paused' } | null;
+  /** File names the fake backing service attached. */
+  attached: string[];
   emitLibraryChanged(): void;
 }
 
@@ -41,6 +43,7 @@ export async function testContext(songs: SearchResult[] = []): Promise<TestCtx> 
     server: { songs, metas: new Map(), down: false, searches: 0 },
     songs: new Map(),
     transport: null,
+    attached: [],
     emitLibraryChanged: () => listeners.forEach((cb) => cb({ type: 'library.changed', ids: [], reason: 'rescan' })),
   };
   const offline = (): never => {
@@ -80,6 +83,17 @@ export async function testContext(songs: SearchResult[] = []): Promise<TestCtx> 
               const song = t.songs.get(bundle.id ?? '');
               if (!song) throw new Error('cannot load');
               return song;
+            },
+          };
+        }
+        if (id === 'backing') {
+          // Stores the link like the real service (the backing panel then loads it).
+          return {
+            attach: async (file: File, songId: string, arrangement: number) => {
+              const link = { songId, arrangement, audioId: 'a'.repeat(40), fileName: file.name, anchors: [{ songTime: 0, audioTime: 0 }], gainDb: 0, enabled: true };
+              await storage.putAudioLink(link);
+              t.attached.push(file.name);
+              return link;
             },
           };
         }

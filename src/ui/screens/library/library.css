@@ -475,9 +475,12 @@
 }
 
 .lib-row__tags {
-  display: inline-flex;
-  flex-wrap: wrap;
+  display: flex;
+  overflow: hidden;
+  flex: 1 0 100%;
+  flex-wrap: nowrap;
   gap: var(--space-1);
+  min-width: 0;
 }
 
 .lib-tag {
@@ -486,6 +489,11 @@
   background: var(--color-surface-3);
   color: var(--color-text-muted);
   font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.lib-tag--more {
+  color: var(--color-text-subtle);
 }
 
 .lib-row__state {

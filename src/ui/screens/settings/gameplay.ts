@@ -13,14 +13,14 @@ import { choiceGroup, group, section, type Binder, type Choice } from './control
 
 /** Feedback-detail choices (learning research rows 7–8: bandwidth feedback, learner control). */
 export const FEEDBACK_CHOICES: readonly Choice<FeedbackDetail>[] = [
-  { value: 'minimal', label: 'Minimal', description: 'Notes flash on a hit and grey out on a miss. No outcome words or early/late labels.' },
+  { value: 'minimal', label: 'Minimal', description: 'Notes flash on a hit and gray out on a miss. No outcome words or early/late labels.' },
   {
     value: 'standard',
     label: 'Standard',
     tag: 'Recommended',
     description: 'Outcome words (Perfect, Great, Good). Early/late only when you’re outside the Great window.',
   },
-  { value: 'detailed', label: 'Detailed', description: 'Every hit labelled early or late, and the note you played on a wrong note.' },
+  { value: 'detailed', label: 'Detailed', description: 'Every hit labeled early or late, and the note you played on a wrong note.' },
 ];
 
 /** Timing-leniency choices (docs/game-mechanics.md § Windows). */
@@ -43,7 +43,7 @@ export const DAILY_MINUTES: readonly number[] = [5, 10, 15, 30, 45];
 /** Genres offered as preferences; stored ones outside this list are kept and shown too. */
 export const GENRES: readonly string[] = ['rock', 'metal', 'recognizable', 'blues', 'classical', 'folk'];
 
-const GENRE_LABELS: Readonly<Record<string, string>> = { recognizable: 'Recognisable tunes' };
+const GENRE_LABELS: Readonly<Record<string, string>> = { recognizable: 'Recognizable tunes' };
 
 /** Format a note-speed multiplier (`1` → `1.00×`). */
 export function formatNoteSpeed(v: number): string {
@@ -126,7 +126,7 @@ export function gameplayTab(b: Binder): HTMLElement {
   });
 
   const inputMode = choiceGroup({
-    label: 'Input',
+    label: 'Input mode',
     choices: INPUT_MODE_CHOICES,
     value: 'auto',
     onChange: (v) => void b.save({ game: { inputMode: v } }),
@@ -155,7 +155,12 @@ export function gameplayTab(b: Binder): HTMLElement {
       feedback.el,
     ),
     section('Assists', 'Every assist can be switched off as you get more confident.', group(null, fretNumbers.el, handCues.el, guide.el, muteGuide.el)),
-    section('Input', 'What plays the notes. In keyboard mode the lane keys (1–6 by default, high e first) are the strings and Shift plays a wrong note on purpose.', inputMode.el),
+    // "Input mode", not "Input": the Input tab is devices, calibration and keys (R3-U-24).
+    section(
+      'Input mode',
+      'What plays the notes. In keyboard mode the lane keys (1–6 by default, high e first) are the strings and Shift plays a wrong note on purpose. Devices, calibration and key bindings are on the Input tab.',
+      inputMode.el,
+    ),
     section(
       'Judging',
       null,
@@ -231,7 +236,7 @@ export function practiceTab(b: Binder): HTMLElement {
       { value: 'fingerstyle', label: 'Fingerstyle' },
     ],
     value: 'pick',
-    hint: 'Recommendations favour songs in your style.',
+    hint: 'Recommendations favor songs in your style.',
     onChange: (v) => void b.save({ preferences: { style: v } }),
   });
   const fingerstyle = toggle({
@@ -240,7 +245,7 @@ export function practiceTab(b: Binder): HTMLElement {
     checked: false,
     onChange: (v) => void b.save({ preferences: { fingerstyle: v } }),
   });
-  const genreBox = h('div', { class: 'set-genres', role: 'group', 'aria-label': 'Favourite genres' });
+  const genreBox = h('div', { class: 'set-genres', role: 'group', 'aria-label': 'Favorite genres' });
   let genres: string[] = [];
   const renderGenres = (): void => {
     const all = [...GENRES, ...genres.filter((g) => !GENRES.includes(g))];
@@ -283,7 +288,7 @@ export function practiceTab(b: Binder): HTMLElement {
       'Preferences',
       'Used to pick recommendations on the home screen.',
       group(null, style.el, fingerstyle.el),
-      group('Favourite genres', genreBox, h('p', { class: 'rw-field__hint' }, 'Songs tagged with these get a small boost.')),
+      group('Favorite genres', genreBox, h('p', { class: 'rw-field__hint' }, 'Songs tagged with these get a small boost.')),
     ),
   );
 }

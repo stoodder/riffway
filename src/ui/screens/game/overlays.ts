@@ -11,11 +11,18 @@ import { laneNames } from '../../../game/highway';
 import { keyLabel } from '../../../game/input';
 import { button, h, icon } from '../../components';
 
+/** The tuning of the previous song played (song cache), for the retune reminder. */
+export interface LastTuning {
+  id: string;
+  label: string;
+}
+
 /**
- * The retune reminder for a non-standard tuning, e.g. "Drop D — tune string 6 down to D", or null
- * for standard tuning (R2-U-06).
+ * The retune reminder for a non-standard tuning, e.g. "Drop D — tune string 6 down to D" (R2-U-06).
+ * A standard-tuned song gets "Retune to Standard — your last song was in Drop D" when the previous
+ * song (`last`) used another tuning, as on the song page (R3-U-06); otherwise null.
  */
-export function tuningReminder(tuning: readonly number[]): string | null {
+export function tuningReminder(tuning: readonly number[], last: LastTuning | null = null): string | null {
   const changed: { string: number; dir: 'up' | 'down'; to: string }[] = [];
   for (let i = 0; i < 6; i++) {
     const want = tuning[i];
@@ -23,7 +30,10 @@ export function tuningReminder(tuning: readonly number[]): string | null {
     if (want === undefined || std === undefined || want === std) continue;
     changed.push({ string: i + 1, dir: want > std ? 'up' : 'down', to: midiToName(want).replace(/-?\d+$/, '') });
   }
-  if (changed.length === 0) return null;
+  if (changed.length === 0) {
+    const { id, label } = describeTuning(tuning);
+    return last && last.id !== id ? `Retune to ${label} — your last song was in ${last.label}` : null;
+  }
   const { id, label } = describeTuning(tuning);
   const name = id === 'custom' ? 'Custom tuning' : label;
   if (changed.length <= 2) return `${name} — tune ${changed.map((c) => `string ${c.string} ${c.dir} to ${c.to}`).join(', ')}`;
@@ -33,9 +43,9 @@ export function tuningReminder(tuning: readonly number[]): string | null {
 
 /**
  * Key legend: one coloured key per lane (high e on top, like the highway) + modifiers. `tuning`
- * names the lanes (default standard).
+ * names the lanes (default standard); `escape` says what Esc does here ("resume" on the pause card).
  */
-export function keyLegend(keys: KeyboardSettings, compact = false, tuning: readonly number[] = STANDARD_TUNING): HTMLElement {
+export function keyLegend(keys: KeyboardSettings, compact = false, tuning: readonly number[] = STANDARD_TUNING, escape: 'pause' | 'resume' = 'pause'): HTMLElement {
   const names = laneNames(tuning).slice(1);
   return h(
     'div',
@@ -56,7 +66,7 @@ export function keyLegend(keys: KeyboardSettings, compact = false, tuning: reado
       'div',
       { class: 'gm-keys__mods' },
       h('span', null, h('kbd', null, keys.wrongPitchModifier), ' + key = wrong note'),
-      h('span', null, h('kbd', null, 'Esc'), ' pause'),
+      h('span', null, h('kbd', null, 'Esc'), ` ${escape}`),
       compact ? null : h('span', null, h('kbd', null, 'Space'), ' start'),
     ),
   );
@@ -95,12 +105,17 @@ export interface StartInfo {
   keys: KeyboardSettings;
   /** The song's tuning (high → low), for the key legend and the retune reminder. */
   tuning: readonly number[];
+  /** Capo fret (0 = none): the card reminds the player to put it on. */
+  capo?: number;
+  /** The previous song's tuning, when known: a standard-tuned song after Drop D says "retune". */
+  lastTuning?: LastTuning | null;
   notice?: string;
 }
 
 /**
  * The pre-run card: what is about to play, how to play it, and the Play button. A non-standard
- * tuning gets a retune reminder with "Open tuner" (`onTuner`).
+ * tuning (or a standard one right after a song in another tuning) gets a retune reminder with "Open
+ * tuner" (`onTuner`); a capo gets its own reminder line in the same style (R3-U-06).
  */
 export function startCard(info: StartInfo, onPlay: () => void, onBack: () => void, onTuner?: () => void): { el: HTMLElement; focus: HTMLButtonElement } {
   const play = button({ label: 'Play', icon: 'play', variant: 'primary', size: 'lg', onClick: onPlay });
@@ -112,7 +127,8 @@ export function startCard(info: StartInfo, onPlay: () => void, onBack: () => voi
   const input = info.guitarLabel
     ? h('p', { class: 'gm-card__input' }, icon('audio', { size: '16px' }), `Guitar: ${info.guitarLabel} — keys work too`)
     : h('p', { class: 'gm-card__input' }, icon('music', { size: '16px' }), 'Keyboard mode — keys 1–6 play the strings');
-  const retune = tuningReminder(info.tuning);
+  const retune = tuningReminder(info.tuning, info.lastTuning ?? null);
+  const capo = info.capo && info.capo > 0 ? info.capo : 0;
   const el = h(
     'div',
     { class: 'gm-card gm-card--start', role: 'dialog', 'aria-modal': 'false', 'aria-label': 'Ready to play' },
@@ -127,6 +143,9 @@ export function startCard(info: StartInfo, onPlay: () => void, onBack: () => voi
           h('span', null, retune),
           onTuner ? button({ label: 'Open tuner', icon: 'audio', variant: 'secondary', size: 'sm', onClick: onTuner }) : null,
         )
+      : null,
+    capo
+      ? h('div', { class: 'gm-card__tuning gm-card__capo', role: 'note' }, icon('info', { size: '16px' }), h('span', null, `Capo ${capo} — put your capo on fret ${capo}`))
       : null,
     input,
     keyLegend(info.keys, false, info.tuning),
@@ -171,7 +190,7 @@ export function pauseMenu(
       actions.finish ? button({ label: 'End run & see results', icon: 'check', variant: 'secondary', onClick: actions.finish }) : null,
       button({ label: 'Quit to song', icon: 'close', variant: 'ghost', onClick: actions.quit }),
     ),
-    keyLegend(keys, true, opts.tuning),
+    keyLegend(keys, true, opts.tuning, 'resume'),
   );
   return {
     el,

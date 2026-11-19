@@ -57,6 +57,8 @@ export class FeedbackFx {
   private readonly popupWord: string[] = ['', '', '', '', '', '', ''];
   private readonly popupSub: string[] = ['', '', '', '', '', '', ''];
   private readonly popupSubColor: string[] = ['', '', '', '', '', '', ''];
+  /** Word colour override per string ('' = the outcome colour). */
+  private readonly popupColor: string[] = ['', '', '', '', '', '', ''];
   /** Well marks per string: outcome code and timing side (−1 late, 0 none, +1 early). */
   private readonly markBorn = new Float64Array(7).fill(-Infinity);
   private readonly markCode = new Uint8Array(7);
@@ -114,15 +116,16 @@ export class FeedbackFx {
   }
 
   /**
-   * Show outcome text in the gutter on `string`'s lane: `word` in the outcome colour and `sub`, the
-   * small second line (`'◂ LATE'`, `'1 fret high'`), in `subColor`.
+   * Show outcome text in the gutter on `string`'s lane: `word` in the outcome colour (or `color`) and
+   * `sub`, the small second line (`'◂ LATE'`, `'1 fret high'`), in `subColor`.
    */
-  popup(string: number, code: number, word: string, sub: string, subColor: string): void {
+  popup(string: number, code: number, word: string, sub: string, subColor: string, color = ''): void {
     this.popupBorn[string] = NaN;
     this.popupCode[string] = code;
     this.popupWord[string] = word;
     this.popupSub[string] = sub;
     this.popupSubColor[string] = subColor;
+    this.popupColor[string] = color;
   }
 
   /**
@@ -157,6 +160,11 @@ export class FeedbackFx {
   hitAge(perfNow: number): number {
     if (Number.isNaN(this.lastHitBorn)) this.lastHitBorn = perfNow;
     return perfNow - this.lastHitBorn;
+  }
+
+  /** The outcome text last shown on `string`'s lane (diagnostics / tests); null when none was. */
+  popupText(string: number): { word: string; sub: string } | null {
+    return this.popupBorn[string] === -Infinity ? null : { word: this.popupWord[string]!, sub: this.popupSub[string]! };
   }
 
   /** Number of live particles at `perfNow` (diagnostics / tests). */
@@ -312,7 +320,7 @@ export class FeedbackFx {
       ctx.lineWidth = 5;
       ctx.strokeStyle = HW_COLORS.bg;
       ctx.strokeText(word, 0, 0);
-      ctx.fillStyle = OUTCOME_COLORS[code]!;
+      ctx.fillStyle = this.popupColor[s] || OUTCOME_COLORS[code]!;
       ctx.fillText(word, 0, 0);
       if (sub) {
         ctx.setTransform(dpr, 0, 0, dpr, dpr * popupRight, dpr * (y + gemR * 0.85));

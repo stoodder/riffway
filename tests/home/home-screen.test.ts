@@ -51,6 +51,11 @@ describe('home screen', () => {
     expect(el.querySelector('.hm-tip')?.textContent).toMatch(/Got your own tabs\?/);
     expect(el.querySelector('.hm-week .hm-streak__headline')?.textContent).toBe('Start a streak');
     expect(el.querySelector('.hm-ring')?.getAttribute('aria-label')).toBe('Daily goal: 0 of 15 minutes today');
+    // The ring is today's goal, labeled so; future days are "upcoming", in US spelling (R3-U-07, R3-U-21).
+    expect(el.querySelector('.hm-week__today')?.textContent).toBe('Today');
+    expect(el.querySelector('.hm-week .rw-eyebrow')?.textContent).toBe('Practice time');
+    expect(text('.hm-day.is-future .rw-visually-hidden')[0]).toMatch(/: upcoming$/);
+    expect(el.querySelector('.hm-week__msg')?.textContent).toMatch(/Practice 4 days this week/);
     // No goals, recommendations or recent results before the first run.
     expect(el.querySelector('.hm-goals, .hm-recs, .hm-recent')).toBeNull();
   });

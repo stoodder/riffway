@@ -40,7 +40,7 @@ describe('gameplay helpers', () => {
   it('formats note speed and genres', () => {
     expect(formatNoteSpeed(1)).toBe('1.00×');
     expect(formatNoteSpeed(1.25)).toBe('1.25×');
-    expect(genreLabel('recognizable')).toBe('Recognisable tunes');
+    expect(genreLabel('recognizable')).toBe('Recognizable tunes');
     expect(genreLabel('rock')).toBe('Rock');
   });
 
@@ -113,7 +113,10 @@ describe('input and data helpers', () => {
   it('counts stores in display order', () => {
     const stores = { ...emptyStores(), practiceDays: [{ date: '2026-11-19', activeSec: 600, runs: 2 }] };
     const rows = countRows(storeCounts(stores));
-    expect(rows.map((r) => r.label)).toEqual(['Runs', 'Personal bests', 'Section progress', 'Practice days', 'Streak', 'Songs played', 'Backing-audio links', 'Rhythm alignments']);
+    expect(rows.map((r) => r.label)).toEqual(['Runs', 'Personal bests', 'Section progress', 'Practice days', 'Streak history', 'Songs played', 'Backing-audio links', 'Rhythm alignments']);
+    // The streak store is one record: it reads Saved / None, not a number that looks like a streak (R3-U-08).
+    expect(rows.find((r) => r.key === 'streak')?.value).toBe('None');
+    expect(countRows({ ...storeCounts(stores), streak: 1 }).find((r) => r.key === 'streak')?.value).toBe('Saved');
     expect(rows.find((r) => r.key === 'practiceDays')?.count).toBe(1);
   });
 
@@ -147,8 +150,9 @@ describe('audio setup steps', () => {
     expect(fresh.input).toEqual({ tone: 'todo', text: 'Not connected yet' });
     // Monitoring is not "done" before its step was visited, whatever the default switch says (T-041 note 4).
     expect(fresh.monitor).toEqual({ tone: 'todo', text: 'Not set up yet' });
-    expect(fresh.tuner).toEqual({ tone: 'optional', text: 'Every session' });
-    expect(stepStatuses(defaultSettings(), { tunerVisited: true }).tuner).toEqual({ tone: 'done', text: 'Checked this session' });
+    // Tuning is done only after an in-tune reading or "I'm tuned", never for opening the step (R3-U-15).
+    expect(fresh.tuner).toEqual({ tone: 'optional', text: 'Not tuned yet' });
+    expect(stepStatuses(defaultSettings(), { tuned: true }).tuner).toEqual({ tone: 'done', text: 'Tuned this session' });
     expect(fresh.calibration).toEqual({ tone: 'todo', text: 'Not calibrated' });
     expect(fresh.done.tone).toBe('todo');
     const set = stepStatuses(
@@ -161,6 +165,7 @@ describe('audio setup steps', () => {
     expect(set.input).toEqual({ tone: 'done', text: 'USB Audio CODEC' });
     expect(set.monitor).toEqual({ tone: 'optional', text: 'Off' });
     expect(set.calibration).toEqual({ tone: 'done', text: '+38 ms offset' });
+    // Not tuned this session: still "Ready to play" (tuning is optional, never blocking).
     expect(set.done).toEqual({ tone: 'done', text: 'Ready to play' });
     expect(stepStatuses(with_((s) => (s.calibration.method = 'estimated'))).calibration.tone).toBe('warning');
     expect(stepStatuses(with_((s) => (s.monitor = { ...s.monitor, headphonesCardSeen: true }))).monitor).toEqual({ tone: 'done', text: 'On · Clean' });
@@ -191,6 +196,7 @@ describe('audio setup steps', () => {
     expect(summaryRows(defaultSettings()).map((r) => [r.label, r.value, r.step, r.action])).toEqual([
       ['Guitar input', 'Not connected yet', 'input', 'Connect'],
       ['Output', 'System default', 'input', 'Change'],
+      ['Tuning', 'Not yet this session (tune before you play)', 'tuner', 'Tune'],
       ['Monitoring', 'Not set up yet', 'monitor', 'Set up'],
       ['Latency calibration', 'Not calibrated', 'calibration', 'Calibrate guitar'],
     ]);
@@ -201,8 +207,10 @@ describe('audio setup steps', () => {
         s.monitor = { ...s.monitor, preset: 'overdrive', headphonesCardSeen: true };
         s.calibration = { ...s.calibration, method: 'play-to-click', inputOffsetMs: 40, keyboardOffsetMs: 12, spreadMs: 3.6 };
       }),
+      { tuned: true },
     );
-    expect(rows.map((r) => r.value)).toEqual(['USB Audio CODEC (channels 1 + 2)', 'External Headphones', 'On · Overdrive amp', 'Guitar +40 ms · keyboard +12 ms · spread ±4 ms']);
+    expect(rows.map((r) => r.value)).toEqual(['USB Audio CODEC (channels 1 + 2)', 'External Headphones', 'Tuned this session', 'On · Overdrive amp', 'Guitar +40 ms · keyboard +12 ms · spread ±4 ms']);
+    expect(rows.find((r) => r.step === 'tuner')).toMatchObject({ tone: 'done', action: 'Tune again' });
     expect(formatOffset(0.4)).toBe('0 ms');
   });
 });

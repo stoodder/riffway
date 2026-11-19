@@ -82,7 +82,7 @@ checks fill the comfort slots first as `review` items (with `sectionIdx`, no 24 
 the best unused candidate for its target (ties: closer tier, then id); candidates 3+ tiers from the target
 never fill a slot, so small libraries give fewer items. Only `availability: 'playable'` candidates with a
 tier count. **Labels follow the tier, not the slot** (`kindForTier`): tier − comfort = +1 is
-`stretch`, ≥ +2 `reach`, ≤ 0 `comfort`, so a neighbouring-tier song that filled a stretch slot in a
+`stretch`, ≥ +2 `reach`, ≤ 0 `comfort`, so a neighboring-tier song that filled a stretch slot in a
 small library reads "Comfort pick" and the badge always matches the reason. Output order: stretch,
 review, comfort, reach; deterministic and independent of input order. Every item has a `reason`, e.g.
 "Stretch pick: tier 4, one above your comfort tier (3) · suits your pick playing · rock". Comfort tier

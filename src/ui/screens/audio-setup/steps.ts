@@ -50,7 +50,7 @@ export const STEPS: readonly StepDef[] = [
     id: 'calibration',
     label: 'Latency',
     title: 'Calibrate latency',
-    lead: 'Play along to a few clicks so Riffway can measure the delay between your pick and its ears. It makes timing judgements fair.',
+    lead: 'Play along to a few clicks so Riffway can measure the delay between your pick and its ears. It makes timing judgments fair.',
     panel: 'calibration',
   },
   {
@@ -82,10 +82,10 @@ export function neighbour(id: StepId, dir: -1 | 1): StepId | null {
   return i >= 0 && i < STEP_IDS.length ? (STEP_IDS[i] as StepId) : null;
 }
 
-/** What the screen knows beyond settings (nothing about tuning is persisted). */
+/** What the screen knows beyond settings (tuning is per sitting, so it is not in settings). */
 export interface SetupSession {
-  /** The tuner step was opened in this browser session. */
-  tunerVisited: boolean;
+  /** The tuner read a string in tune, or the player said "I'm tuned", in this browser tab session. */
+  tuned: boolean;
 }
 
 /** Which offsets have been measured, from the calibration settings. */
@@ -106,12 +106,13 @@ function keyboardOnly(s: Settings): boolean {
 
 /**
  * Status lines for every step, from settings (and the session). The tuner has nothing persisted:
- * it is "done" once opened this session. Monitoring counts as set up only after the player has been
+ * it is "done" once a string read in tune (or the player said "I'm tuned") this session, not merely
+ * for opening it (R3-U-15); it never blocks "Ready to play". Monitoring counts as set up only after the player has been
  * through its step (`headphonesCardSeen`), whatever the default switch says. Calibration is done when
  * the input that games use is calibrated: the guitar, or the keyboard in keyboard-only mode; a
  * keyboard-only calibration leaves the guitar step amber ("Guitar not calibrated").
  */
-export function stepStatuses(s: Settings, session: SetupSession = { tunerVisited: false }): Record<StepId, StepStatus> {
+export function stepStatuses(s: Settings, session: SetupSession = { tuned: false }): Record<StepId, StepStatus> {
   const input: StepStatus = s.input.label
     ? { tone: 'done', text: s.input.label }
     : keyboardOnly(s)
@@ -138,7 +139,7 @@ export function stepStatuses(s: Settings, session: SetupSession = { tunerVisited
   const ready = (input.tone === 'done' || keyboardOnly(s)) && calibration.tone === 'done';
   return {
     input,
-    tuner: session.tunerVisited ? { tone: 'done', text: 'Checked this session' } : { tone: 'optional', text: 'Every session' },
+    tuner: session.tuned ? { tone: 'done', text: 'Tuned this session' } : { tone: 'optional', text: 'Not tuned yet' },
     monitor,
     calibration,
     done: ready ? { tone: 'done', text: 'Ready to play' } : { tone: 'todo', text: 'A step needs attention' },
@@ -162,7 +163,7 @@ export interface SummaryRow {
   action: string;
 }
 
-/** The summary step's rows (input, output, monitoring, calibration). */
+/** The summary step's rows (input, output, tuning, monitoring, calibration). */
 export function summaryRows(s: Settings, session?: SetupSession): SummaryRow[] {
   const st = stepStatuses(s, session);
   const channel = s.input.channel === 'mix' ? 'channels 1 + 2' : `channel ${s.input.channel + 1}`;
@@ -185,6 +186,13 @@ export function summaryRows(s: Settings, session?: SetupSession): SummaryRow[] {
       action: s.input.label ? 'Change' : 'Connect',
     },
     { label: 'Output', value: s.output.label ?? 'System default', tone: s.output.label ? 'done' : 'optional', step: 'input', action: 'Change' },
+    {
+      label: 'Tuning',
+      value: session?.tuned ? 'Tuned this session' : 'Not yet this session (tune before you play)',
+      tone: st.tuner.tone,
+      step: 'tuner',
+      action: session?.tuned ? 'Tune again' : 'Tune',
+    },
     {
       label: 'Monitoring',
       value: !s.monitor.headphonesCardSeen ? 'Not set up yet' : s.monitor.enabled ? `On · ${AMP_PRESETS[s.monitor.preset].label} amp` : 'Off (you hear your own amp)',

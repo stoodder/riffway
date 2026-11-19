@@ -148,10 +148,15 @@ export function sectionWhy(s: SectionDifficulty, max = SECTION_FACTORS): string[
     .map(([id]) => HIGHLIGHT_PHRASES[id]);
 }
 
-/** Per-section difficulty bars (the hardest flagged). */
+/**
+ * Per-section difficulty bars. The hardest is flagged only when one section alone has the top
+ * rating as shown (one decimal): two sections tied at 2.7 are not both "Hardest" (R3-U-22).
+ */
 export function difficultyBars(report: DifficultyReport | null): DifficultyBar[] {
   if (!report) return [];
-  const top = Math.max(0, ...report.sections.map((s) => s.rating));
+  const shown = (r: number): string => r.toFixed(1);
+  const top = shown(Math.max(0, ...report.sections.map((s) => s.rating)));
+  const unique = report.sections.filter((s) => shown(s.rating) === top).length === 1;
   return report.sections.map((s) => ({
     sectionIndex: s.sectionIndex,
     name: s.name.trim() || `Section ${s.sectionIndex + 1}`,
@@ -159,7 +164,7 @@ export function difficultyBars(report: DifficultyReport | null): DifficultyBar[]
     tier: s.tier,
     pct: Math.max(4, Math.min(100, s.rating * 10)),
     why: sectionWhy(s),
-    hardest: s.rating === top && report.sections.length > 1,
+    hardest: unique && shown(s.rating) === top && report.sections.length > 1,
   }));
 }
 
@@ -168,6 +173,14 @@ export function difficultyBars(report: DifficultyReport | null): DifficultyBar[]
 // ---------------------------------------------------------------------------------------------
 
 export type SectionState = 'new' | 'practising' | 'mastered' | 'check-due' | 'locked';
+
+/** Shown once under the mastery map while any section is new. */
+export const NEW_SECTION_TIP = 'New sections: loop them slowly first. The speed trainer starts you at 70%.';
+
+/** True when every section has the same rating as shown (one decimal), and there are several. */
+export function allSectionsAlike(bars: readonly Pick<DifficultyBar, 'rating'>[]): boolean {
+  return bars.length > 1 && bars.every((b) => b.rating.toFixed(1) === bars[0]!.rating.toFixed(1));
+}
 
 /** One section in the mastery map. */
 export interface SectionRow {
@@ -186,9 +199,10 @@ export interface SectionRow {
   loop: RouteTarget;
 }
 
-const STATE_LABEL: Record<SectionState, string> = {
-  new: 'Not started',
-  practising: 'Practising',
+/** State names, the same words as the map's legend (R3-U-10). */
+export const STATE_LABEL: Record<SectionState, string> = {
+  new: 'New',
+  practising: 'Practicing',
   mastered: 'Mastered',
   'check-due': 'Check due',
   locked: 'Locked in',
@@ -236,7 +250,8 @@ export function sectionRows(
     let speed: number | undefined;
     switch (state) {
       case 'new':
-        detail = 'Loop it slowly first: the speed trainer starts you at 70%.';
+        // The tip for new sections is said once, under the map (NEW_SECTION_TIP; R3-U-10).
+        detail = '';
         break;
       case 'practising':
         speed = p!.trainer.speed;

@@ -2,7 +2,8 @@
  * Tuner panel (T-022): a big, glanceable tuner for use while holding the guitar — note name, cents,
  * an eased needle with a ±3-cent green zone, a strobe band that drifts with the error and stops when
  * in tune, the target string of the current tuning (Drop D etc.) with "tune up/down" guidance, and
- * an adjustable A4 reference. Exports `mount: PanelMount<PanelPropsMap['tuner']>` (contract in
+ * an adjustable A4 reference. Each string's first in-tune reading dispatches
+ * {@link TUNER_IN_TUNE_EVENT} on the panel root. Exports `mount: PanelMount<PanelPropsMap['tuner']>` (contract in
  * `@shared/ui`); registered in `src/ui/panels/index.ts`. See docs/audio-input.md § Tuner.
  * @module
  */
@@ -20,6 +21,7 @@ import {
   formatCents,
   instruction,
   stringTargets,
+  TUNER_IN_TUNE_EVENT,
   tunerView,
   type StringTarget,
   type TunerView,
@@ -246,7 +248,10 @@ class TunerPanel {
     this.centsText.textContent = `${formatCents(v.cents)} ¢`;
     this.freqText.textContent = `${v.freq.toFixed(1)} Hz`;
     setText(this.hint, instruction(v));
-    if (v.inTune) this.tuned.add(v.target.string);
+    if (v.inTune && !this.tuned.has(v.target.string)) {
+      this.tuned.add(v.target.string);
+      this.root.dispatchEvent(new CustomEvent(TUNER_IN_TUNE_EVENT, { bubbles: true, detail: { string: v.target.string } }));
+    }
     this.highlight(v);
   }
 

@@ -28,9 +28,17 @@ export interface ResultList {
 
 /** Display genres per row (style tags are always shown). */
 const MAX_GENRES = 2;
+/** Tag chips per row; the rest collapse into "+n" (its title lists them; R3-U-17). */
+export const MAX_ROW_TAGS = 3;
+
+/** The tag chips a row shows: at most {@link MAX_ROW_TAGS}, then "+n" for the rest. */
+export function rowTags(r: Pick<SearchResult, 'tags'>): { shown: string[]; more: string[] } {
+  const tags = [...r.tags.style, ...r.tags.genre.slice(0, MAX_GENRES)];
+  return { shown: tags.slice(0, MAX_ROW_TAGS), more: tags.slice(MAX_ROW_TAGS) };
+}
 
 function difficulty(r: SearchResult): HTMLElement {
-  if (r.tier === null) return badge('Unrated', { title: 'Difficulty is computed when the song can be analysed' });
+  if (r.tier === null) return badge('Unrated', { title: 'Difficulty is computed when the song can be analyzed' });
   const pill = difficultyPill({ tier: r.tier, rating: r.rating ?? undefined, size: 'sm' });
   if (!r.ratingProvisional) return pill;
   // The pill already fills the column: the estimate marker sits inside it (dashed outline + "≈").
@@ -56,14 +64,22 @@ function row(r: SearchResult, isNew: boolean, onOpen: (r: SearchResult) => void)
     },
     r.title,
   );
-  const tags = [...r.tags.style, ...r.tags.genre.slice(0, MAX_GENRES)];
+  const tags = rowTags(r);
   const meta = h(
     'div',
     { class: 'lib-row__meta', id: metaId },
     badge(SOURCE_LABEL[r.source], { tone: 'neutral', title: `Source: ${SOURCE_LABEL[r.source]}` }),
     h('span', { class: 'lib-row__tuning', title: 'Tuning' }, r.tuningLabel),
     RHYTHM_NOTE[r.rhythm] ? h('span', { class: 'lib-row__rhythm' }, RHYTHM_NOTE[r.rhythm]) : null,
-    tags.length ? h('span', { class: 'lib-row__tags' }, ...tags.map((t) => h('span', { class: 'lib-tag' }, t))) : null,
+    // Always on their own line under the source and tuning, so every row lines up (R3-U-17).
+    tags.shown.length
+      ? h(
+          'span',
+          { class: 'lib-row__tags' },
+          ...tags.shown.map((t) => h('span', { class: 'lib-tag' }, t)),
+          tags.more.length ? h('span', { class: 'lib-tag lib-tag--more', title: tags.more.join(', ') }, `+${tags.more.length}`) : null,
+        )
+      : null,
   );
   const duration = formatDuration(r.durationSec);
   return h(

@@ -38,7 +38,9 @@ vi.mock('../../src/ui/panels', () => ({
   },
 }));
 
-const { mount } = await import('../../src/ui/screens/audio-setup');
+const { mount, TUNED_SESSION_KEY } = await import('../../src/ui/screens/audio-setup');
+const { TUNER_IN_TUNE_EVENT } = await import('../../src/ui/panels/tuner/model');
+const { readChecklist } = await import('../../src/ui/screens/home/prefs');
 
 describe('audio setup screen', () => {
   let fake: FakeCtx;
@@ -73,6 +75,8 @@ describe('audio setup screen', () => {
     el = document.createElement('div');
     document.body.replaceChildren(el);
     handle = null;
+    sessionStorage.clear();
+    localStorage.clear();
   });
 
   afterEach(() => {
@@ -106,8 +110,16 @@ describe('audio setup screen', () => {
     expect(fake.navigations.at(-1)).toBe('/audio-setup?step=tuner');
     expect(document.activeElement).toBe(q('.as-step__title'));
 
-    // The tuner has nothing saved: opening it this session marks it checked (T-041 note 4).
-    expect(railStatus('tuner')).toBe('Checked this session');
+    // Opening the tuner is not tuning (R3-U-15): the first in-tune reading marks it, for this tab
+    // session and for the Home checklist.
+    expect(railStatus('tuner')).toBe('Not tuned yet');
+    expect(btn('I’m tuned').hidden).toBe(false);
+    q('.mock-panel[data-mock="tuner"]').dispatchEvent(new CustomEvent(TUNER_IN_TUNE_EVENT, { bubbles: true, detail: { string: 5 } }));
+    expect(railStatus('tuner')).toBe('Tuned this session');
+    expect(q('.as-rail__step[data-step="tuner"]').dataset.tone).toBe('done');
+    expect(() => btn('I’m tuned')).toThrow();
+    expect(sessionStorage.getItem(TUNED_SESSION_KEY)).toBe('1');
+    expect(readChecklist(localStorage).tunedMarked).toBe(true);
     btn('Next: Monitoring').click();
     await vi.waitFor(() => expect(shown()).toEqual(['monitor']));
     // The headphone advice lives in the monitoring panel's single check, not repeated by the screen.
@@ -154,6 +166,7 @@ describe('audio setup screen', () => {
     expect(rows).toEqual([
       ['Guitar input', 'USB Audio CODEC (channel 1)'],
       ['Output', 'External Headphones'],
+      ['Tuning', 'Not yet this session (tune before you play)'],
       ['Monitoring', 'On · Crunch amp'],
       ['Latency calibration', 'Guitar +41 ms · keyboard −20 ms · spread ±3 ms'],
     ]);
@@ -166,7 +179,22 @@ describe('audio setup screen', () => {
     handle?.update?.({ step: 'done' });
     await vi.waitFor(() => expect(el.querySelector('.as-summary')).not.toBeNull());
     await fake.ctx.settings.update({ monitor: { enabled: false } });
-    await vi.waitFor(() => expect(el.querySelectorAll('.as-summary__value')[2]?.textContent).toBe('Off (you hear your own amp)'));
+    await vi.waitFor(() => expect(el.querySelectorAll('.as-summary__value')[3]?.textContent).toBe('Off (you hear your own amp)'));
+  });
+
+  it('“I’m tuned” on the tuner step marks tuning done and moves on; a reload keeps it (R3-U-15)', async () => {
+    await start({ step: 'tuner' });
+    btn('I’m tuned').click();
+    await vi.waitFor(() => expect(shown()).toEqual(['monitor']));
+    expect(railStatus('tuner')).toBe('Tuned this session');
+    expect(readChecklist(localStorage).tunedMarked).toBe(true);
+    handle?.unmount();
+    el.replaceChildren();
+    await start({ step: 'done' });
+    expect(railStatus('tuner')).toBe('Tuned this session');
+    const tuning = Array.from(el.querySelectorAll('.as-summary__row')).find((r) => r.querySelector('dt')?.textContent === 'Tuning');
+    expect(tuning?.querySelector('.as-summary__value')?.textContent).toBe('Tuned this session');
+    expect((tuning as HTMLElement | undefined)?.dataset.tone).toBe('done');
   });
 
   it('keeps monitoring off until its step and says when the guitar is not calibrated (R2-U-09/10)', async () => {

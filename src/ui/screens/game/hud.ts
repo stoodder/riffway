@@ -1,18 +1,23 @@
 /**
- * Game HUD (T-031): the top bar (song, section, score, accuracy, star meter, speed) and the stage
- * overlays (count-in / loop pre-roll countdown, coach messages, the chord-leniency note). Outcome
+ * Game HUD (T-031): the top bar (song, section, coach messages, score, accuracy, star meter, speed)
+ * and the stage overlays (count-in / loop pre-roll countdown, the chord-leniency note). Outcome
  * feedback and the combo live on the highway canvas only — the gutter text and the combo cluster
  * left of the hit line — so nothing covers the notes still to come and the combo shows once
  * (R2-U-01, T-041 note 2). Plain DOM; every update writes only what changed.
  * @module
  */
+import type { TransportLoop } from '@shared/clock';
 import type { Judgement, JudgeState, PracticeMessage } from '@shared/judge';
+import type { Song } from '@shared/song';
 import { starsFor } from '@core/judge';
+import { sectionAt } from '@core/model';
 import { STAR_THRESHOLDS } from '@core/judge/constants';
 import { flash, h, icon } from '../../components';
 
 /** Text of the chord-leniency note (docs/game-mechanics.md § Chord leniency). */
 export const CHORD_NOTE = 'Chords: judged on timing + any chord tone';
+/** The same note where the gutter is narrow (drawer open, small windows; R3-U-04). */
+export const CHORD_NOTE_SHORT = 'Chords: timing + any tone';
 
 /** Live accuracy and stars show "—" until this many notes are judged (one early slip isn't "0%"). */
 export const MIN_NOTES_FOR_ACCURACY = 5;
@@ -64,6 +69,20 @@ export function displayArtist(artist: string | null | undefined): string | null 
   return a && a.toLowerCase() !== 'riffway' ? a : null;
 }
 
+/**
+ * Section name the HUD shows at heard song time `t`. With a loop, anything before A (the start card,
+ * the pre-roll, a pause in it) names the loop's first section, as the highway's section pill and the
+ * practice drawer do, so the HUD never names the bar before the loop (R3-U-01). '' when the song has
+ * no sections.
+ */
+export function hudSection(song: Song, loop: Pick<TransportLoop, 'start'> | null, t: number, name: (idx: number) => string): string {
+  if (song.sections.length === 0) return '';
+  // Just inside A, so a loop starting on a section line never names the section before it.
+  const at = loop && t < loop.start ? loop.start + 1e-6 : Math.max(0, t);
+  const idx = sectionAt(song, at);
+  return idx >= 0 ? name(idx) : '';
+}
+
 /** Star meter: earned stars plus progress toward the next threshold. */
 function starMeter(): { el: HTMLElement; set(accuracy: number | null): void } {
   const stars = Array.from({ length: 5 }, () => h('span', { class: 'gm-stars__star' }, icon('star', { size: '1em' })));
@@ -107,7 +126,13 @@ export class GameHud {
   private readonly speedOut = h('output', { class: 'gm-speed rw-num' }, '100%');
   private readonly section = h('span', { class: 'gm-song__section' }, '');
   private readonly stars = starMeter();
-  private readonly chordNote = h('div', { class: 'gm-chord-note', hidden: true, title: CHORD_NOTE }, icon('info', { size: '1em' }), CHORD_NOTE);
+  private readonly chordNote = h(
+    'div',
+    { class: 'gm-chord-note', hidden: true, title: CHORD_NOTE },
+    icon('info', { size: '1em' }),
+    h('span', { class: 'gm-chord-note__full' }, CHORD_NOTE),
+    h('span', { class: 'gm-chord-note__short' }, CHORD_NOTE_SHORT),
+  );
   private readonly coach = h('div', { class: 'gm-coach', role: 'status', 'aria-live': 'polite' });
   private readonly countNumber = h('span', { class: 'gm-countin__n' });
   private readonly countCaption = h('span', { class: 'gm-countin__caption' });
@@ -131,7 +156,7 @@ export class GameHud {
         'div',
         { class: 'gm-song' },
         h('h1', { class: 'gm-song__title', tabindex: '-1' }, info.title),
-        h('div', { class: 'gm-song__meta' }, modeChip, artist ? h('span', { class: 'gm-song__artist' }, artist) : null, this.section),
+        h('div', { class: 'gm-song__meta' }, modeChip, artist ? h('span', { class: 'gm-song__artist' }, artist) : null, this.section, this.coach),
       ),
       h(
         'div',
@@ -143,7 +168,7 @@ export class GameHud {
       ),
       actions,
     );
-    this.overlays = h('div', { class: 'gm-overlays' }, this.countIn, this.coach, this.chordNote);
+    this.overlays = h('div', { class: 'gm-overlays' }, this.countIn, this.chordNote);
   }
 
   /** Live judge state → score, accuracy, stars. */

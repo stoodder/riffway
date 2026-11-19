@@ -9,6 +9,7 @@ import { DEFAULT_QUERY } from '../../src/ui/screens/library/query';
 import { importDestination, validateLibraryPath } from '../../src/ui/screens/library/library-folder';
 import { tuningFacets } from '../../src/ui/screens/library';
 import { trackDetails } from '../../src/ui/screens/library/arrangement-picker';
+import { MAX_ROW_TAGS, rowTags } from '../../src/ui/screens/library/results';
 import { result } from './fake-server';
 
 const file = (name: string, size = 10): File => {
@@ -153,5 +154,17 @@ describe('display helpers', () => {
     } finally {
       Object.defineProperty(window, 'innerHeight', { configurable: true, value: prev });
     }
+  });
+});
+
+describe('row tags (R3-U-17)', () => {
+  it('shows style then up to two genres, at most three chips, the rest as "+n"', () => {
+    expect(rowTags({ tags: { style: ['pick'], genre: ['metal', 'holiday', 'rock'], skills: [] } })).toEqual({ shown: ['pick', 'metal', 'holiday'], more: [] });
+    expect(rowTags({ tags: { style: ['pick', 'fingerstyle'], genre: ['classical', 'recognizable'], skills: [] } })).toEqual({
+      shown: ['pick', 'fingerstyle', 'classical'],
+      more: ['recognizable'],
+    });
+    expect(rowTags({ tags: { style: [], genre: [], skills: ['bends'] } })).toEqual({ shown: [], more: [] });
+    expect(MAX_ROW_TAGS).toBe(3);
   });
 });

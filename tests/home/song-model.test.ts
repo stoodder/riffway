@@ -3,10 +3,12 @@ import {
   accuracyTrend,
   arrangementOptions,
   bestsView,
+  allSectionsAlike,
   difficultyBars,
   masterySummary,
   resolveArrangement,
   sectionRows,
+  STATE_LABEL,
   sectionWhy,
   toSearchResult,
   tuningView,
@@ -77,6 +79,17 @@ describe('difficulty breakdown', () => {
     expect(sectionWhy(section(0, 'Quiet', 1))).toEqual([]);
     expect(difficultyBars(null)).toEqual([]);
   });
+
+  it('flags no section as hardest when the top rating is shared, and says they are alike (R3-U-22)', () => {
+    // 2.71 and 2.68 both read 2.7.
+    const tied = difficultyBars(report([section(0, 'Intro', 2.71), section(1, 'Riff', 2.68)]));
+    expect(tied.map((b) => b.hardest)).toEqual([false, false]);
+    expect(allSectionsAlike(tied)).toBe(true);
+    const threeWay = difficultyBars(report([section(0, 'A', 3), section(1, 'B', 4.2), section(2, 'C', 4.2)]));
+    expect(threeWay.map((b) => b.hardest)).toEqual([false, false, false]);
+    expect(allSectionsAlike(threeWay)).toBe(false);
+    expect(allSectionsAlike(difficultyBars(report([section(0, 'Solo', 3)])))).toBe(false);
+  });
 });
 
 describe('sections and mastery', () => {
@@ -104,6 +117,10 @@ describe('sections and mastery', () => {
     expect(rows[1]!.loop).toEqual({ screen: 'game', params: { id: 'starter:hall', arr: '0', mode: 'practice', section: '1', speed: '0.8' } });
     expect(rows[2]!.loop.params.speed).toBeUndefined();
     expect(rows[0]!.detail).toBe('Locked in yesterday. Keep it warm with a full play.');
+    // One name per state, the legend's (R3-U-10); new rows carry no repeated tip (it is said once).
+    expect(rows.map((r) => r.stateLabel)).toEqual(['Locked in', 'Practicing', 'New']);
+    expect(rows[2]!.detail).toBe('');
+    expect(STATE_LABEL.new).toBe('New');
   });
 
   it('shows a mastered section’s check opening, then due', () => {

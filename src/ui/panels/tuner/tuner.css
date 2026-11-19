@@ -356,3 +356,55 @@
     width: min(100%, 300px);
   }
 }
+
+/*
+ * Very short windows (1280×720): readout beside the gauge and smaller type, so the strings stay on
+ * screen above the step's buttons (R3-U-14).
+ */
+@media (max-height: 760px) {
+  .rw-tuner__display {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: center;
+    justify-content: center;
+    column-gap: var(--space-6);
+  }
+
+  .rw-tuner__strobe,
+  .rw-tuner__hint {
+    grid-column: 1 / -1;
+    justify-self: center;
+  }
+
+  .rw-tuner .rw-card__body {
+    gap: var(--space-3);
+  }
+
+  .rw-tuner__stage {
+    padding: var(--space-2) var(--space-3) var(--space-3);
+  }
+
+  .rw-tuner__readout {
+    min-height: 3.75rem;
+  }
+
+  .rw-tuner__name {
+    font-size: clamp(2.75rem, 8vh, 3.5rem);
+  }
+
+  .rw-tuner__numbers {
+    padding-bottom: 0.4rem;
+  }
+
+  .rw-tuner__cents {
+    font-size: var(--text-xl);
+  }
+
+  .rw-tuner__gauge {
+    width: min(100%, 220px);
+  }
+
+  .rw-tuner__hint {
+    margin: 0;
+  }
+}

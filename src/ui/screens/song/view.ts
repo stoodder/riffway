@@ -10,7 +10,7 @@ import { badge, button, difficultyPill, h, icon, starRating, type IconName } fro
 import { RHYTHM_LABEL, SOURCE_LABEL, formatDuration } from '../library/labels';
 import { playRoute, type RouteTarget } from '../home/model';
 import { sparkline } from '../home/viz';
-import type { ArrangementOption, BestView, DifficultyBar, SectionRow, TuningView } from './model';
+import { allSectionsAlike, NEW_SECTION_TIP, STATE_LABEL, type ArrangementOption, type BestView, type DifficultyBar, type SectionRow, type TuningView } from './model';
 
 /** Everything the song page shows. */
 export interface SongPageState {
@@ -155,7 +155,11 @@ function sectionAction(s: SongPageState, r: SongPageState['sections'][number], a
     link.setAttribute('aria-label', `Align the rhythm before looping ${r.name}`);
     return link;
   }
-  return linkButton(r.state === 'check-due' ? 'Take the check' : 'Loop this', a.href(r.loop), { size: 'sm', variant: r.state === 'check-due' ? 'primary' : 'secondary', icon: 'loop' });
+  const check = r.state === 'check-due';
+  const link = linkButton(check ? 'Take the check' : 'Loop this', a.href(r.loop), { size: 'sm', variant: check ? 'primary' : 'secondary', icon: 'loop' });
+  // Every row has the same visible text: name the section for screen readers (R3-U-09).
+  link.setAttribute('aria-label', check ? `Take the next-day check on ${r.name}` : `Loop ${r.name}`);
+  return link;
 }
 
 function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
@@ -183,7 +187,7 @@ function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
           'div',
           { class: 'sg-sec__text' },
           h('span', { class: 'sg-sec__name' }, r.name, r.tier ? difficultyPill({ tier: r.tier, ...(r.rating !== null ? { rating: r.rating } : {}), size: 'sm', showName: false }) : null),
-          h('span', { class: 'sg-sec__detail' }, h('span', { class: 'sg-sec__label' }, r.stateLabel), ' · ', r.detail),
+          h('span', { class: 'sg-sec__detail' }, h('span', { class: 'sg-sec__label' }, r.stateLabel), r.detail ? ` · ${r.detail}` : null),
         ),
         sectionAction(s, r, a),
       ),
@@ -192,13 +196,13 @@ function masteryMap(s: SongPageState, a: SongActions): HTMLElement {
   return sgCard(
     'Sections',
     rows.length
-      ? [h('p', { class: 'sg-card__sub' }, summary), strip, list]
+      ? [h('p', { class: 'sg-card__sub' }, summary), strip, rows.some((r) => r.state === 'new') ? h('p', { class: 'sg-card__tip' }, NEW_SECTION_TIP) : null, list]
       : [h('p', { class: 'rw-muted' }, s.songState === 'loading' ? 'Loading sections…' : 'This arrangement has no sections yet.')],
     {
       aside: h(
         'ul',
         { class: 'sg-legend', 'aria-label': 'Legend' },
-        ...(['new', 'practising', 'mastered', 'locked'] as const).map((k) => h('li', { class: `is-${k}` }, { new: 'New', practising: 'Practising', mastered: 'Mastered', locked: 'Locked in' }[k])),
+        ...(['new', 'practising', 'mastered', 'locked'] as const).map((k) => h('li', { class: `is-${k}` }, STATE_LABEL[k])),
       ),
       cls: 'sg-mastery',
     },
@@ -228,6 +232,7 @@ function difficultyCard(s: SongPageState): HTMLElement | null {
           ),
         ),
       ),
+      allSectionsAlike(s.bars) ? h('p', { class: 'sg-note' }, 'All sections are about equally hard.') : null,
       report.provisional ? h('p', { class: 'sg-note' }, 'Estimated from proportional timing; it firms up once the rhythm is aligned.') : null,
     ],
     { id: 'sg-why-title', cls: 'sg-diff' },
@@ -331,7 +336,8 @@ function rhythmCard(s: SongPageState, a: SongActions): HTMLElement | null {
 function sourceCard(s: SongPageState): HTMLElement {
   const e = s.meta.entry;
   const rows: [string, HTMLElement | string][] = [
-    ['Source', SOURCE_LABEL[e.source]],
+    // The card is "Source"; this row says which part of the library the song lives in (R3-U-11).
+    ['Library', SOURCE_LABEL[e.source]],
     ['File', h('code', null, e.path)],
   ];
   if (e.origin) rows.push(['Origin', e.origin]);

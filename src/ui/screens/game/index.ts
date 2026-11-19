@@ -28,10 +28,10 @@ import {
   setActiveSession,
   type SessionInputMode,
 } from '../../../game/session';
-import { button, emptyState, h, openModal } from '../../components';
+import { button, emptyState, h, icon, openModal } from '../../components';
 import { mountPanel } from '../../panels';
-import { displayArtist, GameHud } from './hud';
-import { errorCard, loadingCard, notFoundCard, pauseMenu, startCard } from './overlays';
+import { displayArtist, GameHud, hudSection } from './hud';
+import { errorCard, loadingCard, notFoundCard, pauseMenu, startCard, type LastTuning } from './overlays';
 import { SectionProgressBar } from './progress-bar';
 import './game.css';
 
@@ -51,6 +51,21 @@ function num(v: string | undefined): number | undefined {
 /** True for the API's "not found" (the song id is not in the library). */
 function isNotFound(err: unknown): boolean {
   return typeof err === 'object' && err !== null && (err as { status?: unknown }).status === 404;
+}
+
+/**
+ * Tuning of the most recent run's song other than `songId` (the song cache), as the song page reads
+ * it for its retune prompt; null when unknown. Never throws: the reminder is a nicety.
+ */
+async function loadLastTuning(ctx: AppContext, songId: string): Promise<LastTuning | null> {
+  try {
+    const recent = await ctx.storage.listRuns({ limit: 20 });
+    const other = recent.find((r) => r.songId !== songId);
+    const cached = other ? await ctx.storage.getSongCache(other.songId) : null;
+    return cached ? { id: cached.meta.tuningId, label: cached.meta.tuningLabel } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** What the game needs from the app context. */
@@ -92,6 +107,8 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
   const panels: PanelHandle<unknown>[] = [];
   const cleanups: (() => void)[] = [];
   const notices: string[] = [];
+  /** The previous song's tuning (start card's retune reminder), read while the song loads. */
+  let lastTuning: LastTuning | null = null;
 
   const songHref = (): string => ctx.router.href('song', { id: songId });
   const back = (): void => ctx.router.navigate(songHref());
@@ -112,6 +129,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
     const abort = new AbortController();
     loadAbort = abort;
     try {
+      const previous = loadLastTuning(ctx, songId);
       const arrangement = num(params.arr) ?? (await ctx.api.song(songId)).entry.defaultArrangement;
       const speed = num(params.speed);
       const section = num(params.section);
@@ -132,6 +150,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
           signal: abort.signal,
         },
       );
+      lastTuning = await previous;
       if (disposed) {
         void s.dispose();
         return;
@@ -166,6 +185,13 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
     pauseBtn.classList.add('gm-pause-btn');
     pauseBtn.append(h('kbd', { class: 'gm-kbd', 'aria-hidden': 'true' }, 'Esc'));
     pauseBtn.setAttribute('aria-keyshortcuts', 'Escape');
+    /** While paused the same button (and Esc) resumes: say so (R3-U-13). */
+    const setPauseLabel = (paused: boolean): void => {
+      pauseBtn.querySelector('svg')?.replaceWith(icon(paused ? 'play' : 'pause'));
+      const label = pauseBtn.querySelector('.rw-btn__label');
+      if (label) label.textContent = paused ? 'Resume' : 'Pause';
+      pauseBtn.title = paused ? 'Resume (Esc)' : 'Pause (Esc)';
+    };
     const toolsBtn = button({ label: 'Practice tools', icon: 'settings', variant: 'secondary', size: 'sm', onClick: () => toggleDrawer() });
     toolsBtn.setAttribute('aria-expanded', 'false');
     const actions = h('div', { class: 'gm-actions' }, toolsBtn, pauseBtn);
@@ -256,8 +282,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       if (disposed) return;
       const t = s.clock.heardSongTime();
       bar.setTime(t);
-      const idx = s.sectionAtTime(Math.max(0, t));
-      hudView.setSection(idx >= 0 && s.song.sections.length > 0 ? s.sectionName(idx) : '');
+      hudView.setSection(hudSection(s.song, s.loop, t, (i) => s.sectionName(i)));
       hudView.setSpeed(s.speed);
       hudView.setChordNote(s.running && chordInView(t));
       if (s.state === 'count-in' && ciEnd > t) hudView.setCountIn(Math.ceil((ciEnd - t) / ciBeat - 1e-6));
@@ -304,6 +329,8 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
           guitarLabel: s.hasGuitar ? (ctx.services.peek('input')?.current?.device.label ?? 'connected') : null,
           keys: ctx.settings.get().keyboard,
           tuning: s.song.meta.tuning,
+          capo: s.song.meta.capo,
+          lastTuning,
           ...(notice ? { notice } : notices.length > 0 ? { notice: notices.join(' ') } : {}),
         },
         () => void start(),
@@ -405,6 +432,7 @@ export const mount: ScreenMount = (el, ctx, params): ScreenHandle => {
       s.onStateChange((state: SessionState) => {
         root.dataset.state = state;
         pauseBtn.disabled = state === 'ready' || state === 'ended';
+        setPauseLabel(state === 'paused');
         if (state === 'paused') showPause();
         else if (state === 'playing' || state === 'count-in') showCard(null);
       }),

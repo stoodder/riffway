@@ -190,16 +190,26 @@
   flex: 1;
 }
 
+/* Back / Next stay on screen while a tall panel (the tuner) scrolls (R3-U-14). */
 .as-step__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
   display: flex;
   justify-content: space-between;
   gap: var(--space-3);
-  padding-top: var(--space-4);
+  padding: var(--space-3) 0;
   border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
 }
 
-.as-step__foot > .rw-btn--primary {
+.as-step__foot > .rw-btn--primary,
+.as-step__foot > .as-step__tuned {
   margin-left: auto;
+}
+
+.as-step__foot > .as-step__tuned:not([hidden]) + .rw-btn--primary {
+  margin-left: 0;
 }
 
 .as-flip {

@@ -13,6 +13,8 @@ import type { Settings } from '@shared/settings';
 import type { AppContext, PanelHandle, PanelPropsMap, RouteParams, ScreenHandle, ScreenMount } from '@shared/ui';
 import { button, emptyState, h, icon, type IconName } from '../../components';
 import { mountPanel } from '../../panels';
+import { TUNER_IN_TUNE_EVENT } from '../../panels/tuner/model';
+import { localStore, writeChecklist } from '../home/prefs';
 import { STEPS, neighbour, stepFromParam, stepStatuses, summaryRows, type SetupSession, type StepDef, type StepId, type StepTone } from './steps';
 import './audio-setup.css';
 
@@ -23,8 +25,28 @@ type CalibrationMode = NonNullable<PanelPropsMap['calibration']['mode']>;
 const TONE_ICON: Record<StepTone, IconName | null> = { done: 'check', todo: null, optional: null, warning: 'warning' };
 const NUMBERED = STEPS.filter((s) => s.panel !== null).length;
 
-/** Per page load: the tuner step was opened (nothing about tuning is saved). */
-const session: SetupSession = { tunerVisited: false };
+/**
+ * `sessionStorage` key: this tab read a string in tune or the player said "I'm tuned". Tuning is per
+ * sitting, not a setting, but it survives a reload (R3-U-15).
+ */
+export const TUNED_SESSION_KEY = 'riffway.setup.tuned';
+
+/** This tab's setup session (sessionStorage; blocked storage just means "not tuned yet"). */
+function readSession(win: Window): SetupSession {
+  try {
+    return { tuned: win.sessionStorage.getItem(TUNED_SESSION_KEY) === '1' };
+  } catch {
+    return { tuned: false };
+  }
+}
+
+function writeTuned(win: Window): void {
+  try {
+    win.sessionStorage.setItem(TUNED_SESSION_KEY, '1');
+  } catch {
+    // Storage blocked: the rail still shows it for this page.
+  }
+}
 
 /** What the screen needs from the context (panels also use `services`). */
 const REQUIRED = ['settings', 'services', 'router', 'ui'] as const;
@@ -59,6 +81,8 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
   let calibration: PanelHandle<PanelPropsMap['calibration']> | null = null;
   let seq = 0;
   let destroyed = false;
+  const win = el.ownerDocument.defaultView ?? window;
+  const session = readSession(win);
 
   // ---- Step rail --------------------------------------------------------------------------------
   const railItems = STEPS.map((def, i) => {
@@ -82,12 +106,22 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
   const back = button({ label: 'Back', variant: 'ghost', icon: 'chevronRight', onClick: () => step(-1) });
   back.querySelector('svg')?.classList.add('as-flip');
   const next = button({ label: 'Next', variant: 'primary', trailingIcon: 'chevronRight', onClick: () => step(1) });
+  // On the tuner step: the player is already in tune (the guitar was tuned before opening Riffway).
+  const tunedBtn = button({
+    label: 'I’m tuned',
+    variant: 'ghost',
+    onClick: () => {
+      markTuned();
+      step(1);
+    },
+  });
+  tunedBtn.classList.add('as-step__tuned');
   const stepEl = h(
     'section',
     { class: 'as-step', 'aria-labelledby': 'as-step-title' },
     h('header', { class: 'as-step__head' }, eyebrow, title, lead),
     body,
-    h('footer', { class: 'as-step__foot' }, back, next),
+    h('footer', { class: 'as-step__foot' }, back, tunedBtn, next),
   );
   title.id = 'as-step-title';
 
@@ -103,6 +137,17 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
     h('div', { class: 'as-layout' }, rail, stepEl),
   );
   el.append(root);
+
+  /** Tuning is done: for this sitting (rail, summary) and for the Home checklist (R3-U-02, R3-U-15). */
+  function markTuned(): void {
+    writeChecklist(localStore(win), { tunedMarked: true });
+    tunedBtn.hidden = true;
+    if (session.tuned) return;
+    session.tuned = true;
+    writeTuned(win);
+    renderRail(ctx.settings.get());
+  }
+  body.addEventListener(TUNER_IN_TUNE_EVENT, markTuned);
 
   // Monitoring is set up in step 3 (headphone check), never live from step 1 (R2-U-10).
   const initial = ctx.settings.get();
@@ -139,6 +184,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
     const prev = neighbour(def.id, -1);
     const following = neighbour(def.id, 1);
     back.hidden = prev === null;
+    tunedBtn.hidden = def.id !== 'tuner' || session.tuned;
     const nextDef = following ? STEPS.find((s) => s.id === following) : null;
     next.hidden = nextDef === null;
     if (nextDef) (next.querySelector('.rw-btn__label') as HTMLElement).textContent = nextDef.panel ? `Next: ${nextDef.label}` : 'Finish';
@@ -240,7 +286,6 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params: Rou
 
   function show(id: StepId, focus: boolean): void {
     current = id;
-    if (id === 'tuner') session.tunerVisited = true;
     const def = STEPS.find((s) => s.id === id) as StepDef;
     renderHead(def);
     renderRail(ctx.settings.get());

@@ -46,6 +46,7 @@ import {
   songMastery,
   speedBucket,
 } from '@core/progress';
+import { calibrationState, stepStatuses } from '../audio-setup/steps';
 
 /** A screen + params; the view turns it into an href with the router. */
 export interface RouteTarget {
@@ -371,11 +372,17 @@ export function starterSongs(candidates: readonly SearchResult[] | null, count =
     .slice(0, count);
 }
 
-/** Setup checklist: input → tune → calibrate → first starter song. */
+/**
+ * Setup checklist: input → tune → calibrate → first starter song. It agrees with the audio setup
+ * summary (R3-U-02): calibration is done only when the input games use is calibrated (the guitar, or
+ * the keyboard in keyboard-only mode), and tuning only after an in-tune tuner reading or "I'm tuned"
+ * (`checklist.tunedMarked`), never just for opening the tuner or calibrating something else.
+ */
 export function buildChecklist(input: Pick<HomeInput, 'settings' | 'runs' | 'checklist' | 'candidates'>): Checklist {
   const { settings, runs } = input;
-  const calibrated = settings.calibration.method !== 'none';
-  const guitarRun = runs.some((r) => r.inputSource === 'guitar');
+  const calibration = stepStatuses(settings).calibration;
+  const calibrated = calibration.tone === 'done';
+  const keyboardOnlyCalibrated = !calibrated && calibrationState(settings).keyboard;
   const first = starterSongs(input.candidates, 1)[0];
   /** The audio-setup step (`#/audio-setup?step=…`). */
   const setup = (step: 'input' | 'tuner' | 'calibration', extra: RouteParams = {}): RouteTarget => route('audio-setup', { step, ...extra });
@@ -391,13 +398,17 @@ export function buildChecklist(input: Pick<HomeInput, 'settings' | 'runs' | 'che
       id: 'tune',
       title: 'Tune up',
       detail: 'Riffway judges pitch, so start in tune. The tuner listens to your input.',
-      done: input.checklist.tunedMarked || calibrated || guitarRun,
+      done: input.checklist.tunedMarked,
       action: { label: 'Open tuner', to: setup('tuner') },
     },
     {
       id: 'calibrate',
       title: 'Calibrate latency',
-      detail: calibrated ? 'Timing offsets are set.' : 'Play along with a click for about 15 seconds so hits line up exactly.',
+      detail: calibrated
+        ? 'Timing offsets are set.'
+        : keyboardOnlyCalibrated
+          ? 'The keyboard is calibrated; calibrate the guitar too so plucks line up exactly.'
+          : 'Play along with a click for about 15 seconds so hits line up exactly.',
       done: calibrated,
       action: { label: 'Calibrate', to: setup('calibration', { mode: 'guitar' }) },
     },
@@ -448,7 +459,7 @@ export function buildWeek(input: Pick<HomeInput, 'now' | 'practiceDays' | 'strea
     message = 'This week is in the bag. Any extra day is a bonus for your hands, not your streak.';
   } else if (repairing) {
     headline = 'Bonus week';
-    message = `Practise ${plural(needed, 'day')} this week to carry your ${plural(s.current, 'week')} forward. ${practiced} done so far.`;
+    message = `Practice ${plural(needed, 'day')} this week to carry your ${plural(s.current, 'week')} forward. ${practiced} done so far.`;
   } else if (s.current > 0) {
     headline = `${plural(s.current, 'week')} and counting`;
     message = `${plural(left, 'more practice day')} this week keeps it growing.`;
@@ -457,7 +468,7 @@ export function buildWeek(input: Pick<HomeInput, 'now' | 'practiceDays' | 'strea
     message =
       practiced > 0
         ? `${practiced} of ${needed} practice days this week. ${plural(left, 'more day')} starts your streak.`
-        : `Practise ${needed} days this week (5 minutes each) to start a weekly streak.`;
+        : `Practice ${needed} days this week (5 minutes each) to start a weekly streak.`;
   }
   if (!met && left > daysLeft) {
     // The target can't be reached any more this week: say what happens next, never what is lost.
@@ -526,7 +537,7 @@ export function buildContinue(input: HomeInput, lookup: SongLookup): ContinueIte
   } else if (open) {
     const speed = open.trainer.speed;
     next = `Next up: ${sectionName(report, open.sectionIdx)} at ${pct(speed)}%`;
-    primary = { label: 'Continue practising', to: playRoute(songId, arrangement, 'practice', { section: open.sectionIdx, speed }) };
+    primary = { label: 'Continue practicing', to: playRoute(songId, arrangement, 'practice', { section: open.sectionIdx, speed }) };
   } else if (m?.mastered) {
     next = m.repertoire ? 'In your repertoire. Play it for someone!' : 'Every section mastered. Play it through at full speed.';
     primary = { label: 'Play it through', to: playRoute(songId, arrangement, 'play', { speed: 1 }) };

@@ -35,13 +35,15 @@ export function buildBackground(layout: HighwayLayout, laneNames: readonly strin
   g.fillStyle = sheen;
   g.fillRect(hitX, lanesTop, w - hitX, lanesBottom - lanesTop);
 
-  // Strings: thicker toward the low E, like the real thing.
+  // Strings: thicker toward the low E, like the real thing. They start at the target well's right
+  // edge so nothing runs through the lane letter inside the well.
+  const wellRight = hitX + gemR + 3;
   for (let s = 1; s <= 6; s++) {
     const y = layout.laneY[s]!;
     g.strokeStyle = STRING_LINE_COLORS[s]!;
     g.lineWidth = 1 + (s - 1) * 0.4;
     g.beginPath();
-    g.moveTo(hitX, y);
+    g.moveTo(wellRight, y);
     g.lineTo(w, y);
     g.stroke();
   }
@@ -58,16 +60,32 @@ export function buildBackground(layout: HighwayLayout, laneNames: readonly strin
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.font = `800 ${Math.round(Math.max(11, gemR * 0.72))}px ${FONT_DISPLAY}`;
+  g.lineJoin = 'round';
+  const letterX = laneLetterX(layout);
   for (let s = 1; s <= 6; s++) {
     const y = layout.laneY[s]!;
     roundRectPath(g, hitX - gemR - 3, y - gemR - 3, gemR * 2 + 6, gemR * 2 + 6, gemR * 0.5);
     g.fillStyle = rgba(LANE_COLORS[s]!, 0.12);
     g.fill();
-    // In the right half of the well, clear of the hit line and its pulse (T-041 note 2).
-    g.fillStyle = rgba(LANE_COLORS[s]!, 0.8);
-    g.fillText(laneNames[s] ?? '', hitX + gemR * 0.6, y + 0.5);
+    // In the right half of the well, clear of the hit line's glow and pulse (T-041 note 2), with a
+    // dark halo so the letter stays readable over the well tint.
+    const name = laneNames[s] ?? '';
+    g.lineWidth = 4;
+    g.strokeStyle = rgba(HW_COLORS.bg, 0.9);
+    g.strokeText(name, letterX, y + 0.5);
+    g.fillStyle = LANE_COLORS[s]!;
+    g.fillText(name, letterX, y + 0.5);
   }
   return surf;
+}
+
+/**
+ * x of the lane letters: the middle of the strip between the hit line's glow (about 9 px right of
+ * the line) and the well's inner right edge, never left of the old `0.6 × gemR` spot.
+ */
+export function laneLetterX(layout: Pick<HighwayLayout, 'hitX' | 'gemR'>): number {
+  const { hitX, gemR } = layout;
+  return hitX + Math.max(gemR * 0.6, (9 + gemR + 2) / 2 + 1.5);
 }
 
 /**

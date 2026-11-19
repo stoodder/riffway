@@ -8,7 +8,7 @@
  * - "Tap along": the backing plays alone (no click, guide muted) from one bar before the chosen bar;
  *   the player taps Space/T (or the Tap button) on the beat starting at that bar's downbeat. One tap
  *   fixes the offset; taps over ≥ 2 s also fit the tempo ratio (`align.ts`).
- * - "Play check": backing + metronome at 100/85/70 % (time-stretched, no pitch change).
+ * - "Play check": backing + metronome at 100/85/70% (time-stretched, no pitch change).
  * - Toggles for backing on/off and "mute guide while backing plays"; gain; remove.
  *
  * Previews drive the engine transport directly, so the panel belongs on the song page, not inside a
@@ -24,6 +24,7 @@ import { BackingError, guideShouldMute } from '../../../audio/backing';
 import { audioTimeAt, nudgeAnchors, shiftAnchors, slopeAt, summarizeWarp } from '../../../audio/backing/warp';
 import { badge, button, card, h, select, slider, toggle, type Select, type Toggle } from '../../components';
 import {
+  BACKING_ACCEPT,
   DEFAULT_ZOOM_BARS,
   ZOOM_BARS,
   type Peaks,
@@ -34,6 +35,7 @@ import {
   formatOffset,
   formatTempo,
   songToX,
+  speedLabel,
   viewForBar,
   waveformColumns,
 } from './model';
@@ -41,8 +43,6 @@ import './backing.css';
 
 type Props = PanelPropsMap['backing'];
 
-/** File picker filter (extensions plus the matching MIME types). */
-const ACCEPT = '.mp3,.wav,.m4a,audio/mpeg,audio/wav,audio/x-wav,audio/mp4,audio/x-m4a';
 /** Preview speeds offered by "Play check". */
 const CHECK_SPEEDS = [1, 0.85, 0.7] as const;
 const GAIN_MIN_DB = -24;
@@ -70,7 +70,7 @@ const errorMessage = (err: unknown): string =>
 class BackingPanel {
   private readonly root: HTMLElement;
   private readonly body = h('div', { class: 'rw-backing__body' });
-  private readonly fileInput = h('input', { type: 'file', accept: ACCEPT, class: 'rw-backing__file', hidden: true, tabindex: '-1' });
+  private readonly fileInput = h('input', { type: 'file', accept: BACKING_ACCEPT, class: 'rw-backing__file', hidden: true, tabindex: '-1' });
   private readonly canvas = h('canvas', {
     class: 'rw-backing__wave',
     tabindex: '0',
@@ -342,7 +342,7 @@ class BackingPanel {
       button({ label, title, size: 'sm', onClick: () => this.nudge(laterMs) });
     const speed = select({
       label: 'Check speed',
-      options: CHECK_SPEEDS.map((s) => ({ value: String(s), label: `${Math.round(s * 100)} %` })),
+      options: CHECK_SPEEDS.map((s) => ({ value: String(s), label: speedLabel(s) })),
       value: String(this.checkSpeed),
       onChange: (v) => {
         this.checkSpeed = Number(v);

@@ -84,6 +84,18 @@ export const CUE_LEAD_REAL_SEC = 1.5;
 const SHIFT_PULSE_SEC = 0.6;
 const LOOP_A = 'A';
 const LOOP_B = 'B';
+/** Half the width of an A / B loop flag (CSS px). */
+const LOOP_MARKER_HALF = 10;
+/**
+ * A stray press at most this long (real seconds) before an unjudged note is shown as "TOO EARLY" on
+ * that note's lane: a press just outside the Good window otherwise shows nothing, and the note
+ * later reads MISS (R3-U-23).
+ */
+export const EARLY_HINT_SEC = 0.25;
+/** Gutter text for a press that came before a note's window opened. */
+export const TOO_EARLY_TEXT = 'TOO EARLY';
+/** Second line of that note's Miss. */
+export const TOO_EARLY_SUB = 'pressed too early ▸';
 const PM_TEXT = 'PM';
 /** Colour of a wrong note's second line. */
 const WRONG_SUB_COLOR = '#ffb8f0';
@@ -136,6 +148,8 @@ export class HighwayRenderer {
   /** Per-note outcome code (0 = none) valid while `noteEpoch[i] === epoch`. */
   private readonly noteState: Uint8Array;
   private readonly noteEpoch: Int32Array;
+  /** Epoch in which note i got a "TOO EARLY" hint (its later Miss then says "too early"). */
+  private readonly earlyEpoch: Int32Array;
   private epoch = 1;
   /** Latest loop pass seen (judgements of older passes no longer colour gems). */
   private pass = 0;
@@ -153,6 +167,7 @@ export class HighwayRenderer {
     this.prep = prepareSong(song, this.handAnalysis());
     this.noteState = new Uint8Array(this.prep.n);
     this.noteEpoch = new Int32Array(this.prep.n);
+    this.earlyEpoch = new Int32Array(this.prep.n);
     this.lanes = laneNames(song.meta.tuning);
   }
 
@@ -308,6 +323,11 @@ export class HighwayRenderer {
       this.fx.burst(s, code, L.hitX, L.laneY[s]!, 1 / Math.sqrt(strings));
       this.fx.mark(s, code, side, timingColor);
     }
+    // A Miss after a too-early press keeps saying why, once the "TOO EARLY" hint is replaced.
+    if (code === OUTCOME_CODE.Miss && this.detail !== 'minimal' && ids.some((id) => id >= 0 && id < p.n && this.earlyEpoch[id] === this.epoch)) {
+      this.fx.popup(top, code, text.word, TOO_EARLY_SUB, EARLY_COLOR);
+      return;
+    }
     const subColor = text.timing ? timingColor : code === OUTCOME_CODE.WrongNote ? WRONG_SUB_COLOR : HW_COLORS.textMuted;
     this.fx.popup(top, code, text.word, text.sub, subColor);
   }
@@ -317,9 +337,37 @@ export class HighwayRenderer {
     this.detail = detail;
   }
 
-  /** Faint tick for a stray onset. */
-  stray(_s: StrayEvent): void {
+  /**
+   * A stray onset: a faint tick at the hit line and, when an unjudged note follows within
+   * {@link EARLY_HINT_SEC} (real time), a muted "TOO EARLY" on that note's lane with an early tick, so
+   * the player can tell a press that came too soon from a note they never played (R3-U-23). Not with
+   * minimal feedback, which shows no early/late labels.
+   */
+  stray(s: StrayEvent): void {
     this.fx.stray();
+    // Minimal feedback promises no early/late labels.
+    if (this.detail === 'minimal') return;
+    const i = this.earlyTarget(s.songTime);
+    if (i < 0) return;
+    const string = this.prep.string[i]!;
+    this.earlyEpoch[i] = this.epoch;
+    this.fx.mark(string, 0, 1, EARLY_COLOR);
+    this.fx.popup(string, 0, TOO_EARLY_TEXT, '', '', HW_COLORS.textMuted);
+  }
+
+  /**
+   * The note a stray press at `songTime` came too early for: the first note after it that is not yet
+   * judged and starts within {@link EARLY_HINT_SEC} real seconds. −1 when there is none.
+   */
+  earlyTarget(songTime: number): number {
+    const p = this.prep;
+    if (!Number.isFinite(songTime)) return -1;
+    const horizon = songTime + EARLY_HINT_SEC * safeSpeed(this.clock.speed);
+    for (let i = lowerBound(p.time, songTime); i < p.n && p.time[i]! <= horizon; i++) {
+      if ((p.flags[i]! & F_TIED_DEST) !== 0) continue;
+      if (this.stateOf(i) === 0) return i;
+    }
+    return -1;
   }
 
   /** Combo / multiplier for the flame and badge. */
@@ -909,12 +957,13 @@ export class HighwayRenderer {
     this.loopMarker(ctx, xb, LOOP_B);
   }
 
+  /** An A / B flag in the bottom strip; drawn only while it fits on screen (never clipped, R3-U-04). */
   private loopMarker(ctx: CanvasRenderingContext2D, x: number, label: string): void {
     const L = this.layout;
-    if (x < L.hitX - L.fadeW || x > L.width + 20) return;
+    if (x < L.hitX - L.fadeW || x > L.width - LOOP_MARKER_HALF - 2) return;
     ctx.fillStyle = HW_COLORS.loopMarker;
     const y = L.lanesBottom + (L.height - L.lanesBottom) / 2;
-    roundRectPath(ctx, x - 10, y - 9, 20, 18, 5);
+    roundRectPath(ctx, x - LOOP_MARKER_HALF, y - 9, LOOP_MARKER_HALF * 2, 18, 5);
     ctx.fill();
     ctx.fillStyle = HW_COLORS.ink;
     ctx.fillText(label, x, y + 0.5);

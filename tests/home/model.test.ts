@@ -58,11 +58,24 @@ describe('setup checklist', () => {
     expect(buildChecklist(homeInput({ checklist: { tunedMarked: false, hidden: true } })).visible).toBe(false);
   });
 
-  it('counts tuning as done after a guitar run or a calibration', () => {
-    expect(buildChecklist(homeInput({ runs: [run({ inputSource: 'guitar' })] })).steps[1]!.done).toBe(true);
-    const calibrated = homeInput();
-    calibrated.settings.calibration.method = 'tap-to-click';
-    expect(buildChecklist(calibrated).steps[1]!.done).toBe(true);
+  it('agrees with the audio setup summary: tuning and calibration are not ticked by something else (R3-U-02)', () => {
+    // Opening the tuner, a guitar run or a calibration does not mean the guitar is in tune: only an
+    // in-tune reading or "I'm tuned" (both set `tunedMarked`) does.
+    expect(buildChecklist(homeInput({ runs: [run({ inputSource: 'guitar' })] })).steps[1]!.done).toBe(false);
+    const keysOnly = homeInput();
+    keysOnly.settings.calibration = { ...keysOnly.settings.calibration, method: 'tap-to-click', keyboardOffsetMs: 13 };
+    let c = buildChecklist(keysOnly);
+    expect(c.steps[1]!.done).toBe(false);
+    // The keyboard alone is calibrated but games use the guitar: "Calibrate latency" stays open.
+    expect(c.steps[2]!.done).toBe(false);
+    expect(c.steps[2]!.detail).toMatch(/calibrate the guitar too/);
+    // In keyboard-only mode the keyboard calibration is the one that counts.
+    keysOnly.settings.game.inputMode = 'keyboard';
+    c = buildChecklist(keysOnly);
+    expect(c.steps[2]).toMatchObject({ done: true, detail: 'Timing offsets are set.' });
+    const estimated = homeInput();
+    estimated.settings.calibration.method = 'estimated';
+    expect(buildChecklist(estimated).steps[2]!.done).toBe(false);
   });
 });
 
@@ -88,7 +101,7 @@ describe('weekly streak card', () => {
     expect(bonus.repairing).toBe(true);
     expect(bonus.needed).toBe(6);
     expect(bonus.headline).toBe('Bonus week');
-    expect(bonus.message).toBe('Practise 6 days this week to carry your 3 weeks forward. 3 done so far.');
+    expect(bonus.message).toBe('Practice 6 days this week to carry your 3 weeks forward. 3 done so far.');
   });
 
   it('never talks about losing a streak, even when the week can no longer be met', () => {

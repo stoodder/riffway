@@ -1,6 +1,7 @@
 /**
- * Results screen building blocks (T-031): outcome tiles, the early ↔ late timing histogram, the
- * section heatmap with the weakest section's "Loop this", progress updates and "next up" cards.
+ * Results screen building blocks (T-031): outcome tiles with a hit summary, the early ↔ late timing
+ * histogram, the section heatmap naming the weakest section (its loop button lives in the screen's
+ * action row, once), progress updates and "next up" cards.
  * Plain DOM; data comes from a {@link RunResult}.
  * @module
  */
@@ -8,11 +9,21 @@ import type { Outcome } from '@shared/judge';
 import { OUTCOMES } from '@shared/judge';
 import type { Recommendation } from '@shared/storage';
 import { sectionEventText, type SectionUpdate } from '../../../game/session/progress';
-import { timingTendency, type NextStep, type ResultSection, type RunResult } from '../../../game/session/results';
-import { button, difficultyPill, h, icon } from '../../components';
+import { timingTendency, type NextStep, type RunResult } from '../../../game/session/results';
+import { difficultyPill, h, icon } from '../../components';
 import { OUTCOME_SLUG } from '../../design/tokens';
 
 const TILE_LABEL: Record<Outcome, string> = { Perfect: 'Perfect', Great: 'Great', Good: 'Good', WrongNote: 'Wrong', Miss: 'Miss' };
+
+/**
+ * The Notes card's summary under the tiles: notes hit of notes judged, and what Wrong and Miss mean
+ * (it also fills the card beside the taller timing card; R3-U-12).
+ */
+export function notesSummary(r: RunResult): string {
+  const hit = r.counts.Perfect + r.counts.Great + r.counts.Good;
+  const total = hit + r.counts.WrongNote + r.counts.Miss;
+  return `${hit} of ${total} notes hit. Wrong = on time but the wrong pitch; Miss = not played in its window.`;
+}
 
 /** Per-outcome note counts. */
 export function outcomeTiles(r: RunResult): HTMLElement {
@@ -65,8 +76,11 @@ function heat(accuracy: number): string {
   return accuracy >= 90 ? 'hot' : accuracy >= 70 ? 'warm' : 'cold';
 }
 
-/** Section heatmap; the weakest section (below 100%) gets "Loop this". */
-export function sectionHeatmap(r: RunResult, onLoop: (s: ResultSection) => void): HTMLElement {
+/**
+ * Section heatmap; the weakest section (below 100%) is named under it. Its "Loop …" button is in the
+ * screen's action row, not repeated here (R3-U-12).
+ */
+export function sectionHeatmap(r: RunResult): HTMLElement {
   if (r.sections.length === 0) return h('p', { class: 'rs-muted' }, 'No sections were judged.');
   const weakest = r.weakestSection !== null ? r.sections.find((s) => s.idx === r.weakestSection) : undefined;
   const showWeakest = weakest !== undefined && weakest.accuracy < 100;
@@ -101,7 +115,6 @@ export function sectionHeatmap(r: RunResult, onLoop: (s: ResultSection) => void)
             h('strong', null, 'Weakest section: '),
             `${weakest.name} — ${Math.round(weakest.accuracy)}% (${weakest.hits}/${weakest.notes} notes)`,
           ),
-          button({ label: 'Loop this', icon: 'loop', variant: 'primary', onClick: () => onLoop(weakest) }),
         )
       : h('p', { class: 'rs-weakest rs-weakest--clear' }, icon('check', { size: '16px' }), 'Every section at 100%.'),
   );
@@ -138,7 +151,7 @@ export function progressList(updates: readonly SectionUpdate[]): HTMLElement | n
       text =
         update.speed < 1 - 1e-6
           ? `${update.name}: ${Math.round(update.accuracy)}% at ${Math.round(update.speed * 100)}% — speed trainer: ${Math.round(update.nextSpeed * 100)}% next`
-          : `${update.name}: ${Math.round(update.accuracy)}% — a clean run needs 90%+`;
+          : `${update.name}: ${Math.round(update.accuracy)}% — this section needs 90%+ for a clean run`;
       tone = 'neutral';
     }
     lines.push(h('li', { class: `rs-progress__item rs-progress__item--${tone}` }, text));

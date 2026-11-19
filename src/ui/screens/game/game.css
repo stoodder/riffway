@@ -223,6 +223,7 @@
 
 .gm-stage {
   position: relative;
+  container: gm-stage / inline-size;
   flex: 1 1 auto;
   min-height: 260px;
   overflow: hidden;
@@ -318,18 +319,21 @@
   display: none;
 }
 
-/* Coach lines sit in the highway's top strip (30 px above the lanes), never over a lane. */
+/*
+ * Coach lines (speed trainer, loop results) sit in the HUD's meta row after the section name: never
+ * over a lane, nor over the highway's section and bar strip the player reads (R3-U-05).
+ */
 .gm-coach {
-  position: absolute;
-  top: 3px;
-  right: var(--space-2);
-  max-width: 55%;
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
 }
 
 .gm-coach__line {
   overflow: hidden;
-  height: 24px;
-  padding: 0 var(--space-3);
+  min-width: 0;
+  height: 20px;
+  padding: 0 var(--space-2);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-pill);
   background: rgb(14 18 24 / 0.94);
@@ -337,7 +341,7 @@
   color: var(--color-text);
   font-size: 12px;
   font-weight: var(--weight-semibold);
-  line-height: 22px;
+  line-height: 18px;
   text-overflow: ellipsis;
   white-space: nowrap;
   animation: rw-fade-in var(--dur-base) var(--ease-standard);
@@ -358,7 +362,10 @@
   opacity: 0;
 }
 
-/* In the gutter's bottom strip (26 px under the lanes, left of the hit line): never on a lane (R2-U-05). */
+/*
+ * In the gutter's bottom strip (26 px under the lanes, left of the hit line): never on a lane
+ * (R2-U-05). One line always: the short wording when the gutter is narrow (R3-U-04).
+ */
 .gm-chord-note {
   position: absolute;
   bottom: 2px;
@@ -381,6 +388,28 @@
 
 .gm-chord-note[hidden] {
   display: none;
+}
+
+.gm-chord-note__full,
+.gm-chord-note__short {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gm-chord-note__short {
+  display: none;
+}
+
+/* The full note needs a gutter of about 330 px: 24% of a stage at least ~1340 px wide. */
+@container gm-stage (max-width: 1340px) {
+  .gm-chord-note__full {
+    display: none;
+  }
+
+  .gm-chord-note__short {
+    display: inline;
+  }
 }
 
 /* ---- Cards (start, pause, loading, error) ----------------------------------------------------- */
@@ -467,8 +496,9 @@
   display: none;
 }
 
-/* Retune reminder for a non-standard tuning (R2-U-06). */
+/* Retune reminder for a non-standard tuning (R2-U-06) and the capo reminder (R3-U-06), full width. */
 .gm-card__tuning {
+  align-self: stretch;
   display: flex;
   flex-wrap: wrap;
   align-items: center;

@@ -331,7 +331,7 @@ export function libraryTab(ctx: AppContext): { el: HTMLElement; destroy(): void 
     h(
       'p',
       { class: 'rw-field__hint' },
-      'ClassTab publishes no licence, so its tabs stay on this computer for your own practice: Riffway never copies or shares them.',
+      'ClassTab publishes no license, so its tabs stay on this computer for your own practice: Riffway never copies or shares them.',
     ),
   );
 

@@ -190,7 +190,7 @@ describe('settings screen', () => {
       change(3).click();
       press('Escape');
       expect(keys()[2]).toBe('3');
-      expect(q('.set-keys__status').textContent).toBe('Key change cancelled.');
+      expect(q('.set-keys__status').textContent).toBe('Key change canceled.');
       // After cancelling, key presses are not captured.
       expect(press('KeyK').defaultPrevented).toBe(false);
 

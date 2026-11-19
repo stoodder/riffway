@@ -22,15 +22,30 @@ const COUNT_ROWS: readonly [keyof ImportPreview['counts'], string][] = [
   ['bests', 'Personal bests'],
   ['sectionProgress', 'Section progress'],
   ['practiceDays', 'Practice days'],
-  ['streak', 'Streak'],
+  // One record (the weekly streak state), not the streak length: Home shows the streak (R3-U-08).
+  ['streak', 'Streak history'],
   ['songCache', 'Songs played'],
   ['audioLinks', 'Backing-audio links'],
   ['sidecars', 'Rhythm alignments'],
 ];
 
-/** Labelled counts for a preview (or for local data), in display order. */
-export function countRows(counts: ImportPreview['counts']): { key: string; label: string; count: number }[] {
-  return COUNT_ROWS.map(([key, label]) => ({ key, label, count: counts[key] }));
+/** One row of the counts list: `value` is what it shows (the count, or "Saved" / "None"). */
+export interface CountRow {
+  key: string;
+  label: string;
+  count: number;
+  value: string;
+}
+
+/**
+ * Labeled counts for a preview (or for local data), in display order. The streak store holds one
+ * record, so it reads "Saved" / "None" rather than a number that looks like a streak length.
+ */
+export function countRows(counts: ImportPreview['counts']): CountRow[] {
+  return COUNT_ROWS.map(([key, label]) => {
+    const count = counts[key];
+    return { key, label, count, value: key === 'streak' ? (count > 0 ? 'Saved' : 'None') : String(count) };
+  });
 }
 
 /** Counts of local store contents (no sidecars: those live on the server). */
@@ -311,8 +326,8 @@ export function dataTab(ctx: AppContext): { el: HTMLElement; destroy(): void } {
   };
 }
 
-function countList(rows: { key: string; label: string; count: number }[]): HTMLElement[] {
-  return rows.map((r) => h('div', { class: 'set-counts__item', dataset: { count: r.key } }, h('dt', null, r.label), h('dd', { class: 'rw-num' }, String(r.count))));
+function countList(rows: CountRow[]): HTMLElement[] {
+  return rows.map((r) => h('div', { class: 'set-counts__item', dataset: { count: r.key } }, h('dt', null, r.label), h('dd', { class: 'rw-num' }, r.value)));
 }
 
 /** Read and check a chosen file; size, read and JSON problems become a failed preview. */
