@@ -531,7 +531,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     0–12, legato, chord leniency, backing-audio sync, human check that Songsterr/UG link-outs land on results.
 
 ### T-092 · Review round R3 (final)
-- **Status:** todo · **Deps:** T-041 · **Parallel:** n · **Agent:** `review`
+- **Status:** in-progress · **Deps:** T-041 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R3.md`; adds fix tasks
 - **Acceptance:** all tests, typecheck, lint and e2e green; DoD checklist ticked with evidence; docs
   current; fix tasks closed or explicitly deferred with the owner's visibility.
