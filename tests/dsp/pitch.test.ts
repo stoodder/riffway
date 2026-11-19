@@ -15,8 +15,11 @@ import {
   centsBetween,
   GUITAR_PARTIALS,
   harmonicTone,
+  dbToAmp,
   karplusStrong,
+  legatoTone,
   midiToHz,
+  mixInto,
   noise,
   sawPartials,
   sine,
@@ -214,6 +217,76 @@ describe('frequency ↔ MIDI helpers', () => {
     expect(freqToMidiFloat(880)).toBeCloseTo(81, 9);
     expect(() => freqToMidi(0)).toThrow(RangeError);
     expect(() => freqToMidiFloat(Number.NaN)).toThrow(RangeError);
+  });
+});
+
+describe('MPM pitch detector: recorded-guitar robustness', () => {
+  /** A guitar-like note with a faint sinusoid at f/m (body resonance, hum, a sympathetic lower string) and noise. */
+  function withSubharmonic(midi: number, m: number, subDb: number, noiseDb: number, sampleRate: number): Float32Array {
+    const f = midiToHz(midi);
+    const sig = applyPluckEnvelope(harmonicTone(f, 0.25, sampleRate, GUITAR_PARTIALS, 0.5), sampleRate);
+    mixInto(sig, sine(f / m, 0.25, sampleRate, 0.5 * dbToAmp(subDb)));
+    return addNoise(sig, noiseDb, midi);
+  }
+
+  for (const sampleRate of RATES) {
+    it(`${sampleRate} Hz: a faint sub-octave / sub-twelfth under noise is not the note (N = 1024 with hint, 2048)`, () => {
+      const cases: [number, 1024 | 2048][] = [
+        [57, 2048],
+        [61, 2048],
+        [62, 2048],
+        [66, 2048],
+        [64, 1024],
+        [66, 1024],
+        [69, 1024],
+        [72, 1024],
+      ];
+      for (const [m, subDb] of [
+        [2, -22],
+        [3, -18],
+      ] as const) {
+        for (const [midi, size] of cases) {
+          const det = createPitchDetector({ sampleRate, size });
+          det.setRange(size === 1024 ? { minMidi: midi - 7, maxMidi: midi + 7 } : null);
+          const est = det.detect(withSubharmonic(midi, m, subDb, -24, sampleRate), Math.round(OFFSET_SEC * sampleRate));
+          expect(est?.midi, `${midi} over f/${m} at N = ${size}`).toBe(midi);
+        }
+      }
+    });
+
+    it(`${sampleRate} Hz: a bend or slide through the window reads as the note it settles on`, () => {
+      for (const size of [1024, 2048] as const) {
+        for (const [from, to] of [
+          [59, 60],
+          [64, 65],
+          [57, 59],
+          [62, 60],
+        ]) {
+          const offset = Math.round(OFFSET_SEC * sampleRate);
+          // The glide (4 ms) starts 45 % into the window: the whole window averages in between.
+          const at = (offset + 0.45 * size) / sampleRate;
+          const sig = addNoise(legatoTone([{ atSec: 0, midi: from }, { atSec: at, midi: to }], 0.3, sampleRate, { glideMs: 4 }), NOISE_DB, from);
+          const det = createPitchDetector({ sampleRate, size });
+          det.setRange(size === 1024 ? { minMidi: Math.min(from, to) - 7, maxMidi: Math.max(from, to) + 7 } : null);
+          const est = det.detect(sig, offset);
+          const label = `${from}→${to} at N = ${size}`;
+          expect(est?.midi, label).toBe(to);
+          expect(Math.abs(est!.cents), label).toBeLessThanOrEqual(25);
+        }
+      }
+    });
+  }
+
+  it('leaves steady out-of-tune notes alone (the second half agrees)', () => {
+    for (const cents of [-45, -35, 35, 45]) {
+      const f = midiToHz(60) * 2 ** (cents / 1200);
+      const sig = addNoise(applyPluckEnvelope(harmonicTone(f, 0.3, 48000, GUITAR_PARTIALS), 48000), NOISE_DB, 4);
+      for (const size of [1024, 2048] as const) {
+        const est = createPitchDetector({ sampleRate: 48000, size }).detect(sig, 1200);
+        expect(est).not.toBeNull();
+        expect(Math.abs(centsBetween(est!.freq, f)), `${cents} cents, N = ${size}`).toBeLessThanOrEqual(2);
+      }
+    }
   });
 });
 

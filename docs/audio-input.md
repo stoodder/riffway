@@ -97,6 +97,19 @@ worklet's state machine (Node-tested quantum by quantum); the worklet file is a 
   absolute floor (−50 dBFS) and a 40 ms refractory period.
 - Onset frame = first sample of the rising edge in the triggering hop or the one before it
   (sample-accurate). Timestamps are context frames (`currentFrame`).
+- **Attack confirmation** (T-104): the pick or fingertip touching the string makes a small transient
+  20–70 ms before the pluck. A trigger is reported at once unless it is *suspect*: **weak** (its
+  attack, the hops within 10 ms, stays ≥ 14 dB below the recent playing level — a peak follower of
+  the hop energy falling 10 dB/s, never below −30 dBFS, i.e. the floor + 20 dB) or **no new energy**
+  (its plain energy never rises 3 dB above the 20 ms before it: a pick touching a ringing string). A
+  suspect trigger is held and **re-anchored** to a later attack ≥ 12 dB louder (the pluck after the
+  contact noise), or — when it added no energy and then damped the string by ≥ 10 dB — replaced by
+  the next trigger (the pluck after the pick stopped the old note). Otherwise it is reported once its
+  attack proves loud, after 40 ms sustained undamped (a re-pick at the ringing level), when an
+  unrelated trigger arrives past the refractory period (held one first, the new one a hop later), or
+  after 70 ms (`CONFIRM_MS`). Only the report is delayed, never the frame. A trigger is held only
+  when the last reported onset is ≥ 25 ms + 2560 samples old, so `AnalysisCore` never measures the
+  previous onset's pitch window (or its retry) across an onset still held.
 
 **Pitch** (`pitch.ts`, MPM/NSDF via a radix-2 FFT, preallocated buffers):
 - Window N = 2048, or 1024 when the `expect` hint's lowest note is above ~160 Hz. The main thread posts
@@ -104,7 +117,18 @@ worklet's state machine (Node-tested quantum by quantum); the worklet file is a 
   hint ±7 semitones (E2–E6 without a hint), and the lag search extends one more semitone each way so
   out-of-tune edge notes are found. Without a hint, notes below D♯2 (Drop D's low D) are not searched:
   the game must send hints for low tunings. A hint the window cannot resolve falls back to E2–E6.
-- Octave check: switch to the key maximum at twice the period only when its NSDF is ≥ 0.03 higher.
+- Octave check: switch to the key maximum at twice the period only when its NSDF is ≥ 0.03 higher
+  **and** it explains most of the shorter period's imperfection: 1 − NSDF(2τ) ≤ 0.4 × (1 − NSDF(τ))
+  (T-104 sub-harmonic guard). The same guard applies when McLeod's 0.9 × best rule picks a key
+  maximum at 2× or 3× the lag of an earlier clear one (NSDF ≥ 0.5). A weak-fundamental tone is
+  nearly perfect at its true period; a note over noise plus an attack thump, hum or a
+  sympathetically ringing lower string stays about as imperfect at the long period, so it keeps the
+  short one (this removed the octave-down errors at N = 1024 on the microphone clip).
+- Glide check (T-104): an estimate more than 0.3 semitone from the nearest note (a bend, slide or
+  pick glide moving through the window) is re-measured on the window's second half, within ±2
+  semitones, and replaced when that half's NSDF peak is ≥ 0.8 — the note is where the pitch
+  settles. Only for periods ≤ N/4 (two periods in the half window); steady out-of-tune notes read
+  the same.
 - The onset's pitch is measured on the N-sample window starting 25 ms after it and emitted as
   `{type:'onset', frame, midi, cents, clarity, rmsDb}` (`rmsDb` of that window) as soon as the window is
   complete. If clarity < 0.6, `midi: null`, and one retry window 512 samples later may produce a
@@ -113,15 +137,18 @@ worklet's state machine (Node-tested quantum by quantum); the worklet file is a 
   onset is used instead when it starts ≥ 8 ms after the old one, else the old onset is unpitched — a
   window never spans two plucks. At N = 2048 that pitches notes ≥ ~51 ms apart.
 - Delivery: an onset message leaves the worklet within one quantum of 25 ms + N after the onset
-  (67.7–70.3 ms at N = 2048 / 48 kHz, 74.3 ms worst case at 44.1 kHz); the judge's guitar input
-  horizon (`INPUT_LAG_SEC.guitar` = 109.3 ms) covers this plus main-thread delivery. Measured in
-  § Audio-pipeline results.
+  (67.7–70.3 ms at N = 2048 / 48 kHz), or of 70 ms for a held suspect onset (72.9 ms at 44.1 kHz;
+  at N = 2048 a hold adds ≤ 2.3 ms, at N = 1024 ≤ 24 ms); 74.3 ms worst case at 44.1 kHz either way.
+  The judge's guitar input horizon (`INPUT_LAG_SEC.guitar` = 109.3 ms) covers this plus main-thread
+  delivery. Measured in § Audio-pipeline results.
 
 **Pitch-change detector** (legato, `pitch-change.ts`): every 256 samples an MPM frame on the newest
 N-sample window, stamped at the window centre, feeds the detector. During a sustained note, a pitch
 that moves ≥ 0.8 semitone and stays for ≥ 25 ms without an amplitude onset emits
 `{type:'pitch-change', frame, midi, cents, clarity}` with `frame` = the detector's `changeFrame` (first
-frame at the new pitch). Used for hammer-ons, pull-offs and slides.
+frame at the new pitch). Used for hammer-ons, pull-offs and slides. A frame 12 or 24 semitones
+(± 0.5) from the reference is a tracking octave error (a decaying or muted note whose fundamental
+fades), not a fretted move, and is ignored.
 
 **Messaging.** `port.postMessage` with small plain objects (`shared/audio-events.ts`): ~20 level +
 ≤ 23 tuner messages/s plus onsets. No allocation in `process()` beyond the message objects. A gap in
@@ -143,7 +170,12 @@ Chord *verification* (harmonic salience at expected f0s, chroma template match) 
   fast notes, follow-up pitch, legato, 44.1 kHz; device matching, constraints and read-back; the
   service against fake devices (unplug / re-plug, fallback, context recreation, event bridge); both
   panels in happy-dom. Synthetic notes fade out (an abrupt cut reads as an onset). Thresholds were
-  tuned on synthetic signals; § Audio-pipeline results checks them on recordings.
+  tuned on synthetic signals; § Audio-pipeline results checks them on recordings. T-104 adds the
+  recorded-guitar failure modes as generated cases: contact noise 20–65 ms before a pluck (after a
+  note and from silence), a pick damping a ringing string before the pluck, an undamped re-pick, a
+  soft note followed 50 ms later by a louder one, the hold guard, a lone soft note; a faint
+  sub-octave / sub-twelfth under noise at N = 1024 and 2048; bends and slides through the window;
+  steady out-of-tune notes; octave jumps in the legato detector.
 - Browser (`npx vitest run --project browser tests/input`): the real worklet on an
   `OfflineAudioContext` fed by an `AudioBufferSource` of plucks (frames ±5 ms, pitches, stereo channel
   select, tuner frames) and the service on Chrome's fake capture device.
@@ -193,7 +225,8 @@ Scored against reference onsets at ±30 ms (one-to-one, closest pairs first). **
 detected. **Calibrated** = the clip's median offset removed first (what latency calibration does;
 GuitarSet's annotations sit ~10–15 ms after the steep part of the attack), with legato notes counted
 when reported as `pitch-change`. Pitch accuracy is over matched notes. Hint = the clip's MIDI range
-sent as `expect` (as the game does).
+sent as `expect` (as the game does). The table and judged results below are T-036's measurement,
+before the T-104 DSP fixes; current values are in § T-104 before / after.
 
 | Clip | Hint | Recall raw / cal. | Precision raw / cal. | Pitch (octave errors) | Offset | Timing raw: mean, p95 |
 |---|---|---|---|---|---|---|
@@ -205,29 +238,54 @@ sent as `expect` (as the game does).
 Judged as a song made from the annotations (calibrated offset, octave-tolerant default): Iowa 100 %
 accuracy (15 Perfect); rock 2 88.2 % (15 Perfect, 1 WrongNote = the bend, 1 Miss = the hammer-on,
 which the annotation-made song does not mark as legato); rock 1 83.3 % (18 Perfect, 2 Great, 2
-WrongNote, 2 Miss, 3 strays). No event reached the judge after its horizon.
+WrongNote, 2 Miss, 3 strays). No event reached the judge after its horizon (still true after T-104).
 
-**Verdict:** the T-036 targets (≥ 90 % recall and precision at ±30 ms, ≥ 95 % pitch) hold for the
-isolated Iowa notes and not yet for the GuitarSet lines. The failing cases, for the DSP owner
-(`src/core/dsp/`; pinned in `recorded.test.ts` as floors plus `it.fails` targets):
-1. **Pre-attack contact noise fires the onset early.** The pick or fingertip touching the string
-   20–50 ms before the pluck (15–30 dB below the note) crosses the onset threshold: Iowa A5 at
-   7.287 s vs 7.320 s (−33 ms); rock 2 B-string notes at 1.451 vs 1.495 s and 4.176 vs 4.222 s
-   (−44/−46 ms raw; the latter is still −31 ms after calibration, rock 2's only miss), 2.296 vs
-   2.326 s (−30 ms). When the gap exceeds the 40 ms refractory, the real attack fires a second onset:
-   rock 1 at 0.450 (unpitched) + 0.498 s, 2.611 + 2.657 s, 3.972 + 4.032 s, 2.461 (pitched 42) before
-   2.505 s, 3.280 before 3.324 s. Idea: re-anchor an onset to a much larger rise (≥ 15 dB) within
-   ~50 ms, or drop an unpitched onset followed by a stronger one within 60 ms.
-2. **Octave-down errors at N = 1024.** Rock 1 with its hint (56–73 → N = 1024, search from 49):
-   63→51 at 0.991 s, 65→53 at 1.340 s, 66→54 at 1.482 s and 1.662 s, 61→49 at 4.032 s. Without the
-   hint (N = 2048) only 66→54 at 1.662 s. Harmless while octave tolerance is on (DEC-18); wrong with
-   *Strict octave*. Idea: a stricter octave check at N = 1024, or a smaller downward search margin.
-3. **Stray onsets** between notes on the microphone recording: rock 1 at 2.267 s (54) and 4.395 s (43).
-4. **Bend into a note:** rock 2 at 3.789 s (annotated 60.14) reads 59 +43 cents from the 25 ms
-   window, then `pitch-change` 60 at 3.835 s; the judge scores a WrongNote.
-5. **Repeated legato events:** on the microphone recording the pitch-change detector re-reports the
-   just-plucked note 30–50 ms after many onsets (11 of 24 notes). The judge ignores `pitch-change` outside
-   legato notes, so this is noise only.
+**Verdict (T-036):** the targets (≥ 90 % recall and precision at ±30 ms, ≥ 95 % pitch) held for the
+isolated Iowa notes and not for the GuitarSet lines. The failing cases it listed, and what T-104
+did about them (`src/core/dsp/`):
+1. **Pre-attack contact noise fired the onset early** (Iowa A5 −33 ms; rock 2 B-string notes −44/−46/−30
+   ms; double onsets on rock 1 when the gap exceeded the 40 ms refractory). **Fixed** by attack
+   confirmation (§ Pitch and onset detection worklet): weak triggers are re-anchored to the pluck
+   ≥ 12 dB louder within 70 ms; no-new-energy contacts that damp the ringing string are replaced by
+   the following pluck.
+2. **Octave-down errors at N = 1024** (rock 1 with its hint: 5; without: 1) and a period-tripling
+   (61 → 42, the acoustic's body thump) once the re-anchored onsets were measured. **Fixed** by the
+   sub-harmonic guard: 0 octave errors on all clips, hint on or off.
+3. **Stray onsets** on the microphone clip (2.267 s, 4.395 s). **Remaining:** 2.267 s is a pick
+   contact whose damping reaches −10 dB only after 55 ms (past the 40 ms sustain test); 4.395 s is a
+   real-looking soft attack after the last annotated note.
+4. **Bend into a note** (rock 2 at 3.789 s read 59 +43 cents → WrongNote). **Fixed** by the glide
+   check: read as 60 +14 cents. (In the game a tabbed bend accepts the fretted pitch up to the target
+   anyway, `src/core/judge/targets.ts`.)
+5. **Repeated legato events** on the microphone clip: noise only (the judge ignores `pitch-change`
+   outside legato notes). Octave jumps are now ignored by the legato detector (a decaying Iowa F2 read
+   as F3 had produced one with the guard in place).
+
+### T-104 before / after
+Same harness (`npx vitest run tests/audio-pipeline --silent=false`), hint as the game sends it. Raw /
+calibrated as above; pitch over matched notes (octave errors in brackets); judge = accuracy of the
+annotation-made song.
+
+| Clip | Hint | Recall raw / cal. | Precision raw / cal. | Pitch cal. | Judge |
+|---|---|---|---|---|---|
+| Iowa, before | off / on | 93.3 % / 93.3 % | 93.3 % / 93.3 % | 100 % (0) | 100 % |
+| Iowa, **after** | off / on | **100 % / 100 %** | **100 % / 100 %** | 100 % (0) | 100 % |
+| Rock 2 pickup, before | on | 76.5 % / 94.1 % | 81.3 % / 88.9 % | 93.8 % (0) | 88.2 % |
+| Rock 2 pickup, **after** | on | **94.1 % / 100 %** | **100 % / 100 %** | **100 % (0)** | **94.1 %** |
+| Rock 1 mic, before | off | 83.3 % / 87.5 % | 74.1 % / 67.7 % | 90.5 % (1) | — |
+| Rock 1 mic, **after** | off | **91.7 % / 95.8 %** | **91.7 % / 85.2 %** | **95.7 % (0)** | — |
+| Rock 1 mic, before | on (N = 1024) | 83.3 % / 91.7 % | 74.1 % / 66.7 % | 72.7 % (5) | 83.3 % |
+| Rock 1 mic, **after** | on (N = 1024) | **91.7 % / 95.8 %** | **91.7 % / 85.2 %** | **95.7 % (0)** | **87.5 %** |
+
+Timing after: Iowa raw mean −1.2 ms, p95 3.5 ms; rock 2 calibrated offset −13.3 ms (was −15.0), p95
+11.3 ms (was 28.7); rock 1 p95 7.6–13.0 ms. The rock 2 raw recall gap is GuitarSet's late annotation
+(≈ 13 ms after the steep attack) plus its one hammer-on, which only the calibrated+legato score counts.
+Remaining on rock 1 (mic): two slides annotated at their start but detected (as `pitch-change`) at
+their arrival 33–39 ms later, one slide-off read 64.7 for 64, and the contact noise at 2.267 s; judged,
+the rock 2 Miss is that hammer-on (the annotation-made song does not mark it legato) and rock 1's two
+Misses are the slides. Iowa and rock 2 meet the targets (now plain tests); rock 1's target stays an
+`it.fails` with the values above as floors. Generated plucks (Ode to Joy, Node and worklet) are
+unchanged: as planned, timing error ≤ 0.02 ms.
 
 The Iowa sources carry strong sub-30 Hz rumble (often louder below 30 Hz than the note); the
 fixtures are high-passed at 30 Hz because a pickup into an AC-coupled interface has none. The

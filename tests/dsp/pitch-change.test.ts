@@ -57,6 +57,17 @@ describe('pitch-change detector (unit)', () => {
     expect(feed(det, [...hold(64, 4), ...hold(57, 30)], 20 * STEP)).toEqual([]);
   });
 
+  it('ignores octave jumps from the reference (a decaying note read an octave off), not other moves', () => {
+    const det = createPitchChangeDetector({ sampleRate: SR });
+    // F2 whose fundamental fades: the tracker reads F3, then F4 — no legato note.
+    expect(feed(det, [...hold(41, 10), ...hold(53.1, 20), ...hold(64.9, 20), ...hold(41, 5)])).toEqual([]);
+    // A real move after the octave readings is still reported against the note's reference.
+    expect(feed(det, [...hold(43, 20)], 55 * STEP)).toEqual([[HOLD_FRAMES - 1, 43]]);
+    // An 11- or 13-semitone move is not an octave error.
+    const other = createPitchChangeDetector({ sampleRate: SR });
+    expect(feed(other, [...hold(41, 10), ...hold(52, 20)])).toEqual([[10 + HOLD_FRAMES - 1, 52]]);
+  });
+
   it('bridges short unclear stretches but starts a fresh reference after 150 ms without pitch, and after reset()', () => {
     const det = createPitchChangeDetector({ sampleRate: SR });
     expect(feed(det, [...hold(52, 10), ...hold(null, 12), ...hold(55, 20)])).toEqual([[22 + HOLD_FRAMES - 1, 55]]);

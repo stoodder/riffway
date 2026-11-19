@@ -9,6 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { loadSong } from '@core/import/load-song';
+import { CONFIRM_MS } from '@core/dsp/onset';
 import { GUITAR_ANALYSIS_DELAY_SEC, INPUT_LAG_SEC } from '@core/judge/constants';
 import type { Song } from '@shared/song';
 import { errorStats } from './evaluate';
@@ -69,8 +70,8 @@ describe('song → plucks → analysis core → judge', { timeout: 60_000 }, () 
     const delays = events.filter((e) => e.ev.type === 'onset').map((e) => e.arrivalSec - (e.ev as { frame: number }).frame / SR);
     const stats = errorStats(delays.map((d) => d * 1000));
     expect(stats.n).toBe(plan.plucks.length);
-    // 25 ms wait + 2048-sample window + ≤ 1 quantum at 48 kHz.
-    expect(stats.maxAbs).toBeLessThanOrEqual((0.025 + (2048 + 128) / SR) * 1000 + 1e-6);
+    // 25 ms wait + 2048-sample window (or a held suspect onset's CONFIRM_MS) + ≤ 1 quantum at 48 kHz.
+    expect(stats.maxAbs).toBeLessThanOrEqual((Math.max(0.025 + 2048 / SR, CONFIRM_MS / 1000) + 128 / SR) * 1000 + 1e-6);
     expect(stats.maxAbs / 1000).toBeLessThanOrEqual(GUITAR_ANALYSIS_DELAY_SEC);
   });
 

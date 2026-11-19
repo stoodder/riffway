@@ -1,7 +1,9 @@
 /**
  * Legato detector (hammer-ons, pull-offs, slides): during a sustained note, a tracked pitch that
  * moves ≥ 0.8 semitone from the note's reference and holds there for ≥ 25 ms, with no amplitude
- * onset in between, is a new note. Allocation-free.
+ * onset in between, is a new note. A frame a whole octave away from the reference is a tracking
+ * (octave) error of the pitch detector — typically as a note decays or is muted and its
+ * fundamental fades — not a fretted move, and is ignored. Allocation-free.
  * @module
  */
 import type { PitchChangeDetector, PitchEstimate } from './index';
@@ -14,6 +16,8 @@ export const PITCH_CHANGE_HOLD_MS = 25;
 const MIN_CLARITY = 0.8;
 /** A candidate is still "the same pitch" while frames stay within this many semitones of it. */
 const CANDIDATE_TOLERANCE = 0.5;
+/** A frame within this many semitones of the reference ± 12 or ± 24 is an octave error (ignored). */
+const OCTAVE_ERROR_TOLERANCE = 0.5;
 /** Frames this soon after an amplitude onset are skipped (inharmonic attack). */
 const SETTLE_MS = 25;
 /**
@@ -73,10 +77,12 @@ class PitchChangeTracker implements LegatoDetector {
       this.reference = pitch;
       return -1;
     }
-    if (Math.abs(pitch - this.reference) < PITCH_CHANGE_SEMITONES) {
+    const move = Math.abs(pitch - this.reference);
+    if (move < PITCH_CHANGE_SEMITONES) {
       this.candidate = NaN;
       return -1;
     }
+    if (Math.abs(move - 12) <= OCTAVE_ERROR_TOLERANCE || Math.abs(move - 24) <= OCTAVE_ERROR_TOLERANCE) return -1;
     if (Number.isNaN(this.candidate) || Math.abs(pitch - this.candidate) > CANDIDATE_TOLERANCE) {
       this.candidate = pitch;
       this.candidateFrame = frame;

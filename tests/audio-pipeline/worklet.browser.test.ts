@@ -97,7 +97,7 @@ describe('recorded guitar through the analysis worklet', { timeout: 60_000 }, ()
         SR,
       );
       expect(worklet).toEqual(core);
-      if (clip.id === 'iowa-single-notes') {
+      if (clip.id === 'iowa-single-notes' || clip.id === 'guitarset-rock2-pickup') {
         const score = scoreDetections(worklet, clip.notes.map((n) => ({ sec: n.onsetSec, midi: n.midi })), 0.03);
         expect(score.recall).toBeGreaterThanOrEqual(0.9);
         expect(score.precision).toBeGreaterThanOrEqual(0.9);

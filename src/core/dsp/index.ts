@@ -37,7 +37,11 @@ export interface PitchDetectorOptions {
 
 /** Amplitude onset detector, one 128-sample hop at a time. */
 export interface OnsetDetector {
-  /** Process one hop; returns the onset frame (sample-accurate) or -1. */
+  /**
+   * Process one hop; returns an onset frame (sample-accurate) or -1. The frame is usually in this
+   * hop or the previous one; a suspect trigger (possible pick/finger contact noise) is returned
+   * up to `CONFIRM_MS` (70 ms) plus a hop later, once confirmed (see `onset.ts`).
+   */
   process(hop: Float32Array, startFrame: number): number;
   reset(): void;
 }
@@ -99,7 +103,7 @@ export {
   E6_MIDI,
 } from './pitch';
 export type { PitchWindowPlan } from './pitch';
-export { createOnsetDetector, MIN_NOVELTY_DB } from './onset';
+export { createOnsetDetector, CONFIRM_MS, MIN_NOVELTY_DB } from './onset';
 export { createPitchChangeDetector, PITCH_CHANGE_HOLD_MS, PITCH_CHANGE_SEMITONES } from './pitch-change';
 export type { LegatoDetector } from './pitch-change';
 export { createLevelMeter, ampToDb, SILENCE_DB } from './level';

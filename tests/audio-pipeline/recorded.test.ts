@@ -9,9 +9,10 @@
  *   calibration would (GuitarSet's annotations sit ~10–15 ms after the steep part of the attack).
  * Legato notes (no pick attack) count when the detector reports them as `pitch-change`.
  *
- * Iowa meets the T-036 targets (≥ 90 % onset recall and precision, ≥ 95 % pitch). The GuitarSet
- * excerpts do not yet; their targets are `it.fails` (known DSP gaps, reported to the DSP owner) and
- * the measured values are pinned as regression floors.
+ * Iowa and the pickup excerpt (closest to the owner's DI electric) meet the T-036 targets (≥ 90 %
+ * onset recall and precision, ≥ 95 % pitch) since T-104's DSP fixes (docs/audio-input.md
+ * § Audio-pipeline results). The microphone excerpt does not yet (slides annotated at their start);
+ * its target is an `it.fails` and its measured values are pinned as regression floors.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -121,45 +122,49 @@ describe('recorded guitar through the analysis core', { timeout: 30_000 }, () =>
       expect(r.raw.octaveErrors).toBe(0);
       expect(Math.abs(r.raw.timingMs.mean)).toBeLessThanOrEqual(3);
       expect(r.raw.timingMs.p95Abs).toBeLessThanOrEqual(5);
-      // Known: A5 (81) fires 33 ms early on fingertip contact noise before the pluck.
-      expect(r.raw.missed).toEqual([{ sec: 7.32, midi: 81 }]);
+      // T-104: A5 (81) used to fire 33 ms early on fingertip contact noise; the onset is now re-anchored.
+      expect(r.raw.missed).toEqual([]);
+      expect(r.raw.extra).toEqual([]);
     });
   }
 
-  // Regression floors at the measured values (see docs/audio-input.md § Recorded guitar).
-  it('GuitarSet rock 2 (pickup) holds its measured floor', () => {
+  it('GuitarSet rock 2 (pickup) meets the targets: pick-noise onsets re-anchored, the bend read at its target', () => {
     const r = evaluate(rock2, true);
     report(rock2.clip.id, true, r);
-    expect(r.calibrated.recall).toBeGreaterThanOrEqual(16 / 17);
-    expect(r.calibrated.precision).toBeGreaterThanOrEqual(16 / 18);
-    expect(r.calibrated.pitchAccuracy).toBeGreaterThanOrEqual(15 / 16);
-    expect(r.calibrated.octaveErrors).toBe(0);
+    meetsTargets(r.calibrated);
+    expect(r.calibrated).toMatchObject({ recall: 1, precision: 1, pitchAccuracy: 1, octaveErrors: 0 });
+    // Raw (uncalibrated) onsets: one note still sits > 30 ms before GuitarSet's late annotation.
+    expect(r.raw.recall).toBeGreaterThanOrEqual(16 / 17);
+    expect(r.raw.precision).toBe(1);
+    // The bent note (annotated 60.14 at 3.789 s) is reported at its target, not 59 +43 cents.
+    expect(r.calibrated.wrongPitch).toEqual([]);
     expect(r.offsetMs).toBeLessThan(0);
+    expect(r.calibrated.timingMs.p95Abs).toBeLessThanOrEqual(15);
   });
 
-  it('GuitarSet rock 1 (microphone) holds its measured floor', () => {
+  // Regression floors at the measured values (see docs/audio-input.md § Recorded guitar).
+  it('GuitarSet rock 1 (microphone) holds its measured floor, without octave errors', () => {
     for (const hint of [false, true]) {
       const r = evaluate(rock1, hint);
       report(rock1.clip.id, hint, r);
-      expect(r.raw.recall).toBeGreaterThanOrEqual(20 / 24);
-      expect(r.calibrated.recall).toBeGreaterThanOrEqual(21 / 24);
-      expect(r.calibrated.precision).toBeGreaterThanOrEqual(hint ? 22 / 33 : 21 / 31);
-      expect(r.calibrated.pitchAccuracy).toBeGreaterThanOrEqual(hint ? 0.72 : 0.9);
+      expect(r.raw.recall).toBeGreaterThanOrEqual(22 / 24);
+      expect(r.raw.precision).toBeGreaterThanOrEqual(22 / 24);
+      expect(r.calibrated.recall).toBeGreaterThanOrEqual(23 / 24);
+      expect(r.calibrated.precision).toBeGreaterThanOrEqual(23 / 27);
+      expect(r.calibrated.pitchAccuracy).toBeGreaterThanOrEqual(0.95);
+      expect(r.calibrated.octaveErrors).toBe(0);
     }
   });
 
-  it.fails('GuitarSet rock 2 (pickup) meets the T-036 targets [known gap: early onsets on pick noise, bent note]', () => {
-    meetsTargets(evaluate(rock2, true).calibrated);
-  });
-
-  it.fails('GuitarSet rock 1 (microphone) meets the T-036 targets [known gap: double onsets, octave-down at N = 1024]', () => {
+  it.fails('GuitarSet rock 1 (microphone) meets the T-036 targets [known gap: slides annotated at their start, one contact noise]', () => {
     meetsTargets(evaluate(rock1, true).calibrated);
   });
 });
 
 describe('recorded guitar judged against its annotations', { timeout: 30_000 }, () => {
-  // Measured: Iowa 100 %; rock 2 88.2 % (bent note → WrongNote, unlabelled hammer-on → Miss); rock 1 83.3 %.
-  const floors: Record<string, number> = { 'iowa-single-notes': 100, 'guitarset-rock2-pickup': 88, 'guitarset-rock1-mic': 83 };
+  // Measured (T-104): Iowa 100 %; rock 2 94.1 % (the hammer-on the annotation-made song does not mark
+  // as legato → Miss); rock 1 87.5 % (two slides, one slide-off pitch).
+  const floors: Record<string, number> = { 'iowa-single-notes': 100, 'guitarset-rock2-pickup': 94, 'guitarset-rock1-mic': 87 };
   for (const c of manifest.clips) {
     it(`${c.id}: accuracy ≥ ${floors[c.id]} % with a calibrated offset`, () => {
       const run = load(c);

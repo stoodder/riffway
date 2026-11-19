@@ -1,8 +1,18 @@
 /**
  * McLeod Pitch Method (MPM): normalised square difference function (NSDF) computed through a
  * radix-2 FFT autocorrelation, key-maximum peak picking and parabolic interpolation
- * (McLeod & Wyvill 2005). All buffers are allocated by {@link createPitchDetector}; `detect()`
- * allocates nothing and reuses its result object.
+ * (McLeod & Wyvill 2005), plus three guards for recorded guitar (docs/audio-input.md):
+ * - **octave check** — the period twice as long wins when it is clearly more self-similar (weak
+ *   fundamentals);
+ * - **sub-harmonic guard** — a period 2 or 3 times as long as a clear shorter one (from the octave
+ *   check or the key-maximum threshold) must also explain most of that one's imperfection
+ *   ({@link SUBHARMONIC_RESIDUAL_RATIO}); a body thump, hum or sympathetically ringing lower string
+ *   under noise does not;
+ * - **glide check** — an estimate between two semitones is re-measured on the second half of the
+ *   window, where a bend or slide has settled ({@link GLIDE_AMBIGUOUS_SEMITONES}).
+ *
+ * All buffers are allocated by {@link createPitchDetector}; `detect()` allocates nothing and reuses
+ * its result object.
  * @module
  */
 import { RealFft } from './fft';
@@ -24,6 +34,27 @@ const KEY_MAX_THRESHOLD = 0.9;
  * interpolation error on the sharp peaks of bright high notes cause octave-down errors.
  */
 const OCTAVE_MARGIN = 0.03;
+/**
+ * Sub-harmonic guard (octave check and key-maximum choice): a period m times longer (m = 2, 3) than
+ * a clear shorter one is only taken when it explains most of the shorter period's imperfection —
+ * its residual 1 − NSDF must be at most this fraction of the shorter period's 1 − NSDF. For a tone
+ * whose own odd (or non-multiple-of-3) harmonics make τ = T/m imperfect, the longer period is
+ * (nearly) perfect; when noise, an inharmonic attack thump or a sympathetically ringing lower string
+ * lifts the longer period by a little, both stay similarly imperfect (recorded guitar,
+ * docs/audio-input.md § Audio-pipeline results).
+ */
+export const SUBHARMONIC_RESIDUAL_RATIO = 0.4;
+/** A key maximum at least this clear is a candidate for the sub-harmonic guard. */
+const SUBHARMONIC_MIN_CLARITY = 0.5;
+/**
+ * Glide check: an estimate more than this far from the nearest semitone is re-measured on the
+ * window's second half (a bend or slide moving through the window reads in between).
+ */
+export const GLIDE_AMBIGUOUS_SEMITONES = 0.3;
+/** The second-half period is searched within ± this many semitones of the full window's. */
+const GLIDE_RANGE_SEMITONES = 2;
+/** The second half's NSDF peak must be at least this clear to replace the estimate. */
+const TAIL_MIN_CLARITY = 0.8;
 /** Allowed mismatch, as a fraction of 2τ, when looking for the key maximum at twice the period. */
 const OCTAVE_TOLERANCE = 0.03;
 /** Windows whose mean square is below this (−100 dBFS) are silence: no estimate. */
@@ -32,6 +63,14 @@ const SILENCE_MEAN_SQUARE = 1e-10;
 const EXPECT_WIDEN_SEMITONES = 7;
 /** Expected notes below this use the long window (two E2 periods need ~1165 samples at 48 kHz). */
 const LONG_WINDOW_BELOW_HZ = 160;
+
+/**
+ * Whether a longer period with NSDF `longer` explains the imperfection of a shorter one with NSDF
+ * `shorter` well enough to be the note's period ({@link SUBHARMONIC_RESIDUAL_RATIO}).
+ */
+function explainsSubharmonic(longer: number, shorter: number): boolean {
+  return 1 - longer <= SUBHARMONIC_RESIDUAL_RATIO * (1 - shorter);
+}
 
 /** MIDI note → frequency in Hz (A4 = `a4`). */
 export function midiToFreq(midi: number, a4 = 440): number {
@@ -205,6 +244,7 @@ class MpmDetector implements PitchDetector {
     const threshold = KEY_MAX_THRESHOLD * best;
     let chosen = 0;
     while (nsdf[keyLags[chosen]] < threshold) chosen++;
+    chosen = this.guardSubharmonic(chosen);
 
     let lag = this.interpolate(keyLags[chosen]);
     let clarity = this.peakValue;
@@ -214,15 +254,24 @@ class MpmDetector implements PitchDetector {
       if (Math.abs(cand - 2 * lag) > OCTAVE_TOLERANCE * 2 * lag + 1) continue;
       const candLag = this.interpolate(cand);
       const doubled = this.peakValue;
-      if (doubled >= clarity + OCTAVE_MARGIN) {
+      if (doubled >= clarity + OCTAVE_MARGIN && explainsSubharmonic(doubled, clarity)) {
         lag = candLag;
         clarity = doubled;
       }
       break;
     }
 
+    let pitch = freqToMidiFloat(this.sampleRate / lag, this.a4);
+    // Between two notes: a bend, slide or pick glide is moving through the window. The note is
+    // where it settles, so re-measure the second half of the window around this period.
+    if (Math.abs(pitch - Math.round(pitch)) > GLIDE_AMBIGUOUS_SEMITONES && lag <= n / 4) {
+      const settled = this.tailPeriod(lag);
+      if (settled > 0) {
+        lag = settled;
+        pitch = freqToMidiFloat(this.sampleRate / lag, this.a4);
+      }
+    }
     const freq = this.sampleRate / lag;
-    const pitch = freqToMidiFloat(freq, this.a4);
     const midi = Math.round(pitch);
     const out = this.result;
     out.freq = freq;
@@ -230,6 +279,59 @@ class MpmDetector implements PitchDetector {
     out.cents = (pitch - midi) * 100;
     out.clarity = Math.min(1, Math.max(0, clarity));
     return out;
+  }
+
+  /**
+   * Period of the window's second half near `lag` (± {@link GLIDE_RANGE_SEMITONES}), from its own
+   * NSDF; −1 when that half has no clear peak there ({@link TAIL_MIN_CLARITY}). Reuses the FFT
+   * buffers and the NSDF array (the full window's are no longer needed).
+   */
+  private tailPeriod(lag: number): number {
+    const n = this.size;
+    const h = n / 2;
+    const { buf, re, im, x, nsdf } = this;
+    for (let i = 0; i < h; i++) buf[i] = x[h + i];
+    buf.fill(0, h);
+    this.fft.forward(buf, re, im);
+    for (let k = 0; k <= n; k++) {
+      re[k] = re[k] * re[k] + im[k] * im[k];
+      im[k] = 0;
+    }
+    this.fft.inverse(re, im, buf);
+    const span = 2 ** (GLIDE_RANGE_SEMITONES / 12);
+    const lo = Math.max(2, Math.floor(lag / span));
+    const hi = Math.min(h / 2, Math.ceil(lag * span));
+    let m = 2 * buf[0];
+    let best = -1;
+    for (let tau = 1; tau <= hi + 1; tau++) {
+      const a = x[h + tau - 1];
+      const b = x[n - tau];
+      m -= a * a + b * b;
+      nsdf[tau] = m > 0 ? (2 * buf[tau]) / m : 0;
+      if (tau >= lo && tau <= hi && (best < 0 || nsdf[tau] > nsdf[best])) best = tau;
+    }
+    if (best <= lo || best >= hi || nsdf[best] < TAIL_MIN_CLARITY) return -1;
+    return this.interpolate(best);
+  }
+
+  /**
+   * The threshold rule picked key maximum `chosen`; when it lies at m × the lag of an earlier clear
+   * key maximum (m = 2, 3) without explaining that one's imperfection
+   * ({@link SUBHARMONIC_RESIDUAL_RATIO}), the earlier (higher) pitch is the note instead.
+   */
+  private guardSubharmonic(chosen: number): number {
+    const { keyLags, nsdf } = this;
+    const lag = keyLags[chosen];
+    const value = nsdf[lag];
+    for (let i = 0; i < chosen; i++) {
+      const tau = keyLags[i];
+      if (nsdf[tau] < SUBHARMONIC_MIN_CLARITY) continue;
+      const m = Math.round(lag / tau);
+      if ((m === 2 || m === 3) && Math.abs(lag - m * tau) <= OCTAVE_TOLERANCE * lag + 1 && !explainsSubharmonic(value, nsdf[tau])) {
+        return i;
+      }
+    }
+    return chosen;
   }
 
   /** Record a lobe maximum, unless it is the clipped edge of a lobe that peaked below `minLag`. */
