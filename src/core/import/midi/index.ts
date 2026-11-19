@@ -23,6 +23,11 @@ export interface MidiRhythm {
   timeSignatures: { time: number; num: number; den: number }[];
   ppq: number;
   durationSec: number;
+  /**
+   * Onset groups of each non-percussion track with notes, in file order, when there are at least two
+   * (a duet's guitar 1, a melody over an accompaniment): a tab of one part can align to its own track.
+   */
+  tracks?: MidiOnsetGroup[][];
 }
 
 /** Alignment result. */
@@ -83,23 +88,12 @@ export function readMidiRhythm(data: Uint8Array): MidiRhythm {
     throw new ImportError('unsupported', 'Not a readable MIDI file', [], { cause });
   }
   const header = midi.header;
-  const events: { time: number; pitch: number }[] = [];
+  const perTrack: MidiNoteEvent[][] = [];
   for (const track of midi.tracks) {
-    if (track.channel === 9 || track.instrument.percussion) continue;
-    for (const n of track.notes) events.push({ time: n.time, pitch: n.midi });
+    if (track.channel === 9 || track.instrument.percussion || track.notes.length === 0) continue;
+    perTrack.push(track.notes.map((n) => ({ time: n.time, pitch: n.midi })));
   }
-  events.sort((a, b) => a.time - b.time || a.pitch - b.pitch);
-
-  const groups: MidiOnsetGroup[] = [];
-  for (const e of events) {
-    const last = groups[groups.length - 1];
-    if (last && e.time - last.time <= GROUP_WINDOW_SEC) {
-      if (!last.pitches.includes(e.pitch)) last.pitches.push(e.pitch);
-    } else {
-      groups.push({ time: e.time, pitches: [e.pitch] });
-    }
-  }
-  for (const g of groups) g.pitches.sort((a, b) => a - b);
+  const groups = onsetGroups(perTrack.flat());
 
   const tempos: TempoChange[] = header.tempos
     .map((t) => ({ time: header.ticksToSeconds(t.ticks), bpm: t.bpm }))
@@ -111,7 +105,31 @@ export function readMidiRhythm(data: Uint8Array): MidiRhythm {
     .sort((a, b) => a.time - b.time);
   if (timeSignatures.length === 0 || timeSignatures[0].time > 1e-6) timeSignatures.unshift({ time: 0, num: 4, den: 4 });
 
-  return { groups, tempos, timeSignatures, ppq: header.ppq, durationSec: midi.duration };
+  const rhythm: MidiRhythm = { groups, tempos, timeSignatures, ppq: header.ppq, durationSec: midi.duration };
+  if (perTrack.length > 1) rhythm.tracks = perTrack.map(onsetGroups);
+  return rhythm;
+}
+
+/** One note-on read from a MIDI track. */
+interface MidiNoteEvent {
+  time: number;
+  pitch: number;
+}
+
+/** Notes starting within {@link GROUP_WINDOW_SEC} of a group's first note join it (pitches sorted, unique). */
+function onsetGroups(notes: readonly MidiNoteEvent[]): MidiOnsetGroup[] {
+  const events = [...notes].sort((a, b) => a.time - b.time || a.pitch - b.pitch);
+  const groups: MidiOnsetGroup[] = [];
+  for (const e of events) {
+    const last = groups[groups.length - 1];
+    if (last && e.time - last.time <= GROUP_WINDOW_SEC) {
+      if (!last.pitches.includes(e.pitch)) last.pitches.push(e.pitch);
+    } else {
+      groups.push({ time: e.time, pitches: [e.pitch] });
+    }
+  }
+  for (const g of groups) g.pitches.sort((a, b) => a - b);
+  return groups;
 }
 
 /** Jaccard of two sorted pitch sets. */

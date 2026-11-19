@@ -22,10 +22,16 @@ export interface StaffLine {
   hasBar: boolean;
 }
 
-/** A beat-ruler mark: `|` (beat) or `.` (subdivision) in ClassTab style; `1 & 2 &` count style. */
+/** A beat-ruler mark: `|` (beat) or `.` / `,` / `+` / `'` (subdivision) in ClassTab style; `1 & 2 &` count style. */
 export interface RulerMark {
   column: number;
   beat: boolean;
+  /**
+   * Set on each of the `n` marks spread evenly across a tuplet bracket (`|--3--|`, `|-3-|`): the bracket
+   * stands for the beat (or part of a beat) it replaces, and its `n` notes share that time equally.
+   * `k` is the mark's 0-based place in the bracket.
+   */
+  tuplet?: { n: number; k: number };
 }
 
 /** Characters allowed inside a staff body. */
@@ -73,7 +79,8 @@ export function repeatMarker(text: string): number | null {
 
 /** Recognise one string of a staff; null for anything else. Input must be normalised. */
 export function parseStaffLine(text: string): StaffLine | null {
-  let work = text;
+  // Some ClassTab transcribers write repeat dots as `o` (`||o-3--`, `--3-o||`).
+  let work = text.replace(/\|o(?=[-=\d])/g, '|*').replace(/(?<=[-=\d])o\|/g, '*|');
   let repeat: number | undefined;
   // `|---|  x2` / `---- (x4)` at the end of the line.
   const tail = /(\||\s)\s*([[(]?\s*(?:repeat\s*|play\s*)?(?:[x×]\s*\d{1,2}|\d{1,2}\s*(?:[x×]|times))\s*[\])]?)\s*$/i.exec(work);
@@ -120,6 +127,8 @@ export function parseStaffLine(text: string): StaffLine | null {
   const sustain = (body.match(/=/g) ?? []).length;
   const visible = body.replace(/\s/g, '').length;
   if (dashes < 1 || dashes + sustain < (strong ? 2 : 4) || (dashes + sustain) / visible < 0.3) return null;
+  // `25 |---3---|   |---3---|` is a ruler of tuplet brackets above the staff, not a string.
+  if (label === null && isTupletRuler(text)) return null;
   if (repeat === undefined) {
     const n = repeatMarker(work.slice(end));
     if (n !== null) repeat = n;
@@ -135,31 +144,88 @@ export function parseStaffLine(text: string): StaffLine | null {
   };
 }
 
+/** Leading bar number of a ClassTab ruler: `12`, `(12)`, `12.` (then a space or a mark). */
+const RULER_LABEL = /^\s*(?:\(\d{1,4}\)|\d{1,4}\.?)(?=[\s|])/;
+/** A tuplet bracket in a ruler: `|--3--|`, `|-3-|`, `|----6----|`, `--3--`, `___3___`. */
+const TUPLET_BRACKET = /\|?[-_]+(\d{1,2})[-_]+\|?/y;
+/** Performance directions written between ruler marks (blanked before the marks are read). */
+const RULER_DIRECTIONS = /(?<=\s)(?:Fine?\.?|D\.\s?[CS]\.|\$|\d{1,2}\/\d{1,2})(?=\s|$)/g;
+/** Notes per tuplet bracket accepted (a `0` or `1` between dashes is a staff, not a bracket). */
+const TUPLET_MIN = 2;
+const TUPLET_MAX = 16;
+
 /**
- * Beat ruler: ClassTab `0   .   | . . | . .` (optional leading bar number, then `|` beats and `.`
- * subdivisions; only above a staff) or count style `1 & 2 & 3 & 4 &` (above or below). Returns the
- * marks with columns, or null.
+ * ClassTab beat ruler (`0   .   | . . | . .`, `12| . | .`, `3  |   .   |--3--| |   .`): an optional bar
+ * number, then `|` beats, `.` `,` `+` `'` subdivisions, tuplet brackets and inline bar numbers (`5|`).
+ * Returns the marks, or null when anything else is on the line.
+ */
+function parseWeedRuler(text: string): RulerMark[] | null {
+  const label = RULER_LABEL.exec(text);
+  const marks: RulerMark[] = [];
+  let i = label ? label[0].length : 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === ' ') {
+      i++;
+      continue;
+    }
+    TUPLET_BRACKET.lastIndex = i;
+    const bracket = ch === '|' || ch === '-' || ch === '_' ? TUPLET_BRACKET.exec(text) : null;
+    const n = bracket ? Number(bracket[1]) : 0;
+    if (bracket && n >= TUPLET_MIN && n <= TUPLET_MAX) {
+      const end = i + bracket[0].length;
+      // A bracket stands alone: a staff line (`|-2---|-3-|`) continues right after its bar line.
+      if (end < text.length && text[end] !== ' ') return null;
+      const span = end - 1 - i;
+      for (let k = 0; k < n; k++) {
+        marks.push({ column: i + Math.round((k * span) / (n - 1)), beat: k === 0 && ch === '|', tuplet: { n, k } });
+      }
+      i = end;
+      continue;
+    }
+    if (ch === '|' || ch === '.' || ch === ',' || ch === '+' || ch === "'") {
+      marks.push({ column: i, beat: ch === '|' });
+      i++;
+      continue;
+    }
+    // An inline bar number written against the next bar's beat (`| . . 13| . .`).
+    const inline = /^\d{1,4}(?=\|)/.exec(text.slice(i));
+    if (inline && text[i - 1] === ' ') {
+      i += inline[0].length;
+      continue;
+    }
+    return null;
+  }
+  // Stray `|` pairs are not a ruler; demand at least two marks and a beat (or a bar number).
+  if (marks.length < 2 || /\|\|/.test(text)) return null;
+  if (marks.some((m) => m.beat)) return marks;
+  return label ? marks : null;
+}
+
+/**
+ * Beat ruler: ClassTab `0   .   | . . | . .` (optional bar number, then `|` beats, `.` `,` `+` `'`
+ * subdivisions and tuplet brackets `|--3--|`; only above a staff) or count style `1 & 2 & 3 & 4 &`
+ * (above or below). Returns the marks with columns, or null.
  */
 export function parseRuler(text: string, position: 'above' | 'below'): RulerMark[] | null {
   // Trailing words (`… | . . Fine`) are performance directions, not marks.
   const marksText = text.replace(/\s+[A-Za-z][A-Za-z .,'()-]*$/, '');
-  const weed = /^(\s*(?:\(?\d{1,4}\)?(?=\s))?)([\s|.]*)$/.exec(marksText);
-  if (weed && /[|.]/.test(weed[2])) {
-    if (position === 'below') return null;
-    const marks: RulerMark[] = [];
-    for (let i = weed[1].length; i < marksText.length; i++) {
-      if (marksText[i] === '|' || marksText[i] === '.') marks.push({ column: i, beat: marksText[i] === '|' });
-    }
-    // Stray `|` pairs are not a ruler; demand at least two marks and a beat.
-    if (marks.length >= 2 && marks.some((m) => m.beat) && !/\|\|/.test(marksText)) return marks;
-    if (marks.length >= 2 && marks.every((m) => !m.beat) && /^\s*\(?\d/.test(marksText)) return marks;
-    return null;
+  // So are `Fine`, `D.C.`, a segno `$` or a metre change (`3/8`) between the marks.
+  const weedText = marksText.replace(RULER_DIRECTIONS, (m) => ' '.repeat(m.length));
+  if (position === 'above' && /^[\s\d().|,+'_-]*$/.test(weedText)) {
+    const marks = parseWeedRuler(weedText);
+    if (marks) return marks;
   }
   const tokens = [...text.matchAll(/\S+/g)];
   if (tokens.length < 3) return null;
   if (!tokens.every((t) => /^(?:[1-9]|1[0-2]|&|\+|e|a|n|\.|trip|let)$/.test(t[0]))) return null;
   if (!tokens.some((t) => t[0] === '&' || t[0] === '+') || !tokens.some((t) => /^\d+$/.test(t[0]))) return null;
   return tokens.map((t) => ({ column: t.index ?? 0, beat: /^\d+$/.test(t[0]) }));
+}
+
+/** A tuplet-bracket ruler (`25 |---3---|   |---3---|`), which the staff reader would otherwise take for a staff line. */
+export function isTupletRuler(text: string): boolean {
+  return parseRuler(text, 'above')?.some((m) => m.tuplet) ?? false;
 }
 
 /** `PM----|`, `P.M. - - -`, `let ring----` spans as `[start, end)`; null when the line is not such a line. */
@@ -210,6 +276,11 @@ export function parseSectionLine(text: string): string | null {
 /** ClassTab's trailing "Notes & Legend" heading (whole line). */
 export function isNotesHeading(text: string): boolean {
   return /^\s*(?:notes?(?:\s*(?:&|and)\s*legend)?|legend(?:\s*(?:&|and)\s*notes?)?)\s*:?\s*$/i.test(text);
+}
+
+/** A fermata line (`/.\`, one or more) between a beat ruler and its staff. */
+export function isFermataLine(text: string): boolean {
+  return /^\s*\/\.\\(?:\s+\/\.\\)*\s*$/.test(text);
 }
 
 /** Start of another version inside a multi-version tab (`MIDI: …` or `version 2 …` after a staff). */

@@ -15,6 +15,7 @@ export type { AsciiHeader, AsciiNote, AsciiOnsetGroup, AsciiBlock, AsciiTab } fr
 export { decodeText } from './decode';
 export { asciiToSong, type AsciiToSongOptions } from './song';
 export { splitVersions, type VersionRegion } from './parse';
+export { classTabComposer, namesFromFile } from './names';
 
 /**
  * Parse ASCII tab text (no rhythm applied). Groups and bars are in played order (blocks marked `x2`

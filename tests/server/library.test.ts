@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SongMeta, SourcesResponse } from '@shared/api';
 import type { RhythmSidecar } from '@shared/song';
+import { ImportError } from '@core/import/errors';
+import { defaultAnalyzer, isSkippableImportError } from '../../server/indexer/analyzer';
 import { createFakeAnalyzer, fakeSong, libraryChanged, makeTempDirs, startApp, waitForEvent, writeStarter, type TempDirs, type TestApp } from './helpers';
 
 const sidecar: RhythmSidecar = { schema: 1, bpm: 90, timeSig: [4, 4], grid: 8, onsets: [0, 0.5], method: 'tap', savedAt: 1 };
@@ -101,6 +103,30 @@ describe('library index', () => {
     t.analyzer.calls.length = 0;
     await t.ctx.library.rescan();
     expect(t.analyzer.calls).toEqual([]);
+  });
+
+  it('lists a text file without tab as a failed import instead of skipping it (T-103)', async () => {
+    lib('Some Band - Notes.txt', 'NO TAB in here, only words');
+    lib('weird.xml', 'NOT A SONG: an XML file that is not MusicXML');
+    t = await startApp(dirs);
+    const entries = t.ctx.library.all();
+    expect(entries.map((e) => e.fileName)).toEqual(['Some Band - Notes.txt']);
+    const failed = entries[0]!;
+    expect(failed).toMatchObject({ format: 'ascii', title: 'Notes', artist: 'Some Band', defaultArrangement: -1 });
+    expect(failed.error).toMatch(/No guitar tab found/);
+    const res = await t.app.inject({ method: 'GET', url: '/api/search' });
+    expect(res.json<{ results: { fileName: string; availability: string }[] }>().results).toEqual([
+      expect.objectContaining({ fileName: 'Some Band - Notes.txt', availability: 'needs-import' }),
+    ]);
+  });
+
+  it('lists tab-less .txt files with the real importers too (T-103)', async () => {
+    lib('lyrics.txt', 'Just some lyrics\nand chords: Am G F E\n');
+    t = await startApp(dirs, { analyzer: defaultAnalyzer });
+    const [entry] = t.ctx.library.all();
+    expect(entry).toMatchObject({ fileName: 'lyrics.txt', title: 'lyrics', error: expect.stringMatching(/No guitar tab found/) });
+    expect(isSkippableImportError(new ImportError('empty', 'No guitar tab found'))).toBe(false);
+    expect(isSkippableImportError(new ImportError('unsupported', 'not a song'))).toBe(true);
   });
 
   it('retries only transient failures on later scans and restarts (R1-P-10)', async () => {

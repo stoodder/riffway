@@ -9,6 +9,8 @@ import type { ImportDiagnostic, StringNumber, Tech } from '@shared/song';
 export interface AsciiHeader {
   title?: string;
   composer?: string;
+  /** The composer was read from a `Composer:` label or next to life dates (`(1778-1839)`), not guessed from a name-like part of the title line. */
+  composerConfirmed?: boolean;
   artist?: string;
   /** MIDI tuning high → low, from labels or prose (`6=D`, `Tuning: D A D G B E`). */
   tuning?: number[];
@@ -70,6 +72,11 @@ export interface AsciiBlock {
   repeat?: number;
   /** Section name written before the block (`[Chorus]`, `Verse 1:`), if any. */
   section?: string;
+  /**
+   * 0-based part of an ensemble system (ClassTab duets: staves joined by a ` |` bracket); absent for
+   * the top part. Lower parts are kept for display but not played (guitar 1 is imported).
+   */
+  part?: number;
 }
 
 /** Full parse result (used by the import preview, T-028). */

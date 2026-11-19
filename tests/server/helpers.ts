@@ -35,7 +35,8 @@ export function makeTempDirs(): TempDirs {
 /**
  * Fake song file: `key: value` lines (`title`, `artist`, `composer`, `tier`, `tuning`, `rhythm`,
  * `genre`, `skills`, `tracks` = playable track count). `NOT A SONG` → unsupported (skipped),
- * `BROKEN` → syntax error, `UNPLAYABLE` → a parsed file without playable tracks.
+ * `NO TAB` → empty (a text file without tab, listed as failed), `BROKEN` → syntax error,
+ * `UNPLAYABLE` → a parsed file without playable tracks.
  */
 export function fakeSong(fields: Record<string, string | number>): string {
   return Object.entries(fields)
@@ -54,6 +55,7 @@ export function createFakeAnalyzer(): SongAnalyzer & { calls: string[]; difficul
   const parse = (bundle: SongBundle): Record<string, string> => {
     const text = new TextDecoder().decode(bundle.data);
     if (text.startsWith('NOT A SONG')) throw new ImportError('unsupported', 'not a song');
+    if (text.startsWith('NO TAB')) throw new ImportError('empty', 'No guitar tab found: no 6-line staff with fret numbers');
     if (text.startsWith('BROKEN')) throw new ImportError('syntax', 'Bad syntax at line 1');
     if (text.startsWith('CRASH')) throw new Error('Importer crashed');
     const out: Record<string, string> = {};

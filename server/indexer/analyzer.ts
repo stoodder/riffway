@@ -11,11 +11,13 @@ import { ImportError, detectFormat, isImportError, listTracks, loadSong } from '
 import { describeTuning } from '@core/model';
 import type { SongAnalysis, SongAnalyzer } from '../types';
 
-/** True when an analysis error means "this file is not a song" rather than "this song is broken". */
-export function isSkippableImportError(err: unknown, fileName: string): boolean {
-  if (!isImportError(err)) return false;
-  if (err.code === 'unsupported') return true;
-  return err.code === 'empty' && /\.(txt|tab)$/i.test(fileName);
+/**
+ * True when an analysis error means "this is not a song file" (an unsupported format, such as an `.xml`
+ * that is not MusicXML), which the index skips. Every other failure, including a `.txt` / `.tab` with no
+ * readable tab, is listed as a failed import (`IndexEntry.error`) so the file does not silently vanish.
+ */
+export function isSkippableImportError(err: unknown): boolean {
+  return isImportError(err) && err.code === 'unsupported';
 }
 
 /** Merge tag sets without duplicates (order of first appearance). */

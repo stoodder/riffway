@@ -26,7 +26,7 @@ function clean(s: string): string {
 }
 
 /** Split `Title - Composer (dates)` / `Composer - Title` / `Composer (dates)` into parts. */
-function parseTitleLine(line: string): { title?: string; composer?: string } {
+function parseTitleLine(line: string): { title?: string; composer?: string; dated?: boolean } {
   const parts = line.split(/\s+[-–—]\s+/).map(clean).filter((p) => p.length > 0);
   const dated = parts.findIndex((p) => LIFE_DATES.test(p));
   let composerIdx = -1;
@@ -36,7 +36,7 @@ function parseTitleLine(line: string): { title?: string; composer?: string } {
   if (composerIdx < 0) return { title: clean(line) };
   const composer = clean(parts[composerIdx].replace(LIFE_DATES, ''));
   const rest = parts.filter((_, i) => i !== composerIdx).join(' - ');
-  return { composer: composer || undefined, title: rest || undefined };
+  return { composer: composer || undefined, title: rest || undefined, dated: dated >= 0 };
 }
 
 /** Parse a tempo out of one line; returns quarter-note BPM or undefined. */
@@ -180,8 +180,10 @@ export function parseHeader(lines: readonly string[], fallback: AsciiHeader = {}
       const key = labelled[1].toLowerCase();
       const value = clean(labelled[2]);
       if (key === 'title' || key === 'song') header.title ??= value;
-      else if (key === 'composer' || key === 'music by') header.composer ??= clean(value.replace(LIFE_DATES, ''));
-      else header.artist ??= value;
+      else if ((key === 'composer' || key === 'music by') && !header.composer) {
+        header.composer = clean(value.replace(LIFE_DATES, ''));
+        header.composerConfirmed = true;
+      } else if (key !== 'composer' && key !== 'music by') header.artist ??= value;
       titleLineSeen = true;
       continue;
     }
@@ -202,7 +204,10 @@ export function parseHeader(lines: readonly string[], fallback: AsciiHeader = {}
       titleLineSeen = true;
       const parsed = parseTitleLine(line);
       header.title ??= parsed.title;
-      header.composer ??= parsed.composer;
+      if (!header.composer && parsed.composer) {
+        header.composer = parsed.composer;
+        if (parsed.dated) header.composerConfirmed = true;
+      }
     } else if (titleLineSeen && !header.title && header.composer && !FIELD_LINE.test(line) && !/https?:\/\/|@|[:=]/.test(line)) {
       // `Composer (dates)` on line 1, the title on the next plain line.
       header.title = clean(line);

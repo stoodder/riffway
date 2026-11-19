@@ -29,12 +29,16 @@ import { lowerExt } from '../fs-safety';
 import { isRecord, readJsonFile, writeJsonFile } from '../json-file';
 import { APP_VERSION } from '../paths';
 import type { ConfigStore, EventBus, LibraryService, ServerPaths, SongAnalyzer, SourceIndexState } from '../types';
+import { classTabComposer, namesFromFile } from '@core/import/ascii';
 import { isImportError } from '@core/import/load-song';
 import { isSkippableImportError, mergeTags } from './analyzer';
 import { SearchIndex } from './search';
 
-/** Bump when the cached record shape or indexing rules change (the cache is then rebuilt). */
-const INDEX_SCHEMA = 1;
+/**
+ * Bump when the cached record shape or indexing rules change (the cache is then rebuilt). 2: T-103
+ * (ASCII rulers, duets, MIDI fallbacks, ClassTab composers; tab-less `.txt` files listed as failed).
+ */
+const INDEX_SCHEMA = 2;
 /** Cache validity key: a new app version re-indexes everything once. */
 const INDEX_VERSION = `${APP_VERSION}/${INDEX_SCHEMA}`;
 /** Remembered ids of removed files (moved-file identity), bounded. */
@@ -567,7 +571,7 @@ export class LibraryIndex implements LibraryService {
         if (a.error) entry.error = a.error;
         record.entry = entry;
       } catch (err) {
-        if (!isSkippableImportError(err, fileName)) {
+        if (!isSkippableImportError(err)) {
           const message = err instanceof Error ? err.message : String(err);
           this.deps.log.warn(`indexing ${candidate.absPath} failed: ${message}`);
           record.entry = this.errorEntry(source, candidate, id, sha1, message);
@@ -650,6 +654,7 @@ export class LibraryIndex implements LibraryService {
   private errorEntry(source: SourceId, candidate: IndexCandidate, id: string, sha1: string, message: string): IndexEntry {
     const fileName = basename(candidate.relPath);
     const format = FORMAT_BY_EXT[lowerExt(fileName)] ?? 'alphatex';
+    const names = namesFromFile(fileName);
     const entry: IndexEntry = {
       id,
       source,
@@ -659,7 +664,7 @@ export class LibraryIndex implements LibraryService {
       mtimeMs: candidate.mtimeMs,
       size: candidate.size,
       sha1,
-      title: fileName.replace(/\.[^.]+$/, ''),
+      title: names.title,
       tracks: [],
       defaultArrangement: -1,
       tuning: [],
@@ -675,6 +680,10 @@ export class LibraryIndex implements LibraryService {
       hasSidecar: false,
       error: message,
     };
+    const composer = source === 'classtab' ? classTabComposer(fileName, undefined) : undefined;
+    if (composer) entry.composer = composer;
+    if (names.artist) entry.artist = names.artist;
+    else if (composer) entry.artist = composer;
     if (candidate.origin) entry.origin = candidate.origin;
     if (candidate.url) entry.url = candidate.url;
     return entry;

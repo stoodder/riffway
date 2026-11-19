@@ -9,8 +9,9 @@ import { applySidecar } from '../align/sidecar';
 import { proportionalTimes } from '../align/grid';
 import { rulerRhythm } from '../align/ruler';
 import { barIndexAt, barSeconds, buildSections, constantBars, DEFAULT_BPM, DEFAULT_TIME_SIG, extendBars, midiBars } from '../align/timing';
-import { alignTabToMidi, MIDI_MATCH_THRESHOLD, readMidiRhythm } from '../midi';
+import { alignTabToMidi, MIDI_MATCH_THRESHOLD, readMidiRhythm, type MidiRhythm, type TabGroupPitches } from '../midi';
 import { decodeText } from './decode';
+import { classTabComposer, namesFromFile } from './names';
 import { parseTabDetailed, splitVersions, type DetailedTab } from './parse';
 import { notePitch } from './pitch';
 
@@ -25,14 +26,6 @@ export interface AsciiToSongOptions {
 /** Shortest duration given to a note, seconds. */
 const MIN_DUR = 0.05;
 
-/** `Artist - Title.txt` (how pasted tabs are saved) or a humanised ClassTab stem. */
-function namesFromFile(fileName: string): { title: string; artist?: string } {
-  const base = fileName.replace(/^.*[\\/]/, '').replace(/\.[^.]+$/, '');
-  const dash = /^(.+?)\s+-\s+(.+)$/.exec(base);
-  if (dash) return { artist: dash[1].trim(), title: dash[2].trim() };
-  return { title: base.replace(/_+/g, ' ').trim() || 'Untitled' };
-}
-
 interface Rhythm {
   status: RhythmStatus;
   times: number[];
@@ -46,7 +39,8 @@ interface Rhythm {
 
 /**
  * Bundle → `Song`. Rhythm precedence: a matching sidecar (`'aligned'`, the user's explicit
- * alignment), a paired MIDI with a match score ≥ 80% (`'midi'`, see `alignTabToMidi`), a beat ruler (`'ruler'`),
+ * alignment), a paired MIDI with a match score ≥ 80% (`'midi'`, see `alignTabToMidi`; also tried without the
+ * tab's repeats and against each MIDI track alone), a beat ruler (`'ruler'`),
  * else column-proportional onsets (`'needs-alignment'`). Multi-version tabs import `opts.version`
  * (default 1). Throws `ImportError` (`empty`, `no-playable-track`) when no 6-line staff has notes.
  */
@@ -56,7 +50,9 @@ export function asciiToSong(bundle: SongBundle, opts: AsciiToSongOptions = {}): 
   const diagnostics: ImportDiagnostic[] = [];
   const vIdx = Math.min(Math.max((opts.version ?? 1) - 1, 0), regions.length - 1);
   const first = parseTabDetailed(regions[0].text);
-  const d = vIdx === 0 ? first : parseTabDetailed(regions[vIdx].text, { lineOffset: regions[vIdx].startLine, headerFallback: first.tab.header });
+  const parse = (repeats: boolean): DetailedTab =>
+    vIdx === 0 && repeats ? first : parseTabDetailed(regions[vIdx].text, { lineOffset: regions[vIdx].startLine, headerFallback: first.tab.header, repeats });
+  let d = parse(true);
   if (regions.length > 1) {
     diagnostics.push({ severity: 'info', code: 'multiple-versions', message: `The file holds ${regions.length} versions; importing version ${vIdx + 1}` });
   }
@@ -66,7 +62,7 @@ export function asciiToSong(bundle: SongBundle, opts: AsciiToSongOptions = {}): 
     const bass = tab.blocks.length === 0 && tab.diagnostics.some((x) => x.code === 'staff-line-count');
     throw new ImportError(
       bass ? 'no-playable-track' : 'empty',
-      bass ? 'No 6-string guitar staff found (bass and 7-string tabs are not supported)' : 'No tab notes found',
+      bass ? 'No 6-string guitar staff found (bass and 7-string tabs are not supported)' : 'No guitar tab found: no 6-line staff with fret numbers',
       diagnostics,
     );
   }
@@ -75,10 +71,12 @@ export function asciiToSong(bundle: SongBundle, opts: AsciiToSongOptions = {}): 
   const capo = header.capo ?? 0;
   const bpm = header.tempo ?? DEFAULT_BPM;
   const timeSig: [number, number] = header.timeSig ?? [...DEFAULT_TIME_SIG];
-  const est = proportionalTimes(tab.groups, bpm, timeSig);
 
   let rhythm: Rhythm | null = null;
-  if (bundle.midi) rhythm = midiRhythm(bundle.midi.data, d, capo, est, diagnostics);
+  if (bundle.midi) {
+    const found = midiRhythm(bundle.midi.data, d, () => parse(false), capo, bpm, timeSig, diagnostics);
+    if (found) [rhythm, d] = found;
+  }
   if (!rhythm) {
     const ruler = rulerRhythm(d, bpm, header.timeSig);
     diagnostics.push(...ruler.diagnostics);
@@ -96,7 +94,7 @@ export function asciiToSong(bundle: SongBundle, opts: AsciiToSongOptions = {}): 
   }
   rhythm ??= {
     status: 'needs-alignment',
-    times: est,
+    times: proportionalTimes(tab.groups, bpm, timeSig),
     bars: constantBars(bpm, timeSig, d.barCount),
     tempos: [{ time: 0, bpm }],
     tempoEstimated: header.tempo === undefined,
@@ -110,37 +108,85 @@ export function asciiToSong(bundle: SongBundle, opts: AsciiToSongOptions = {}): 
   return aligned.meta.rhythm === 'aligned' ? aligned : { ...song, diagnostics: aligned.diagnostics };
 }
 
-/** Paired-MIDI rhythm, or null (with a diagnostic) when unreadable or under the match threshold. */
-function midiRhythm(data: Uint8Array, d: DetailedTab, capo: number, est: readonly number[], diagnostics: ImportDiagnostic[]): Rhythm | null {
-  let midi;
+/** Pitches of each onset group, for MIDI alignment (dead notes have no pitch). */
+function tabPitches(d: DetailedTab, capo: number, bpm: number, timeSig: readonly [number, number]): TabGroupPitches[] {
+  const est = proportionalTimes(d.tab.groups, bpm, timeSig);
+  return d.tab.groups.map((g, i) => ({
+    pitches: g.notes.filter((n) => !n.tech.dead).map((n) => notePitch(d.tab.tuning, capo, n.string, n.fret, n.tech)),
+    estTime: est[i],
+  }));
+}
+
+/**
+ * Paired-MIDI rhythm and the tab layout it was aligned with, or null (with a diagnostic) when the MIDI
+ * is unreadable or no alignment reaches the match threshold. Tried in order until one matches: the tab
+ * as played against all MIDI tracks; the tab without its repeats (`written()`), for a MIDI that does
+ * not play them; then each MIDI track alone (a duet's guitar 1, a melody track), both ways.
+ */
+function midiRhythm(
+  data: Uint8Array,
+  played: DetailedTab,
+  written: () => DetailedTab,
+  capo: number,
+  bpm: number,
+  timeSig: readonly [number, number],
+  diagnostics: ImportDiagnostic[],
+): [Rhythm, DetailedTab] | null {
+  let midi: MidiRhythm;
   try {
     midi = readMidiRhythm(data);
   } catch (err) {
     diagnostics.push({ severity: 'warning', code: 'midi-unreadable', message: `Paired MIDI could not be read: ${(err as Error).message}` });
     return null;
   }
-  const tabGroups = d.tab.groups.map((g, i) => ({
-    pitches: g.notes.filter((n) => !n.tech.dead).map((n) => notePitch(d.tab.tuning, capo, n.string, n.fret, n.tech)),
-    estTime: est[i],
-  }));
-  const alignment = alignTabToMidi(tabGroups, midi);
-  const pct = Math.round(alignment.matched * 100);
-  if (alignment.matched < MIDI_MATCH_THRESHOLD) {
-    diagnostics.push({ severity: 'info', code: 'midi-low-match', message: `The paired MIDI matched only ${pct}% of the tab's onsets (needs 80%); MIDI timing not used` });
-    return null;
-  }
-  diagnostics.push({ severity: 'info', code: 'midi-aligned', message: `The paired MIDI matched ${pct}% of the tab's onsets` });
-  const last = alignment.times[alignment.times.length - 1];
-  const ts = midi.timeSignatures[0];
-  return {
-    status: 'midi',
-    times: alignment.times,
-    bars: midiBars(midi.tempos, midi.timeSignatures, Math.max(midi.durationSec, last + 1e-3)),
-    tempos: midi.tempos,
-    tempoEstimated: false,
-    bpm: midi.tempos[midi.tempos.length - 1].bpm,
-    timeSig: [ts.num, ts.den],
+  const layouts: { d: DetailedTab; groups: TabGroupPitches[]; repeats: boolean }[] = [{ d: played, groups: tabPitches(played, capo, bpm, timeSig), repeats: true }];
+  let best = 0;
+  /** Try one tab layout against one MIDI source; returns the rhythm when it matches. */
+  const attempt = (layout: (typeof layouts)[number], source: MidiRhythm, track: number | null): [Rhythm, DetailedTab] | null => {
+    const alignment = alignTabToMidi(layout.groups, source);
+    best = Math.max(best, alignment.matched);
+    if (alignment.matched < MIDI_MATCH_THRESHOLD) return null;
+    const how = [!layout.repeats ? "without the tab's repeats (the MIDI does not play them)" : '', track !== null ? `against MIDI track ${track + 1} alone` : ''].filter(Boolean).join(', ');
+    diagnostics.push({
+      severity: 'info',
+      code: 'midi-aligned',
+      message: `The paired MIDI matched ${Math.round(alignment.matched * 100)}% of the tab's onsets${how ? ` ${how}` : ''}`,
+    });
+    const last = alignment.times[alignment.times.length - 1];
+    const ts = midi.timeSignatures[0];
+    const rhythm: Rhythm = {
+      status: 'midi',
+      times: alignment.times,
+      bars: midiBars(midi.tempos, midi.timeSignatures, Math.max(midi.durationSec, last + 1e-3)),
+      tempos: midi.tempos,
+      tempoEstimated: false,
+      bpm: midi.tempos[midi.tempos.length - 1].bpm,
+      timeSig: [ts.num, ts.den],
+    };
+    return [rhythm, layout.d];
   };
+
+  const found = attempt(layouts[0], midi, null);
+  if (found) return found;
+  const noRepeats = written();
+  if (noRepeats.tab.groups.length !== played.tab.groups.length) {
+    layouts.push({ d: noRepeats, groups: tabPitches(noRepeats, capo, bpm, timeSig), repeats: false });
+    const plain = attempt(layouts[1], midi, null);
+    if (plain) return plain;
+  }
+  const tracks = midi.tracks ?? [];
+  for (const layout of layouts) {
+    for (let k = 0; k < tracks.length; k++) {
+      const single = attempt(layout, { ...midi, groups: tracks[k] }, k);
+      if (single) return single;
+    }
+  }
+  diagnostics.push({
+    severity: 'info',
+    code: 'midi-low-match',
+    message: `The paired MIDI matched only ${Math.floor(best * 100)}% of the tab's onsets (needs ${MIDI_MATCH_THRESHOLD * 100}%); MIDI timing not used`,
+  });
+  return null;
 }
 
 /** Assemble the `Song` from the parsed tab and chosen rhythm. */
@@ -220,8 +266,8 @@ function buildSong(bundle: SongBundle, opts: AsciiToSongOptions, d: DetailedTab,
   const useFileNames = source.source !== 'classtab' && fromFile.artist !== undefined;
   const header = tab.header;
   const title = useFileNames ? fromFile.title : header.title ?? fromFile.title;
-  const artist = useFileNames ? fromFile.artist : header.artist ?? header.composer;
-  const composer = useFileNames ? undefined : header.composer;
+  const composer = useFileNames ? undefined : source.source === 'classtab' ? classTabComposer(bundle.fileName, header.composer, header.composerConfirmed) : header.composer;
+  const artist = useFileNames ? fromFile.artist : header.artist ?? composer;
   const end = bars[bars.length - 1].time + bars[bars.length - 1].dur;
 
   return {

@@ -8,6 +8,7 @@ import type { AsciiBlock, AsciiHeader, AsciiNote, AsciiOnsetGroup, AsciiTab } fr
 import { normaliseNewlines } from './decode';
 import { parseHeader } from './header';
 import {
+  isFermataLine,
   isNotesHeading,
   isVersionBoundary,
   normaliseLine,
@@ -29,6 +30,11 @@ export interface ParseOptions {
   lineOffset?: number;
   /** Header fields inherited from an earlier region (title, composer…). */
   headerFallback?: AsciiHeader;
+  /**
+   * Play `x2` blocks and `|*` … `*|` repeats (default true). False keeps the written order, for a paired
+   * MIDI that does not play the repeats.
+   */
+  repeats?: boolean;
 }
 
 /** One bar of a block: the columns bracketing it (`[start, end)` bar-line columns). */
@@ -275,6 +281,15 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
     });
   }
   const blockTops = tops.filter((t) => t < cutoff);
+  const parts = ensembleParts(lines, blockTops);
+  const partCount = Math.max(0, ...parts) + 1;
+  if (partCount > 1) {
+    diagnostics.push({
+      severity: 'info',
+      code: 'ensemble-parts',
+      message: `The tab is written for ${partCount} guitars (systems of ${partCount} staves); the top part (guitar 1) is imported`,
+    });
+  }
   // Runs that are not 6 lines: reported when they hold notes (legend diagrams and rules are not).
   for (const [i, j] of failedRuns) {
     if (i > cutoff || !staff.slice(i, j).some((l) => l?.hasNote)) continue;
@@ -303,7 +318,8 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const blockRulers: (RulerMark[] | undefined)[] = [];
   const blockRepeats: RepeatSigns[] = [];
   const blockChords: { column: number; name: string }[][] = [];
-  let tuningFromLabels: number[] | null = null;
+  /** Tunings read from the string labels, by how many staves carry them (a typo in one staff is outvoted). */
+  const labelTunings = new Map<string, { tuning: number[]; count: number; line: number; labels: (string | null)[] }>();
 
   blockTops.forEach((top, bi) => {
     const rows = lines.slice(top, top + 6);
@@ -341,14 +357,17 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
       barColumns,
       notes,
       palmMute: [],
+      ...(parts[bi] > 0 ? { part: parts[bi] } : {}),
     };
     let ruler: RulerMark[] | undefined;
     const chords: { column: number; name: string }[] = [];
     const spansOf = (k: number, kind: 'pm' | 'ring'): [number, number][] | null =>
       parseSpanLine(lines[k], kind)?.map(([a, b]) => [a + shift, b + shift]) ?? null;
 
+    // The ruler sits right above the staff, or above a fermata line (`/.\`) there.
+    const rulerAt = isFermataLine(lines[top - 1] ?? '') ? top - 2 : top - 1;
     for (const k of aboveOf[bi]) {
-      if (k === top - 1) {
+      if (k === rulerAt) {
         const marks = parseRuler(lines[k], 'above');
         if (marks) {
           ruler = marks.map((m) => ({ ...m, column: m.column + shift }));
@@ -403,16 +422,12 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
       }
     }
 
-    if (!tuningFromLabels) {
-      tuningFromLabels = labelTuning(parsed.map((p) => p.label));
-      if (tuningFromLabels && isImplausibleTuning(tuningFromLabels)) {
-        diagnostics.push({
-          severity: 'warning',
-          code: 'label-tuning-unusual',
-          message: `The string labels at line ${lineNo(top)} (${block.labels.join(' ')}) give an unusual tuning; check the tuning`,
-          line: lineNo(top),
-        });
-      }
+    const fromLabels = labelTuning(parsed.map((p) => p.label));
+    if (fromLabels) {
+      const key = fromLabels.join();
+      const seen = labelTunings.get(key);
+      if (seen) seen.count++;
+      else labelTunings.set(key, { tuning: fromLabels, count: 1, line: lineNo(top), labels: block.labels });
     }
     const groups = groupBlockNotes(notes);
     const bars = blockBars(barColumns, maxStart, bodyEnd, groups);
@@ -435,8 +450,10 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const headerLines: string[] = [];
   if (blockTops.length > 0) {
     const top = blockTops[0];
+    const rulerAt = isFermataLine(lines[top - 1] ?? '') ? top - 2 : top - 1;
     const isAnnotation = (k: number): boolean =>
-      (k === top - 1 && parseRuler(lines[k], 'above') !== null) ||
+      (k === rulerAt && parseRuler(lines[k], 'above') !== null) ||
+      (k === top - 1 && rulerAt !== k) ||
       parseSpanLine(lines[k], 'pm') !== null ||
       parseSpanLine(lines[k], 'ring') !== null ||
       parseChordLine(lines[k]) !== null ||
@@ -446,14 +463,25 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
     headerLines.push(...lines);
   }
   const header = parseHeader(headerLines, opts.headerFallback);
-  const labelled: number[] | null = tuningFromLabels;
+  let voted: { tuning: number[]; count: number; line: number; labels: (string | null)[] } | null = null;
+  for (const t of labelTunings.values()) if (!voted || t.count > voted.count) voted = t;
+  if (voted && isImplausibleTuning(voted.tuning)) {
+    diagnostics.push({
+      severity: 'warning',
+      code: 'label-tuning-unusual',
+      message: `The string labels at line ${voted.line} (${voted.labels.join(' ')}) give an unusual tuning; check the tuning`,
+      line: voted.line,
+    });
+  }
+  const labelled: number[] | null = voted?.tuning ?? null;
   const tuning = labelled && !isStandard(labelled) ? labelled : header.tuning ?? labelled ?? [...STANDARD_TUNING];
 
   // 5. Played order: blocks × `x2` passes, then `|*` … `*|` repeats, cut into runs of consecutive bars.
   const written: WrittenBar[] = [];
   blocks.forEach((block, bi) => {
+    if (block.part) return;
     const { open, close } = blockRepeats[bi];
-    for (let pass = 0; pass < (block.repeat ?? 1); pass++) {
+    for (let pass = 0; pass < (opts.repeats === false ? 1 : block.repeat ?? 1); pass++) {
       blockBarList[bi].forEach((_, b) => written.push({ block: bi, bar: b, open: open.has(b), close: close.has(b) }));
     }
   });
@@ -470,7 +498,7 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const sections: { bar: number; name: string }[] = [];
   const runsOfBlock = new Array<number>(blocks.length).fill(0);
   let bar = 0;
-  const order = expandRepeats(written);
+  const order = opts.repeats === false ? written : expandRepeats(written);
   for (let i = 0; i < order.length; ) {
     const bi = order[i].block;
     const from = order[i].bar;
@@ -513,6 +541,23 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
     diagnostics,
   };
   return { tab, played, barCount: bar, sections };
+}
+
+/**
+ * Ensemble systems (ClassTab duets): a staff joined to the one above it by lines that each start with
+ * the system's bracket `|` (fingering, dynamics, ` | guitar 2  |`) is a lower part of the same system.
+ * Returns each block's 0-based part (0 = top staff).
+ */
+function ensembleParts(lines: readonly string[], tops: readonly number[]): number[] {
+  const parts = tops.map(() => 0);
+  for (let bi = 1; bi < tops.length; bi++) {
+    const from = tops[bi - 1] + 6;
+    const col = lines[tops[bi - 1]].indexOf('|');
+    if (tops[bi] <= from || col < 0) continue;
+    const joined = lines.slice(from, tops[bi]).every((l) => l.indexOf('|') === col && l.slice(0, col).trim() === '');
+    if (joined) parts[bi] = parts[bi - 1] + 1;
+  }
+  return parts;
 }
 
 /** Mark notes whose column falls in one of `spans`. */

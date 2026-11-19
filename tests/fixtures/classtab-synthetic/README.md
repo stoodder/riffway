@@ -19,3 +19,13 @@ Regenerate with `npx tsx tests/fixtures/classtab-synthetic/midi-fixtures.ts --wr
 | `riffway_two_preludes.txt` | `riffway_two_preludes_01.mid`, `_02.mid` | version | `midi` per version | two versions in one file, each with its own `MIDI:` header and Notes section |
 | `riffway_lament_unpaired.txt` | — | none | `needs-alignment` | no MIDI and no ruler, "Tune 6th to D, capo 2" prose |
 | — | `riffway_orphan_am.mid` | never paired | — | a MIDI without a tab |
+
+## `recall/` (T-103)
+
+Lookalikes of ClassTab layouts the first importer missed, kept in a subfolder so the adapter tests'
+five-tab corpus stays unchanged. Used by `tests/ascii/recall.test.ts` and `tests/align/midi-fallbacks.test.ts`.
+
+| Tab | Rhythm | Exercises |
+|---|---|---|
+| `recall/riffway_triplet_etude.txt` | `ruler` | tuplet brackets in a ruler (`|-3-|`), a ruler of brackets only (`4 |-3-| |-3-|`, once misread as a seventh staff line), a bar number against the first mark (`12|`), `,` sixteenths inside one beat, a segno `$` and a fermata line (`/.\`) between ruler and staff |
+| `recall/riffway_duo_rondino.txt` | `ruler` | a duet: guitar 2 joined to guitar 1 by the ` |` system bracket (only guitar 1 is imported and its ruler covers the piece), `||o` … `o||` repeat dots |
