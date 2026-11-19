@@ -262,16 +262,26 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** CCRs applied (SectionProgress.session; ServerOptions.analyzer; LibraryService difficulty + per-source indexing state, removing `instanceof LibraryIndex`; EngineOptions.settings + services.ts passes ctx.settings); foundation tests assert real behaviour instead of NotImplemented; `.gitignore` `/library/` root-only; tokens.ts uses core `tierName`; docs fixed (hand-position rules from T-013; alphaTex `{h}` for hammer/pull and `//` tags comment; rhythm precedence sidecar>MIDI>ruler>proportional; `version` option); `loadSong` passes `version`; alphaTab console noise on corrupt files silenced; `|*`…`*|` ASCII repeats expanded. Full `npm test`, typecheck, lint green.
 
 ### T-090 · Review round R1 (contracts + core logic)
-- **Status:** in-progress · **Deps:** T-011…T-020 · **Parallel:** n · **Agent:** `review`
+- **Status:** done · **Deps:** T-011…T-020 · **Parallel:** n · **Agent:** `review`
 - **Owns:** `docs/reviews/R1.md`; adds fix tasks `T-1xx` to this file
 - **Acceptance:** full test/typecheck/lint run; contracts vs docs; core logic vs docs (judge, difficulty,
   timing math, model invariants); forbidden-network grep (`songsterr.com/api`, UG fetches, classtab in
   tests); findings ranked with fix tasks assigned to the owning agent.
 
+### T-101 · R1 fixes: judge ↔ transport integration (core)
+- **Status:** in-progress · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-core`
+- **Owns:** `src/core/judge/`, `src/core/practice/`, `src/audio/engine/`, `src/core/dsp/` (except `amp/`), `src/core/difficulty/` (except `constants.ts`), `src/core/handpos/`, their tests, `docs/timing.md`, `docs/game-mechanics.md`, `docs/reviews/R1-core.md` (status column)
+- **Acceptance:** every R1-C finding fixed or explicitly rejected with reasoning in R1-core.md; new tests drive the judge through the REAL `TransportCore` (multi-anchor, loops of 1–2 bars at 40–100% speed, hidden-tab horizon, pause/resume, seek fwd/back, setSpeed/setLoop near B) and fail on the old code; docs/timing.md and game-mechanics.md agree on paused-clock semantics. Full suite green.
+
+### T-102 · R1 fixes: importers, progress (platform)
+- **Status:** in-progress · **Deps:** T-090 · **Parallel:** y (with Wave 2) · **Agent:** `impl-fix-platform`
+- **Owns:** `src/core/import/` , `src/core/progress/`, `src/storage/`, `src/core/model/`, `server/` except Wave 2-owned files (`server/sources/{classtab,linkout}/`, `server/routes/{classtab,audio,sidecars}.ts`), `src/ui/{shell,design,components}/`, `starter/`, their tests, `docs/progress.md`, `docs/reviews/R1-platform.md` (status column)
+- **Acceptance:** every R1-P finding except R1-P-01 fixed or explicitly rejected with reasoning; regression test per fix; doc changes for docs/song-formats.md (owned by T-028 this wave) listed in the report instead of edited. R1-P-01 stays open for the owner (wrap-up). Full suite green.
+
 ## Wave 2 (parallel)
 
 ### T-021 · Guide synth renderer + song worker
-- **Status:** todo · **Deps:** T-011, T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-011, T-016 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Guide source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md). Two starter items use `\voice` (multi-voice) and natural-harmonic realValue is the sounding pitch.
 - **Owns:** `src/audio/guide/`, `tests/guide/`
 - **Acceptance:**
@@ -285,7 +295,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - 3-minute song renders in < 2 s in a Chrome worker (browser test or logged measurement).
 
 ### T-022 · Input device, analysis worklet, level meter, tuner
-- **Status:** todo · **Deps:** T-015, T-016, T-018 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-015, T-016, T-018 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Also own the docs/audio-input.md update to match T-015's DSP (no spectral flux; 2nd-diff+energy onset; octave check +0.03; 1-semitone range margin; -120 dB floor). Pass the window-centre frame to the pitch-change detector (`changeFrame`). Synthetic test notes must fade out (abrupt cut reads as onset). Thresholds were tuned on synthetic signals only; T-036 validates on recordings.
 - **Owns:** `src/audio/input/`, `src/audio/worklets/analysis.worklet.ts`, `src/ui/panels/input/`,
   `src/ui/panels/tuner/`, `tests/input/`, `docs/audio-input.md` (W2)
@@ -300,7 +310,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     and pitches; unit tests for device matching.
 
 ### T-023 · Monitoring + amp/cab sim + latency display + feedback guard
-- **Status:** todo · **Deps:** T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-016 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** docs/monitoring.md: engine limiter is a zero-latency WaveShaper soft clipper (DynamicsCompressor added ~6 ms), update the doc. Screens calling requireAudioGesture() must handle AudioGestureDismissedError.
 - **Owns:** `src/core/dsp/amp/`, `src/audio/monitor/`, `src/audio/worklets/amp.worklet.ts`,
   `src/ui/panels/monitor/`, `tests/monitor/`, `docs/monitoring.md` (W2)
@@ -310,7 +320,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Notes:** Takes the input node from T-022's `getInputNode()` contract.
 
 ### T-024 · Highway renderer (canvas)
-- **Status:** todo · **Deps:** T-011, T-013, T-016 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** in-progress · **Deps:** T-011, T-013, T-016 · **Parallel:** y · **Agent:** `impl-game`
 - **Owns:** `src/game/highway/`, `src/ui/screens/dev-highway/`, `tests/highway/`
 - **Acceptance:**
   - `createHighway(canvas, song, clock, opts)`: six lanes (high e on top), fret-number gems, sustains,
@@ -322,7 +332,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - `#/dev/highway` renders a fixture song with all glyphs for screenshots.
 
 ### T-025 · ClassTab adapter + refresh command
-- **Status:** todo · **Deps:** T-012, T-017 · **Parallel:** y · **Agent:** `impl-server`
+- **Status:** in-progress · **Deps:** T-012, T-017 · **Parallel:** y · **Agent:** `impl-server`
 - **Owns:** `server/sources/classtab/`, `server/routes/classtab.ts`, `scripts/classtab-refresh.ts`,
   `tests/classtab/`, `docs/sources/classtab.md`
 - **Acceptance:**
@@ -335,7 +345,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     entry rejected, index counts and rhythm statuses. No request to classtab.org from tests.
 
 ### T-026 · Library & search UI + link-out adapters + drag-drop import
-- **Status:** todo · **Deps:** T-017, T-018 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-017, T-018 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `server/sources/linkout/`, `src/ui/screens/library/`, `tests/linkout/`, `tests/library-ui/`,
   `docs/sources/{README,songsterr,ultimate-guitar,candidates}.md`
 - **Acceptance:**
@@ -347,7 +357,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     drop zone → import with progress and toasts; live SSE refresh; arrangement picker → song page.
 
 ### T-027 · Backing audio: attach, align, time-stretch
-- **Status:** todo · **Deps:** T-016, T-017, T-020 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-016, T-017, T-020 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Backing source contract: each `schedule(seg)` replaces everything previously scheduled from `seg.ctxStart` on (docs/timing.md).
 - **Owns:** `server/routes/audio.ts`, `src/audio/backing/`, `src/ui/panels/backing/`, `tests/backing/`
 - **Acceptance:**
@@ -359,7 +369,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Browser test: aligned backing onset lands within ±10 ms of the clock's beat at 100% and 75%.
 
 ### T-028 · ASCII paste import + rhythm-alignment UI
-- **Status:** todo · **Deps:** T-012, T-016, T-017; T-021 contract · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-012, T-016, T-017; T-021 contract · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/import/`, `server/routes/sidecars.ts`, `tests/ascii-ui/`, `docs/song-formats.md` (W2)
 - **Acceptance:**
   - Import screen per song-formats.md § Rhythm alignment UX: paste or open file, preview with unparsed lines
@@ -370,7 +380,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Tests: route tests via `app.inject`; UI flow test (happy-dom) from paste to saved sidecar.
 
 ### T-029 · Integration: indexer ↔ importers ↔ difficulty calibration
-- **Status:** todo · **Deps:** T-011, T-013, T-017, T-019 · **Parallel:** y · **Agent:** `impl-core`
+- **Status:** in-progress · **Deps:** T-011, T-013, T-017, T-019 · **Parallel:** y · **Agent:** `impl-core`
 - **Orchestrator notes (from W1):** Two starter items use `\voice`; ensure both voices import as playable notes. Run the real analyzer end to end (T-017 tests use a fake analyzer).
 - **Owns:** `tests/integration/`, `src/core/difficulty/constants.ts` (W2), `docs/difficulty.md` (W2)
 - **Acceptance:** server indexes `starter/` with real difficulty; every starter item within ±1 of
