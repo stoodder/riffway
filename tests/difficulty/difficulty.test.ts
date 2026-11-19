@@ -15,7 +15,7 @@ describe('worked example: Power Chord Drive (docs/difficulty.md)', () => {
 
   it('measures every factor as the doc table says', () => {
     expect(f.density.measure).toBeCloseTo(4.0, 10); // 0.6·4.0 + 0.4·4.0
-    expect(f.density.c).toBeCloseTo(3 / 7, 10);
+    expect(f.density.c).toBeCloseTo(3 / 4.5, 10);
     expect(f.tempo.measure).toBeCloseTo(120, 10);
     expect(f.tempo.c).toBeCloseTo(0.5, 10);
     expect(f.shifts.measure).toBeCloseTo(1.5, 10); // (3 + 5 + 4) / 8
@@ -24,27 +24,27 @@ describe('worked example: Power Chord Drive (docs/difficulty.md)', () => {
     expect(f.span.c).toBe(0);
     expect(f.skipping.measure).toBe(0);
     expect(f.techniques.measure).toBeCloseTo(0.4, 10);
-    expect(f.techniques.c).toBeCloseTo(0.2, 10);
+    expect(f.techniques.c).toBeCloseTo(0.4, 10);
     expect(f.chords.measure).toBeCloseTo(2.0, 10);
     expect(f.chords.c).toBeCloseTo(2 / 3, 10);
-    expect(f.density.weight * f.density.c).toBeCloseTo(0.15, 3);
-    expect(f.chords.weight * f.chords.c).toBeCloseTo(0.067, 3);
+    expect(f.density.weight * f.density.c).toBeCloseTo(0.233, 3);
+    expect(f.chords.weight * f.chords.c).toBeCloseTo(0.033, 3);
   });
 
-  it('rates 4.1, tier 4 (Developing)', () => {
-    expect(only(report).raw).toBeCloseTo(0.347, 3);
-    expect(only(report).rating).toBe(4.1);
-    expect(report.rating).toBeCloseTo(4.1, 1);
-    expect(Math.abs(report.rating - 4.1)).toBeLessThanOrEqual(0.05);
-    expect(report.tier).toBe(4);
-    expect(report.tierName).toBe('Developing');
+  it('rates 4.6, tier 5 (Intermediate)', () => {
+    expect(only(report).raw).toBeCloseTo(0.402, 3);
+    expect(only(report).rating).toBe(4.6);
+    expect(report.rating).toBeCloseTo(4.6, 1);
+    expect(Math.abs(report.rating - 4.6)).toBeLessThanOrEqual(0.05);
+    expect(report.tier).toBe(5);
+    expect(report.tierName).toBe('Intermediate');
     expect(report.provisional).toBe(false);
     expect(report.version).toBe(1);
   });
 
   it('derives skills and highlights', () => {
     expect(report.skills).toEqual(['chords', 'position-shifts']);
-    expect(report.highlights).toEqual(['dense, fast notes', 'fast position shifts', 'frequent chords']);
+    expect(report.highlights).toEqual(['dense, fast notes', 'technique-heavy', 'fast position shifts']);
   });
 
   it('reuses passed positions instead of recomputing them', () => {
@@ -52,7 +52,7 @@ describe('worked example: Power Chord Drive (docs/difficulty.md)', () => {
     const flat = { cues: [], positions: computed.positions.map((p) => ({ ...p, lo: 5, hi: 8 })) };
     const noShifts = analyzeDifficulty(powerChordDrive(), { positions: flat });
     expect(only(noShifts).factors.shifts.measure).toBe(0);
-    expect(noShifts.rating).toBe(3.4); // 1 + 9 × (0.3467 − 0.075)
+    expect(noShifts.rating).toBe(4.2); // 1 + 9 × (0.4017 − 0.05)
   });
 });
 
@@ -149,8 +149,8 @@ describe('factor measures', () => {
     expect(w([{ slide: 'shift', vibrato: true }])).toBeCloseTo(0.9);
     expect(w([{ harmonic: 'natural' }, { dead: true }])).toBeCloseTo(1.0);
     expect(w([{ letRing: true }, { ghost: true }])).toBe(0);
-    // 4 bends of 1 semitone in 4 s → Tq = 1 → c = 0.5.
-    expect(factorsOf({ bpm: 60, events: line(Array(4).fill([2, 7, { bend: { semitones: 1 } }])) }).techniques.c).toBeCloseTo(0.5);
+    // 4 bends of 1 semitone in 4 s → Tq = 1 → c = 1.
+    expect(factorsOf({ bpm: 60, events: line(Array(4).fill([2, 7, { bend: { semitones: 1 } }])) }).techniques.c).toBeCloseTo(1);
   });
 
   it('chords: load per chord group', () => {
