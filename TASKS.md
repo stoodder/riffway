@@ -91,6 +91,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-027 | Backing audio: attach, align, time-stretch | impl | done cafef53: 47 node + 7 browser; clicks within 2.3 ms at 100/70% through wrap/seek/speed |
 | T-021 | Guide synth renderer + song worker | impl | done 3ddb919: 27 node + 20 browser; notes ±10 ms; 3-min song renders in 449 ms; DEC-21 resolved (MIDI from Song works) |
 | T-024 | Highway renderer (canvas) | impl | done 6734ee6: 23 node + 13 browser; 19.2k notes draw p95 ~0.6 ms |
+| T-103 | ClassTab rhythm recall, composer, failed files | impl | done 13762f1: playable 2353->2581; ruler-readable 2087 (~survey 2127); composer 3956/3976; failed files visible |
 
 ---
 
@@ -290,7 +291,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Acceptance:** every R1-P finding except R1-P-01 fixed or explicitly rejected with reasoning; regression test per fix; doc changes for docs/song-formats.md (owned by T-028 this wave) listed in the report instead of edited. R1-P-01 stays open for the owner (wrap-up). Full suite green.
 
 ### T-103 · ClassTab rhythm recall + composer fallback + failed-file visibility
-- **Status:** in-progress · **Deps:** T-025, T-102 · **Parallel:** y · **Agent:** `impl-fix-platform`
+- **Status:** done · **Deps:** T-025, T-102 · **Parallel:** y · **Agent:** `impl-fix-platform`
 - **Owns:** `src/core/import/ascii/`, `src/core/import/align/`, `src/core/import/midi/`, `server/indexer/`, `tests/ascii/`, `tests/align/`, `tests/server/`, `tests/fixtures/classtab-synthetic/`
 - **Acceptance:** beat-ruler detection recall raised toward the survey estimate (~2,127 tabs with rulers vs 432 detected) measured on the scratch reference set + one real-refresh run (no ClassTab content committed); investigate the 354 paired tabs failing strict MIDI match (true negatives vs fixable); composer fallback from ClassTab filename (`composer_title` convention); unparsable files in the library listed with a visible "failed to import" state instead of silently skipped. Report before/after counts. Full suite green for owned areas.
 
