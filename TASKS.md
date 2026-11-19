@@ -77,6 +77,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-018 | App shell, design system, navigation | impl | done 43884ab: 52 tests; gallery at #/dev/components; reduced motion in e2e |
 | T-016 | Audio engine: clock, scheduler, metronome, mixer | impl | done b438eea: 40 node + 9 OfflineAudioContext tests (clicks within 1 sample); limiter = waveshaper (compressor added 6ms) |
 | T-015 | DSP core: pitch, onset, level, tuner | impl | done d81438e: 86 tests; MPM <=2 cents E2-E6, no octave errors; onsets ±5ms; tuned on synthetic only |
+| T-019 | Starter library content | impl | done 8747edd: 14 alphaTex items tiers 1-6; 147 tests; Rising Sun is an arpeggio study (melody unverified) |
 
 ---
 
@@ -226,7 +227,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - happy-dom tests for router and keyboard navigation.
 
 ### T-019 · Starter library content
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-content`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-content`
 - **Owns:** `starter/`, `tests/starter/`
 - **Acceptance:**
   - 14 alphaTex files + `starter/manifest.json` (`slug, title, credit, publicDomainNote, tags, targetTier, bpm`)
