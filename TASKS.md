@@ -71,6 +71,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 | T-013 | Difficulty + hand-position analysis | impl | done 4bc1e80: 41 tests; worked example changed (old example contradicted window rule) |
 | T-020 | Storage and progress core | impl | done dd18d75: 88 tests; CCR: SectionProgress.session (stored locally for now) |
+| T-017 | Server core, local+starter adapters, search | impl | done 122d16a: 40 tests; loopback Host/Origin guard; CCRs: ServerOptions.analyzer, LibraryService difficulty/indexing state |
 
 ---
 
@@ -190,7 +191,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     count-in click count, speed change continuity.
 
 ### T-017 · Companion server core, local + starter adapters, unified search
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-server`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-server`
 - **Owns:** `server/` except `server/routes/{classtab,audio,sidecars}.ts` and `server/sources/{classtab,linkout}/`;
   `tests/server/`, `docs/sources/local-folder.md`
 - **Acceptance:**
