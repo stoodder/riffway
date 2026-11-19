@@ -1,10 +1,10 @@
 /**
  * Analysis DSP (T-015), pure TS, allocation-free after construction, so it runs in the analysis
  * worklet (T-022) and in Node tests (docs/audio-input.md). Interfaces and factory signatures frozen
- * by T-010; the amp DSP lives in `./amp/` (T-023).
+ * by T-010; implementations: `fft.ts` (radix-2 complex + real FFT), `pitch.ts` (MPM), `onset.ts`,
+ * `pitch-change.ts`, `level.ts`, `tuner.ts`. The amp DSP lives in `./amp/` (T-023).
  * @module
  */
-import { notImplemented } from '@shared/errors';
 
 /** A pitch estimate. Detectors may reuse the returned object; copy it if you keep it. */
 export interface PitchEstimate {
@@ -67,7 +67,7 @@ export interface PitchChangeDetector {
 /** Peak/RMS meter per block. */
 export interface LevelMeter {
   process(block: Float32Array): void;
-  /** Levels since the last read, dBFS; resets the accumulators. */
+  /** Levels since the last read, dBFS (≥ −120); resets the accumulators. The object is reused. */
   read(): { peakDb: number; rmsDb: number };
 }
 
@@ -84,31 +84,24 @@ export interface TunerReading {
 
 /** Median-of-5 tuner smoother with hold below clarity 0.8. */
 export interface TunerSmoother {
+  /** Feed one tuner frame; `null` until the first confident frame. The reading object is reused. */
   push(estimate: PitchEstimate | null, timeSec: number): TunerReading | null;
   reset(): void;
 }
 
-export function createPitchDetector(opts: PitchDetectorOptions): PitchDetector {
-  return notImplemented('createPitchDetector', 'T-015');
-}
-
-export function createOnsetDetector(opts: OnsetDetectorOptions): OnsetDetector {
-  return notImplemented('createOnsetDetector', 'T-015');
-}
-
-export function createPitchChangeDetector(opts: { sampleRate: number }): PitchChangeDetector {
-  return notImplemented('createPitchChangeDetector', 'T-015');
-}
-
-export function createLevelMeter(): LevelMeter {
-  return notImplemented('createLevelMeter', 'T-015');
-}
-
-export function createTunerSmoother(opts?: { a4?: number }): TunerSmoother {
-  return notImplemented('createTunerSmoother', 'T-015');
-}
-
-/** Hz → nearest MIDI + cents (A4 = `a4`, default 440). */
-export function freqToMidi(freq: number, a4 = 440): { midi: number; cents: number } {
-  return notImplemented('freqToMidi', 'T-015');
-}
+export {
+  createPitchDetector,
+  freqToMidi,
+  freqToMidiFloat,
+  midiToFreq,
+  planPitchWindow,
+  E2_MIDI,
+  E6_MIDI,
+} from './pitch';
+export type { PitchWindowPlan } from './pitch';
+export { createOnsetDetector, MIN_NOVELTY_DB } from './onset';
+export { createPitchChangeDetector, PITCH_CHANGE_HOLD_MS, PITCH_CHANGE_SEMITONES } from './pitch-change';
+export type { LegatoDetector } from './pitch-change';
+export { createLevelMeter, ampToDb, SILENCE_DB } from './level';
+export { createTunerSmoother, TUNER_HOLD_CLARITY, TUNER_VALID_CLARITY } from './tuner';
+export { Fft, RealFft } from './fft';
