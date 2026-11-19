@@ -1,4 +1,4 @@
-import { mkdirSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, utimesSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { SongMeta, SourcesResponse } from '@shared/api';
@@ -97,10 +97,44 @@ describe('library index', () => {
     expect(broken.format).toBe('gp5');
     expect(broken.defaultArrangement).toBe(-1);
     expect(entries.find((e) => e.fileName === 'bass.atex')!.error).toMatch(/playable/);
-    // Broken entries are retried on the next scan; skipped files are cached.
+    // Deterministic failures (syntax, no playable track) and skipped files are cached by mtime + size.
     t.analyzer.calls.length = 0;
     await t.ctx.library.rescan();
-    expect(t.analyzer.calls.sort()).toEqual(['bass.atex', 'broken.gp5']);
+    expect(t.analyzer.calls).toEqual([]);
+  });
+
+  it('retries only transient failures on later scans and restarts (R1-P-10)', async () => {
+    lib('broken.gp5', 'BROKEN file');
+    lib('bass.atex', fakeSong({ title: 'Bass only', tracks: 0 }));
+    lib('crash.atex', 'CRASH please');
+    t = await startApp(dirs);
+    expect(t.ctx.library.all().find((e) => e.fileName === 'crash.atex')!.error).toBe('Importer crashed');
+    t.analyzer.calls.length = 0;
+    await t.ctx.library.rescan();
+    expect(t.analyzer.calls).toEqual(['crash.atex']);
+    await t.app.close();
+
+    const analyzer = createFakeAnalyzer();
+    t = await startApp(dirs, { analyzer });
+    expect(analyzer.calls).toEqual(['crash.atex']);
+    expect(t.ctx.library.all().map((e) => e.fileName).sort()).toEqual(['bass.atex', 'broken.gp5', 'crash.atex']);
+  });
+
+  it('retries failed entries from an older cache once (records without the retry flag)', async () => {
+    lib('broken.gp5', 'BROKEN file');
+    t = await startApp(dirs);
+    await t.app.close();
+    const cacheFile = join(dirs.dataDir, 'index.json');
+    const cache = JSON.parse(readFileSync(cacheFile, 'utf8')) as { records: Record<string, unknown>[] };
+    for (const r of cache.records) delete r.retry;
+    writeFileSync(cacheFile, JSON.stringify(cache));
+
+    const analyzer = createFakeAnalyzer();
+    t = await startApp(dirs, { analyzer });
+    expect(analyzer.calls).toEqual(['broken.gp5']);
+    analyzer.calls.length = 0;
+    await t.ctx.library.rescan();
+    expect(analyzer.calls).toEqual([]);
   });
 
   it('pairs a sibling .mid, reads sidecars and re-indexes on demand', async () => {

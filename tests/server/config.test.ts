@@ -83,8 +83,13 @@ describe('config, health and local-only guard', () => {
 
   it('accepts only loopback Host and Origin headers', async () => {
     t = await startApp(dirs);
-    const ok = await t.app.inject({ method: 'GET', url: '/api/health', headers: { host: '127.0.0.1:5174', origin: 'http://localhost:5173' } });
+    const ok = await t.app.inject({ method: 'GET', url: '/api/health', headers: { host: '127.0.0.1:5174', origin: 'http://localhost:5174' } });
     expect(ok.statusCode).toBe(200);
+    const proxied = await t.app.inject({ method: 'GET', url: '/api/health', headers: { host: '127.0.0.1:5173', origin: 'http://127.0.0.1:5173' } });
+    expect(proxied.statusCode).toBe(200);
+    // R1-P-07: another loopback origin (a different local server) may not post to the API.
+    const otherLocal = await t.app.inject({ method: 'POST', url: '/api/library/rescan', headers: { host: '127.0.0.1:5174', origin: 'http://localhost:9999' } });
+    expect(otherLocal.statusCode).toBe(403);
     const rebinding = await t.app.inject({ method: 'GET', url: '/api/health', headers: { host: 'evil.example:5174' } });
     expect(rebinding.statusCode).toBe(403);
     const crossSite = await t.app.inject({ method: 'POST', url: '/api/library/rescan', headers: { origin: 'https://evil.example' } });

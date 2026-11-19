@@ -106,7 +106,8 @@ describe('asciiToSong: paired MIDI', () => {
     expect(song.meta.durationSec).toBeCloseTo(7.5, 6);
     expect(song.notes[0].bar).toBe(0);
     expect(song.meta.source.url).toBe('http://www.classtab.org/riffway_study_no1_in_e.mid');
-    expect(song.diagnostics?.find((d) => d.code === 'midi-aligned')?.message).toContain('100%');
+    // 19 of 20 groups paired; the ornament the tab omits is one skipped MIDI run (R1-P-03): 19 / 20.
+    expect(song.diagnostics?.find((d) => d.code === 'midi-aligned')?.message).toContain('95%');
   });
 
   it('header-URL pair (march)', () => {

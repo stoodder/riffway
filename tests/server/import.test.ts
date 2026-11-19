@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { LIMITS, type ImportResponse, type SearchResponse } from '@shared/api';
+import { MAX_IMPORT_FILES } from '../../server/routes/library';
 import { fakeSong, libraryChanged, makeTempDirs, multipart, startApp, waitForEvent, type TempDirs, type TestApp } from './helpers';
 
 describe('POST /api/library/import', () => {
@@ -96,6 +97,31 @@ describe('POST /api/library/import', () => {
     expect(json.statusCode).toBe(400);
     const empty = await t.app.inject({ method: 'POST', url: '/api/library/import', ...(await multipart([], 'files')) });
     expect(empty.statusCode).toBe(400);
+  });
+
+  it('never overwrites a file when concurrent imports race for the same name (R1-P-08)', async () => {
+    t = await startApp(dirs);
+    const count = 12;
+    const bodies = await Promise.all(Array.from({ length: count }, (_, i) => multipart([{ name: 'Race.atex', data: `content ${i}` }])));
+    const responses = await Promise.all(bodies.map((b) => t.app.inject({ method: 'POST', url: '/api/library/import', ...b })));
+    const results = responses.map((r) => r.json<ImportResponse>().files[0]!);
+    expect(results.every((f) => f.status === 'imported')).toBe(true);
+    const paths = results.map((f) => f.path ?? '');
+    expect(new Set(paths).size).toBe(count);
+    // Every response points at its own content.
+    paths.forEach((path, i) => expect(readFileSync(join(dirs.libraryDir, path), 'utf8'), path).toBe(`content ${i}`));
+    expect(readdirSync(dirs.libraryDir).filter((f) => f.startsWith('.'))).toEqual([]);
+  });
+
+  it(`refuses a request with more than ${MAX_IMPORT_FILES} files before saving any of them (R1-P-09)`, async () => {
+    t = await startApp(dirs);
+    const files = Array.from({ length: MAX_IMPORT_FILES + 1 }, (_, i) => ({ name: `f${i}.atex`, data: `song ${i}` }));
+    const res = await t.app.inject({ method: 'POST', url: '/api/library/import', ...(await multipart(files)) });
+    expect(res.statusCode).toBe(413);
+    expect(res.json()).toMatchObject({ code: 'too-many-files' });
+    expect(readdirSync(dirs.libraryDir)).toEqual([]);
+    // Exactly the limit is fine.
+    expect((await upload(files.slice(0, MAX_IMPORT_FILES))).files).toHaveLength(MAX_IMPORT_FILES);
   });
 
   it('import → indexed by the watcher → searchable within 2 s', async () => {

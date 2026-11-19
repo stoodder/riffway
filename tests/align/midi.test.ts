@@ -5,6 +5,7 @@ import {
   groupSimilarity,
   interpolate,
   readMidiRhythm,
+  MIDI_MATCH_THRESHOLD,
   type MidiRhythm,
 } from '@core/import/midi';
 import { ImportError } from '@core/import/errors';
@@ -113,6 +114,67 @@ describe('alignTabToMidi', () => {
     const tabGroups = tab([40], [41], [42], [43], [44]);
     expect(alignTabToMidi(tabGroups, rhythm([[0, 40], [1, 41], [2, 42], [3, 43], [4, 90]])).matched).toBe(0.8);
     expect(alignTabToMidi(tabGroups, rhythm([[0, 40], [1, 91], [2, 92], [3, 93], [4, 94]])).matched).toBeLessThan(0.8);
+  });
+
+  describe('rejects unrelated pieces (R1-P-03)', () => {
+    /** Deterministic LCG in [0, 1). */
+    const lcg = (seed: number) => () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x80000000);
+    const C_MAJOR = Array.from({ length: 37 }, (_, i) => 40 + i).filter((p) => [0, 2, 4, 5, 7, 9, 11].includes(p % 12));
+    /** `count` groups of `lo`–`hi` distinct random C-major pitches (E2–E5). */
+    const chordal = (rand: () => number, count: number, lo: number, hi: number): number[][] =>
+      Array.from({ length: count }, () => {
+        const size = lo + Math.floor(rand() * (hi - lo + 1));
+        const set = new Set<number>();
+        while (set.size < size) set.add(C_MAJOR[Math.floor(rand() * C_MAJOR.length)]);
+        return [...set];
+      });
+    /** A single-note stepwise melody in C major (the most "similar" kind of unrelated piece). */
+    const melody = (rand: () => number, count: number): number[][] => {
+      let k = 12;
+      return Array.from({ length: count }, () => {
+        k = Math.max(6, Math.min(18, k + Math.round((rand() - 0.5) * 4)));
+        return [C_MAJOR[k]];
+      });
+    };
+    const asMidi = (groups: number[][]) => rhythm(groups.map((g, i) => [i * 0.25, ...g]));
+
+    it('a different piece in the same key stays far below the threshold (2–4 notes per group)', () => {
+      const rand = lcg(42);
+      for (let trial = 0; trial < 20; trial++) {
+        const a = alignTabToMidi(tab(...chordal(rand, 60, 2, 4)), asMidi(chordal(rand, 70, 2, 4)));
+        expect(a.matched).toBeLessThan(0.4);
+      }
+    });
+
+    it('a different single-note melody in the same key is rejected, even against a much longer MIDI', () => {
+      const rand = lcg(7);
+      for (let trial = 0; trial < 40; trial++) {
+        const a = alignTabToMidi(tab(...melody(rand, 30)), asMidi(melody(rand, 120)));
+        expect(a.matched).toBeLessThan(MIDI_MATCH_THRESHOLD);
+      }
+    });
+
+    it('the same piece still matches fully, including when the MIDI sits one or two octaves off', () => {
+      const piece = chordal(lcg(3), 60, 1, 3);
+      for (const shift of [-12, 0, 12, 24]) {
+        const a = alignTabToMidi(tab(...piece), asMidi(piece.map((g) => g.map((p) => p + shift))));
+        expect(a.matched).toBe(1);
+      }
+    });
+
+    it('does not count a pair that shares only a pitch class', () => {
+      // [52, 59] vs [64, 60]: one shared pitch class out of three → similarity 1/6, not a match.
+      const a = alignTabToMidi(tab([40], [52, 59], [45]), rhythm([[0, 40], [1, 64, 60], [2, 45]]));
+      expect(a.pairs).toEqual([[0, 0], [2, 2]]);
+    });
+
+    it('counts each run of MIDI groups skipped inside the alignment as one miss', () => {
+      const tabGroups = tab([40], [41], [42], [43]);
+      // One ornament between the 1st and 2nd group, a 2-group run between the 3rd and 4th.
+      const a = alignTabToMidi(tabGroups, rhythm([[0, 40], [0.5, 70], [1, 41], [2, 42], [2.3, 71], [2.6, 72], [3, 43]]));
+      expect(a.pairs).toHaveLength(4);
+      expect(a.matched).toBeCloseTo(4 / 6, 9);
+    });
   });
 
   it('handles empty inputs', () => {

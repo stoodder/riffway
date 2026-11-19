@@ -44,8 +44,10 @@ Active time = time the transport is playing (not paused), summed per local day.
   warm-ups). Clean → `lockedInAt`, `nextCheckAt` removed. Not clean → `masteredAt` and `nextCheckAt`
   removed, the trainer restarts at 85% and the session counter resets; the section can be mastered again.
 - Song mastered = all sections mastered; **repertoire** = songs with every section locked in.
-- Plateau nudge after 6 passes without accuracy gain: "Good place to stop — this usually improves
-  after sleep."
+- Plateau nudge after 6 passes without progress: "Good place to stop — this usually improves
+  after sleep." A pass makes progress (resets `passesSinceGain`) when it sets a new best accuracy, is
+  clean, or is played at a different speed bucket from the previous pass. Accuracy dips after a
+  speed-up and clean runs below the best are not a plateau.
 
 ## Streaks (`src/core/progress/streak.ts`)
 - A **practice day** = ≥ 5 min active play. Daily goal default 15 min (5/10/15/30/45).

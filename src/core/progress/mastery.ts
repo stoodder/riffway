@@ -19,7 +19,11 @@ import { nextDayCheckAt } from './dates';
 /** Clean runs at 100% needed within one session to master a section. */
 export const MASTERY_CLEAN_RUNS = 2;
 
-/** Passes without an accuracy gain before the plateau nudge. */
+/**
+ * Passes without progress before the plateau nudge. A pass makes progress when it sets a new best
+ * accuracy, is clean, or is played at a different speed bucket from the previous pass (a new speed
+ * restarts the count: accuracy dips after a speed-up are expected, not a plateau).
+ */
 export const PLATEAU_PASSES = 6;
 
 /** Plateau nudge text (learning research row 10). */
@@ -68,7 +72,7 @@ export function isPlateau(p: SectionProgress): boolean {
 
 /**
  * Apply a run to a section's progress: clean-run counters, speed trainer, mastery, the next-day check
- * and the plateau counter. Returns a new record (the input is not mutated); optional fields that no
+ * and the plateau counter (`passesSinceGain`: passes without progress, see {@link PLATEAU_PASSES}). Returns a new record (the input is not mutated); optional fields that no
  * longer apply are omitted rather than set to `undefined`, so records stay JSON round-trip stable.
  */
 export function applySectionRun(prev: SectionProgress | null, run: SectionRunInput): SectionProgress {
@@ -78,6 +82,7 @@ export function applySectionRun(prev: SectionProgress | null, run: SectionRunInp
   const step = trainerStep({ speed: run.speed, failStreak: trainerBefore.failStreak }, run.accuracy, run.clean);
   const sessionBefore = prev?.session?.id === run.sessionId ? prev.session.cleanRunsAt100 : 0;
   const gained = prev === null || run.accuracy > prev.bestAccuracy;
+  const progressed = prev === null || gained || run.clean || speedBucket(run.speed) !== speedBucket(prev.lastSpeed);
 
   const next: SectionProgress = {
     songId: run.songId,
@@ -88,7 +93,7 @@ export function applySectionRun(prev: SectionProgress | null, run: SectionRunInp
     lastSpeed: run.speed,
     trainer: step.state,
     bestAccuracy: gained ? run.accuracy : (prev?.bestAccuracy ?? run.accuracy),
-    passesSinceGain: gained ? 0 : (prev?.passesSinceGain ?? 0) + 1,
+    passesSinceGain: progressed ? 0 : (prev?.passesSinceGain ?? 0) + 1,
     session: { id: run.sessionId, cleanRunsAt100: sessionBefore + (cleanAtFull ? 1 : 0) },
   };
   if (prev?.masteredAt !== undefined) next.masteredAt = prev.masteredAt;

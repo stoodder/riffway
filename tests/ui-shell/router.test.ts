@@ -31,6 +31,16 @@ describe('hash router', () => {
     expect(router.current()).toBeNull();
   });
 
+  it('resolves a malformed escape in a route parameter to null instead of throwing (R1-P-11)', async () => {
+    const seen: RouteMatch[] = [];
+    router.onChange((r) => seen.push(r));
+    const changed = nextHashChange();
+    window.location.hash = '#/song/%';
+    await changed;
+    expect(router.current()).toBeNull();
+    expect(seen).toEqual([]);
+  });
+
   it('builds hrefs with encoded params and query', () => {
     expect(router.href('library')).toBe('#/library');
     expect(router.href('game', { id: 'starter:ode', arr: '0', mode: 'practice' })).toBe('#/play/starter%3Aode?arr=0&mode=practice');

@@ -211,6 +211,88 @@ describe('parseAsciiTab: annotations', () => {
   });
 });
 
+describe('parseAsciiTab: header lines touching the first staff (R1-P-02)', () => {
+  const STAFF = ['e|-0-|', 'B|---|', 'G|---|', 'D|---|', 'A|---|', 'E|---|'];
+
+  it('reads capo, tempo, tuning and title written directly above the first staff', () => {
+    expect(parseAsciiTab(['Capo 2', ...STAFF].join('\n')).header.capo).toBe(2);
+    const tab = parseAsciiTab(['Title: Foo', 'Tuning: Eb Ab Db Gb Bb Eb', 'Tempo: 120', 'Capo 1', ...STAFF].join('\n'));
+    expect(tab.header).toMatchObject({ title: 'Foo', tempo: 120, capo: 1 });
+    expect(tab.tuning).toEqual([63, 58, 54, 49, 44, 39]);
+  });
+
+  it('gives the same header with or without a blank line before the staff', () => {
+    const lines = ['Title: Foo', 'Tuning: Eb Ab Db Gb Bb Eb', 'Tempo: 120', 'Capo 1'];
+    const touching = parseAsciiTab([...lines, ...STAFF].join('\n'));
+    const separated = parseAsciiTab([...lines, '', ...STAFF].join('\n'));
+    expect(touching.header).toEqual(separated.header);
+    expect(touching.tuning).toEqual(separated.tuning);
+  });
+
+  it('still treats chord names, rulers, PM spans and section names above the staff as annotations', () => {
+    const tab = parseAsciiTab(['Title: Foo', '[Intro]', 'Am', 'PM--', '1 & 2 &', ...STAFF].join('\n'));
+    expect(tab.header.title).toBe('Foo');
+    expect(tab.blocks[0].section).toBe('Intro');
+    expect(tab.blocks[0].palmMute).toEqual([[0, 4]]);
+    // A section line alone above the staff is not a title.
+    expect(parseAsciiTab(['[Verse]', ...STAFF].join('\n')).header.title).toBeUndefined();
+  });
+});
+
+describe('parseAsciiTab: spaced dashes (R1-P-05)', () => {
+  it('reads staves written with spaces between the dashes', () => {
+    const spaced = ['e|- - 3 - -|', 'B|- - 0 - -|', 'G|- - 0 - -|', 'D|- - 0 - -|', 'A|- - 2 - -|', 'E|- - 3 - -|'];
+    const normal = ['e|-0-|', 'B|---|', 'G|---|', 'D|---|', 'A|---|', 'E|---|'];
+    const tab = parseAsciiTab([...spaced, '', ...normal].join('\n'));
+    expect(flat(tab)).toEqual(['s1f3', 's2f0', 's3f0', 's4f0', 's5f2', 's6f3', 's1f0']);
+    expect(tab.groups[0].column).toBe(6);
+    expect(tab.diagnostics).toEqual([]);
+    // Two-digit frets and dead notes in the spaced style.
+    const rest = '|- - - - - - - - -|';
+    const wide = parseAsciiTab([`e|- - 12 - - x - -|`, `B${rest}`, `G${rest}`, `D${rest}`, `A${rest}`, `E${rest}`].join('\n'));
+    expect(flat(wide)).toEqual(['s1f12', 's1f0']);
+    expect(wide.groups[1].notes[0].tech.dead).toBe(true);
+  });
+
+  it('reports digits on a staff line that the staff body did not reach', () => {
+    const lines = ['e|-0-|  3', 'B|---|', 'G|---|', 'D|---|', 'A|---|', 'E|---|'];
+    const tab = parseAsciiTab(lines.join('\n'));
+    expect(flat(tab)).toEqual(['s1f0']);
+    expect(tab.diagnostics).toContainEqual(expect.objectContaining({ code: 'unparsed-line', line: 1, severity: 'warning' }));
+  });
+});
+
+describe('parseAsciiTab: staves written low string first (R1-P-06)', () => {
+  it('flips a Drop D staff labelled D A D G B e from the top, with an info diagnostic', () => {
+    const tab = parseAsciiTab(['D|-0-----|', 'A|---2---|', 'D|-----3-|', 'G|-------|', 'B|-------|', 'e|-------|'].join('\n'));
+    expect(tab.tuning).toEqual(DROP_D);
+    expect(flat(tab)).toEqual(['s6f0', 's5f2', 's4f3']);
+    expect(tab.groups.map((g) => g.notes[0].line)).toEqual([1, 2, 3]);
+    expect(tab.blocks[0].labels).toEqual(['D', 'A', 'D', 'G', 'B', 'e']);
+    expect(tab.diagnostics).toContainEqual(expect.objectContaining({ code: 'staff-reversed', severity: 'info', line: 1 }));
+  });
+
+  it('flips standard and half-step-down tunings written upside down', () => {
+    const upside = (labels: string[]) => parseAsciiTab(labels.map((l, i) => `${l}|-${i === 0 ? '3' : '-'}-|`).join('\n'));
+    const std = upside(['E', 'A', 'D', 'G', 'B', 'e']);
+    expect(std.tuning).toEqual([64, 59, 55, 50, 45, 40]);
+    expect(flat(std)).toEqual(['s6f3']);
+    expect(upside(['Eb', 'Ab', 'Db', 'Gb', 'Bb', 'Eb']).tuning).toEqual([63, 58, 54, 49, 44, 39]);
+  });
+
+  it('keeps high-first staves, including DADGAD, as written', () => {
+    const tab = parseAsciiTab(['D|-0-|', 'A|---|', 'G|---|', 'D|---|', 'A|---|', 'D|---|'].join('\n'));
+    expect(tab.tuning).toEqual([62, 57, 55, 50, 45, 38]);
+    expect(flat(tab)).toEqual(['s1f0']);
+    expect(tab.diagnostics).toEqual([]);
+  });
+
+  it('warns when the labels give an implausible tuning either way up', () => {
+    const tab = parseAsciiTab(['A|-0-|', 'E|---|', 'A|---|', 'E|---|', 'A|---|', 'E|---|'].join('\n'));
+    expect(tab.diagnostics).toContainEqual(expect.objectContaining({ code: 'label-tuning-unusual', severity: 'warning', line: 1 }));
+  });
+});
+
 describe('parseAsciiTab: ClassTab house style', () => {
   it('reads the synthetic study: header, ruler, sustains, Notes & Legend skipped', () => {
     const tab = parseAsciiTab(decodeText(classtab('riffway_study_no1_in_e.txt')));

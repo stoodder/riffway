@@ -55,6 +55,7 @@ export function createFakeAnalyzer(): SongAnalyzer & { calls: string[]; difficul
     const text = new TextDecoder().decode(bundle.data);
     if (text.startsWith('NOT A SONG')) throw new ImportError('unsupported', 'not a song');
     if (text.startsWith('BROKEN')) throw new ImportError('syntax', 'Bad syntax at line 1');
+    if (text.startsWith('CRASH')) throw new Error('Importer crashed');
     const out: Record<string, string> = {};
     for (const line of text.split('\n')) {
       const m = /^(\w+):\s*(.*)$/.exec(line.trim());

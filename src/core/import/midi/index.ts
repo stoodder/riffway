@@ -1,7 +1,9 @@
 /**
  * MIDI rhythm source for ASCII tabs (T-012): `@tonejs/midi` → onset groups, then Needleman–Wunsch
  * alignment of tab groups to MIDI groups (score = Jaccard of pitch sets, octave-insensitive 0.5,
- * gap −0.4; ≥ 80% matched → `rhythm: 'midi'`). Signatures frozen by T-010.
+ * gap −0.4) after a whole-piece octave transposition; a pair counts as matched only when its similarity
+ * is ≥ {@link MIN_PAIR_SIMILARITY}, and skipped runs of MIDI groups count as misses; a match score
+ * ≥ 80% → `rhythm: 'midi'`. Signatures frozen by T-010.
  * @module
  */
 import * as tonejsMidi from '@tonejs/midi';
@@ -25,7 +27,10 @@ export interface MidiRhythm {
 
 /** Alignment result. */
 export interface MidiAlignment {
-  /** Fraction of tab groups matched (0–1). */
+  /**
+   * Match score (0–1): matched pairs ÷ (tab groups + runs of MIDI groups skipped inside the aligned span).
+   * Without internal skips this is the fraction of tab groups matched.
+   */
   matched: number;
   /** One time per tab group (matched → MIDI time; unmatched → interpolated). */
   times: number[];
@@ -42,6 +47,15 @@ export interface TabGroupPitches {
 
 /** Fraction of tab groups that must match for `rhythm: 'midi'`. */
 export const MIDI_MATCH_THRESHOLD = 0.8;
+/**
+ * Similarity an aligned pair needs to count as matched (R1-P-03). At 0.5 a pair must share at least
+ * half its exact pitches (after the whole-piece octave shift), or be a pure octave error with identical
+ * pitch classes. Weaker pairs (a single shared pitch class) still steer the alignment but are not
+ * counted, so an unrelated piece in the same key stays far below {@link MIDI_MATCH_THRESHOLD}.
+ */
+export const MIN_PAIR_SIMILARITY = 0.5;
+/** Whole-piece transpositions tried between tab and MIDI, semitones, in order of preference (guitar sounds an octave below notation). */
+const OCTAVE_SHIFTS: readonly number[] = [0, -12, 12, -24, 24];
 /** Needleman–Wunsch gap penalty. */
 export const GAP_PENALTY = -0.4;
 /** Weight of the octave-insensitive (pitch-class) Jaccard when exact pitches do not overlap. */
@@ -146,19 +160,55 @@ function similarity(a: readonly number[], ma: number, b: readonly number[], mb: 
 }
 
 /**
- * Align tab onset groups (pitch sets in order) to MIDI onset groups: Needleman–Wunsch with free
- * leading/trailing MIDI gaps (a MIDI may hold an intro or repeats the tab writes once). A pair counts
- * as matched when its similarity is > 0; unmatched groups interpolate between matched neighbours along
- * `estTime` (or the index), extrapolating with the overall matched tempo at the ends.
+ * Whole-octave transposition (one of {@link OCTAVE_SHIFTS}, semitones) that best maps
+ * the tab's pitches onto the MIDI's: the shift with the largest overlap of the two normalised pitch
+ * histograms, preferring the smaller shift on ties. Covers MIDIs written at notated pitch (an octave above
+ * the sounding guitar) and tabs transcribed an octave off.
+ */
+function octaveShift(tabSets: readonly (readonly number[])[], midiSets: readonly (readonly number[])[]): number {
+  const histogram = (sets: readonly (readonly number[])[]): Map<number, number> => {
+    const h = new Map<number, number>();
+    let total = 0;
+    for (const s of sets) {
+      for (const p of s) h.set(p, (h.get(p) ?? 0) + 1);
+      total += s.length;
+    }
+    for (const [p, c] of h) h.set(p, c / total);
+    return h;
+  };
+  const tab = histogram(tabSets);
+  const midi = histogram(midiSets);
+  let best = 0;
+  let bestOverlap = -1;
+  for (const shift of OCTAVE_SHIFTS) {
+    let overlap = 0;
+    for (const [p, w] of tab) overlap += Math.min(w, midi.get(p + shift) ?? 0);
+    if (overlap > bestOverlap + 1e-9) {
+      best = shift;
+      bestOverlap = overlap;
+    }
+  }
+  return best;
+}
+
+/**
+ * Align tab onset groups (pitch sets in order) to MIDI onset groups: the tab is first transposed by
+ * whole octaves to the MIDI's register, then Needleman–Wunsch with free leading/trailing MIDI gaps
+ * (a MIDI may hold an intro or repeats the tab writes once). An aligned pair counts as matched only when
+ * its similarity is ≥ {@link MIN_PAIR_SIMILARITY}, and each run of MIDI groups skipped between matched
+ * pairs counts as one miss in {@link MidiAlignment.matched}. Unmatched groups interpolate between matched
+ * neighbours along `estTime` (or the index), extrapolating with the overall matched tempo at the ends.
  */
 export function alignTabToMidi(tabGroups: readonly TabGroupPitches[], midi: MidiRhythm): MidiAlignment {
   const n = tabGroups.length;
   const m = midi.groups.length;
   if (n === 0) return { matched: 0, times: [], pairs: [] };
 
-  const tabSets = tabGroups.map((g) => uniqueSorted(g.pitches));
-  const tabMasks = tabSets.map(pcMask);
   const midiSets = midi.groups.map((g) => uniqueSorted(g.pitches));
+  const rawTabSets = tabGroups.map((g) => uniqueSorted(g.pitches));
+  const shift = octaveShift(rawTabSets, midiSets);
+  const tabSets = shift === 0 ? rawTabSets : rawTabSets.map((s) => s.map((p) => p + shift));
+  const tabMasks = tabSets.map(pcMask);
   const midiMasks = midiSets.map(pcMask);
   const sim = (i: number, j: number): number => similarity(tabSets[i], tabMasks[i], midiSets[j], midiMasks[j]);
 
@@ -193,7 +243,7 @@ export function alignTabToMidi(tabGroups: readonly TabGroupPitches[], midi: Midi
   for (let i = n, j = m; i > 0; ) {
     const d = j === 0 ? 1 : dir[i * W + j];
     if (d === 0) {
-      if (sim(i - 1, j - 1) > 0) pairs.push([i - 1, j - 1]);
+      if (sim(i - 1, j - 1) >= MIN_PAIR_SIMILARITY) pairs.push([i - 1, j - 1]);
       i--;
       j--;
     } else if (d === 1) i--;
@@ -201,9 +251,13 @@ export function alignTabToMidi(tabGroups: readonly TabGroupPitches[], midi: Midi
   }
   pairs.reverse();
 
+  // Each run of MIDI groups skipped between two matched pairs counts as one miss: a long run (a repeat
+  // the tab writes once) costs little, while an unrelated piece only "matches" by skipping all over.
+  let skippedRuns = 0;
+  for (let k = 1; k < pairs.length; k++) if (pairs[k][1] - pairs[k - 1][1] > 1) skippedRuns++;
   const est = tabGroups.map((g, i) => g.estTime ?? i);
   const times = interpolate(est, pairs.map(([i, j]) => [i, midi.groups[j].time] as const));
-  return { matched: pairs.length / n, times, pairs };
+  return { matched: pairs.length / (n + skippedRuns), times, pairs };
 }
 
 /**

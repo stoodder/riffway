@@ -30,6 +30,15 @@ export interface RulerMark {
 
 /** Characters allowed inside a staff body. */
 const BODY_CHARS = new Set('-|:0123456789/\\~()<>[]{}.=*^hHpPbrRsSxXtTgv+\'!,'.split(''));
+/**
+ * Spaced-style staff (`|- - 3 - -|`): at least three dashes, and most of them followed by a single
+ * space and more staff.
+ */
+function isSpacedStaff(body: string): boolean {
+  const dashes = (body.match(/-/g) ?? []).length;
+  const spacedDashes = (body.match(/- (?=\S)/g) ?? []).length;
+  return spacedDashes >= 3 && spacedDashes * 2 >= dashes;
+}
 /** Characters a staff body may start with. */
 const BODY_START = /[|:\-=[{(<*]/;
 
@@ -84,6 +93,8 @@ export function parseStaffLine(text: string): StaffLine | null {
   if (label !== null && !BODY_START.test(work[bodyStart])) return null;
   if (label === null && !BODY_START.test(work[bodyStart]) && !/\d/.test(work[bodyStart])) return null;
 
+  // Spaced style (`|- - 3 - -|`): single spaces separate every character, notes included.
+  const spaced = isSpacedStaff(work.slice(bodyStart));
   let end = bodyStart;
   while (end < work.length) {
     const ch = work[end];
@@ -92,7 +103,8 @@ export function parseStaffLine(text: string): StaffLine | null {
       continue;
     }
     // A single space inside a staff is tolerated when the staff continues right after it.
-    if (ch === ' ' && end + 1 < work.length && /[-|=]/.test(work[end + 1]) && work[end - 1] !== ' ') {
+    const next = work[end + 1] ?? '';
+    if (ch === ' ' && work[end - 1] !== ' ' && (/[-|=]/.test(next) || (spaced && BODY_CHARS.has(next)))) {
       end++;
       continue;
     }

@@ -107,6 +107,16 @@ describe('app shell', () => {
     expect(h1()).toBe('Home');
   });
 
+  it('shows "Page not found" for a malformed escape in a route parameter (R1-P-11)', async () => {
+    await start();
+    await go('#/library');
+    expect(h1()).toBe('Library');
+    await go('#/song/%');
+    expect(h1()).toBe('Page not found');
+    await go('#/song/%E0%A4%A');
+    expect(h1()).toBe('Page not found');
+  });
+
   it('renders the component gallery in dev builds', async () => {
     window.location.hash = '#/dev/components';
     await flush();

@@ -46,7 +46,7 @@ interface Rhythm {
 
 /**
  * Bundle → `Song`. Rhythm precedence: a matching sidecar (`'aligned'`, the user's explicit
- * alignment), a paired MIDI with ≥ 80% of onset groups matched (`'midi'`), a beat ruler (`'ruler'`),
+ * alignment), a paired MIDI with a match score ≥ 80% (`'midi'`, see `alignTabToMidi`), a beat ruler (`'ruler'`),
  * else column-proportional onsets (`'needs-alignment'`). Multi-version tabs import `opts.version`
  * (default 1). Throws `ImportError` (`empty`, `no-playable-track`) when no 6-line staff has notes.
  */
@@ -126,10 +126,10 @@ function midiRhythm(data: Uint8Array, d: DetailedTab, capo: number, est: readonl
   const alignment = alignTabToMidi(tabGroups, midi);
   const pct = Math.round(alignment.matched * 100);
   if (alignment.matched < MIDI_MATCH_THRESHOLD) {
-    diagnostics.push({ severity: 'info', code: 'midi-low-match', message: `Only ${pct}% of the tab's onsets matched the paired MIDI (needs 80%); MIDI timing not used` });
+    diagnostics.push({ severity: 'info', code: 'midi-low-match', message: `The paired MIDI matched only ${pct}% of the tab's onsets (needs 80%); MIDI timing not used` });
     return null;
   }
-  diagnostics.push({ severity: 'info', code: 'midi-aligned', message: `${pct}% of the tab's onsets matched the paired MIDI` });
+  diagnostics.push({ severity: 'info', code: 'midi-aligned', message: `The paired MIDI matched ${pct}% of the tab's onsets` });
   const last = alignment.times[alignment.times.length - 1];
   const ts = midi.timeSignatures[0];
   return {

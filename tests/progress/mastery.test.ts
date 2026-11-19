@@ -151,6 +151,31 @@ describe('plateau', () => {
     expect(p.passesSinceGain).toBe(0);
     expect(p.bestAccuracy).toBe(81);
   });
+
+  it('does not nudge while clean runs raise the speed, even as accuracy dips (R1-P-04)', () => {
+    const accuracies = [95, 93, 92, 91, 90, 92, 91];
+    const p = play(...accuracies.map((accuracy, i) => run({ accuracy, clean: true, speed: 0.7 + i * 0.05 })));
+    expect(p.passesSinceGain).toBe(0);
+    expect(isPlateau(p)).toBe(false);
+  });
+
+  it('does not nudge on clean runs at full speed below the best accuracy', () => {
+    let p = play(run({ accuracy: 100, clean: true, speed: 1 }));
+    for (let i = 0; i < PLATEAU_PASSES + 2; i++) p = applySectionRun(p, run({ accuracy: 96, clean: true, speed: 1, sessionId: `s${i}` }));
+    expect(isPlateau(p)).toBe(false);
+  });
+
+  it('restarts the count when the played speed bucket changes, then nudges on a real plateau at that speed', () => {
+    let p = play(run({ accuracy: 95, clean: true, speed: 0.8 }));
+    // Up a notch: accuracy dips below the all-time best, which is expected, not a plateau.
+    p = applySectionRun(p, run({ accuracy: 75, clean: false, speed: 0.9 }));
+    expect(p.passesSinceGain).toBe(0);
+    for (let i = 0; i < PLATEAU_PASSES - 1; i++) p = applySectionRun(p, run({ accuracy: 76, clean: false, speed: 0.9 }));
+    expect(isPlateau(p)).toBe(false);
+    p = applySectionRun(p, run({ accuracy: 76, clean: false, speed: 0.9 }));
+    expect(isPlateau(p)).toBe(true);
+    expect(p.bestAccuracy).toBe(95);
+  });
 });
 
 describe('songMastery', () => {

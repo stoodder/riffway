@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isInside, normalizeSubfolder, sanitizeUploadName } from '../../server/fs-safety';
-import { isLoopbackHost, isLoopbackOrigin } from '../../server/app';
+import { isAllowedOrigin, isLoopbackHost, isLoopbackOrigin } from '../../server/app';
 
 describe('sanitizeUploadName', () => {
   it('rejects names carrying a path or traversal', () => {
@@ -49,5 +49,18 @@ describe('path helpers', () => {
     expect(isLoopbackOrigin('http://127.0.0.1:5173')).toBe(true);
     expect(isLoopbackOrigin('http://localhost')).toBe(true);
     for (const o of ['null', 'https://evil.com', 'file:///x', 'chrome-extension://abc']) expect(isLoopbackOrigin(o), o).toBe(false);
+  });
+
+  it('accepts only a loopback origin on the port the request was sent to (R1-P-07)', () => {
+    expect(isAllowedOrigin('http://127.0.0.1:5174', '127.0.0.1:5174')).toBe(true);
+    // Vite's proxy keeps the browser's Host (changeOrigin: false), so dev requests are same-port too.
+    expect(isAllowedOrigin('http://localhost:5173', '127.0.0.1:5173')).toBe(true);
+    expect(isAllowedOrigin('http://localhost', 'localhost')).toBe(true);
+    expect(isAllowedOrigin('http://localhost', 'localhost:80')).toBe(true);
+    expect(isAllowedOrigin('https://localhost', 'localhost:443')).toBe(true);
+    // Another local server (a dev server, a local tool's page) is a different origin.
+    for (const o of ['http://localhost:9999', 'http://127.0.0.1:5173', 'http://localhost']) expect(isAllowedOrigin(o, '127.0.0.1:5174'), o).toBe(false);
+    for (const o of ['null', 'https://evil.com:5174', 'file:///x']) expect(isAllowedOrigin(o, 'localhost:5174'), o).toBe(false);
+    expect(isAllowedOrigin('http://localhost:5174', undefined)).toBe(false);
   });
 });

@@ -183,6 +183,34 @@ function labelTuning(labels: readonly (string | null)[]): number[] | null {
   return pcs.every((p): p is number => p !== null) ? tuningFromPitchClasses(pcs) : null;
 }
 
+/** Total semitone distance of a tuning from standard, string by string. */
+const tuningCost = (t: readonly number[]): number => t.reduce((sum, p, i) => sum + Math.abs(p - STANDARD_TUNING[i]), 0);
+
+/**
+ * A string labelled this many semitones (or more) from its standard pitch makes a label tuning
+ * implausible (every common tuning stays within 4: Drop C, DADGAD, open G/D/C, Eb).
+ */
+const IMPLAUSIBLE_STRING_SEMITONES = 5;
+
+/**
+ * Margin by which the reversed reading must beat the written one before a staff counts as written
+ * low string first (`D A D G B e` from the top); keeps palindromic and near-symmetric labels as written.
+ */
+const REVERSED_MARGIN = 4;
+
+/**
+ * Whether a labelled staff was written low string first: its labels read bottom-up give a tuning much
+ * closer to standard than read top-down (`D A D G B e` → Drop D instead of `62,57,50,55,47,40`).
+ */
+function isReversedStaff(labels: readonly (string | null)[]): boolean {
+  const written = labelTuning(labels);
+  const reversed = labelTuning([...labels].reverse());
+  return written !== null && reversed !== null && tuningCost(reversed) + REVERSED_MARGIN <= tuningCost(written);
+}
+
+/** Whether a label tuning has a string implausibly far from standard. */
+const isImplausibleTuning = (t: readonly number[]): boolean => t.some((p, i) => Math.abs(p - STANDARD_TUNING[i]) >= IMPLAUSIBLE_STRING_SEMITONES);
+
 const isStandard = (t: readonly number[]): boolean => t.every((p, i) => p === STANDARD_TUNING[i]);
 
 /** Strings that must carry a `*` for it to count as a repeat sign (tabs write the dots on two). */
@@ -195,6 +223,8 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   const staff: (StaffLine | null)[] = lines.map(parseStaffLine);
   const diagnostics: ImportDiagnostic[] = [];
   const unparsed: { line: number; text: string }[] = [];
+  /** Why each unparsed line was not read (by 1-based line); the default is "not part of a 6-line staff". */
+  const unparsedWhy = new Map<number, string>();
   const lineNo = (idx: number): number => offset + idx + 1;
 
   // 1. Runs of staff-like lines → 6-line blocks.
@@ -277,18 +307,37 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
 
   blockTops.forEach((top, bi) => {
     const rows = lines.slice(top, top + 6);
-    const parsed = staff.slice(top, top + 6) as StaffLine[];
+    const written = staff.slice(top, top + 6) as StaffLine[];
+    // A staff written low string first is read bottom-up, so string 1 is always the high string.
+    const reversed = isReversedStaff(written.map((p) => p.label));
+    const parsed = reversed ? [...written].reverse() : written;
     const maxStart = Math.max(...parsed.map((p) => p.bodyStart));
     const aligned = parsed.map((p) => ' '.repeat(maxStart - p.bodyStart) + p.text);
     const bodies = parsed.map((p) => ({ from: maxStart, to: p.bodyEnd + (maxStart - p.bodyStart) }));
-    const shift = maxStart - parsed[0].bodyStart;
+    const shift = maxStart - written[0].bodyStart;
     const { notes, barColumns } = tokeniseBlock(aligned, bodies, lineNo(top));
+    if (reversed) {
+      for (const n of notes) n.line = lineNo(top) + 6 - n.string;
+      diagnostics.push({
+        severity: 'info',
+        code: 'staff-reversed',
+        message: `The staff at line ${lineNo(top)} is labelled low string first (${written.map((p) => p.label).join(' ')}); read bottom-up`,
+        line: lineNo(top),
+      });
+    }
+    // Frets past the end of a staff body (a layout the line reader could not follow) are lost: say so.
+    written.forEach((p, k) => {
+      if (!/\d/.test(p.text.slice(p.bodyEnd))) return;
+      const line = lineNo(top + k);
+      unparsed.push({ line, text: rows[k] });
+      unparsedWhy.set(line, `Line ${line}: tab after column ${p.bodyEnd + 1} could not be read (the staff line breaks off there)`);
+    });
     const bodyEnd = Math.max(...bodies.map((b) => b.to));
 
     const block: AsciiBlock = {
       startLine: lineNo(top),
       lines: rows,
-      labels: parsed.map((p) => p.label),
+      labels: written.map((p) => p.label),
       barColumns,
       notes,
       palmMute: [],
@@ -354,7 +403,17 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
       }
     }
 
-    tuningFromLabels ??= labelTuning(block.labels);
+    if (!tuningFromLabels) {
+      tuningFromLabels = labelTuning(parsed.map((p) => p.label));
+      if (tuningFromLabels && isImplausibleTuning(tuningFromLabels)) {
+        diagnostics.push({
+          severity: 'warning',
+          code: 'label-tuning-unusual',
+          message: `The string labels at line ${lineNo(top)} (${block.labels.join(' ')}) give an unusual tuning; check the tuning`,
+          line: lineNo(top),
+        });
+      }
+    }
     const groups = groupBlockNotes(notes);
     const bars = blockBars(barColumns, maxStart, bodyEnd, groups);
     blocks.push(block);
@@ -366,12 +425,27 @@ export function parseTabDetailed(text: string, opts: ParseOptions = {}): Detaile
   });
 
   for (const u of unparsed) {
-    diagnostics.push({ severity: 'warning', code: 'unparsed-line', message: `Line ${u.line} looks like tab but is not part of a 6-line staff`, line: u.line });
+    const message = unparsedWhy.get(u.line) ?? `Line ${u.line} looks like tab but is not part of a 6-line staff`;
+    diagnostics.push({ severity: 'warning', code: 'unparsed-line', message, line: u.line });
   }
 
-  // 4. Header (text before the first block and its annotations) and tuning.
-  const headerEnd = blockTops.length > 0 ? Math.min(blockTops[0], ...aboveOf[0]) : lines.length;
-  const header = parseHeader(lines.slice(0, headerEnd), opts.headerFallback);
+  // 4. Header (text before the first block) and tuning. Lines touching the first block are header
+  //    lines too (`Capo 2`, `Tuning: …`), unless they are its annotations: a ruler right above it,
+  //    PM / let-ring spans, a chord-name line or a section heading.
+  const headerLines: string[] = [];
+  if (blockTops.length > 0) {
+    const top = blockTops[0];
+    const isAnnotation = (k: number): boolean =>
+      (k === top - 1 && parseRuler(lines[k], 'above') !== null) ||
+      parseSpanLine(lines[k], 'pm') !== null ||
+      parseSpanLine(lines[k], 'ring') !== null ||
+      parseChordLine(lines[k]) !== null ||
+      parseSectionLine(lines[k]) !== null;
+    for (let k = 0; k < top; k++) if (!aboveOf[0].includes(k) || !isAnnotation(k)) headerLines.push(lines[k]);
+  } else {
+    headerLines.push(...lines);
+  }
+  const header = parseHeader(headerLines, opts.headerFallback);
   const labelled: number[] | null = tuningFromLabels;
   const tuning = labelled && !isStandard(labelled) ? labelled : header.tuning ?? labelled ?? [...STANDARD_TUNING];
 

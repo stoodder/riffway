@@ -29,6 +29,7 @@ import { lowerExt } from '../fs-safety';
 import { isRecord, readJsonFile, writeJsonFile } from '../json-file';
 import { APP_VERSION } from '../paths';
 import type { ConfigStore, EventBus, LibraryService, ServerPaths, SongAnalyzer, SourceIndexState } from '../types';
+import { isImportError } from '@core/import/load-song';
 import { isSkippableImportError, mergeTags } from './analyzer';
 import { SearchIndex } from './search';
 
@@ -68,6 +69,12 @@ interface CacheRecord {
   entry: IndexEntry | null;
   /** Lazily computed difficulty of non-default arrangements. */
   arrangementDifficulty: Record<number, DifficultyReport>;
+  /**
+   * The entry failed transiently (an unexpected importer error) and is re-analysed on every scan.
+   * Deterministic failures (syntax, no playable track, too large) stay cached by mtime + size.
+   * Absent in caches written before R1-P-10: an entry with an error is then retried once.
+   */
+  retry?: boolean;
 }
 
 /** `index.json`. */
@@ -124,10 +131,18 @@ function asSidecar(value: unknown): RhythmSidecar | null {
   return value as unknown as RhythmSidecar;
 }
 
-/** A cached entry needs re-analysis even when the file is unchanged (earlier failure). */
-function isStale(entry: IndexEntry | null): boolean {
-  return !!entry && (!!entry.error || (entry.defaultArrangement >= 0 && entry.difficulty === null));
+/**
+ * A cached record needs re-analysis even when the file is unchanged: a transient failure, or a playable
+ * song whose difficulty analysis failed. Deterministic failures are not retried (R1-P-10).
+ */
+function isStale(record: CacheRecord): boolean {
+  const entry = record.entry;
+  if (!entry) return false;
+  return (record.retry ?? !!entry.error) || (entry.defaultArrangement >= 0 && entry.difficulty === null);
 }
+
+/** Whether an analysis failure may go away on its own (anything but a typed, content-caused `ImportError`). */
+const isTransientFailure = (err: unknown): boolean => !isImportError(err) || err.code === 'internal';
 
 /** The library index ({@link LibraryService}). */
 export class LibraryIndex implements LibraryService {
@@ -494,13 +509,13 @@ export class LibraryIndex implements LibraryService {
       existing.candidate.size === candidate.size &&
       existing.midiMtimeMs === midiMtimeMs &&
       existing.sidecarMtimeMs === sidecarMtimeMs &&
-      !isStale(existing.entry)
+      !isStale(existing)
     ) {
       existing.candidate = candidate;
       return { record: existing, status: 'unchanged' };
     }
 
-    const record: CacheRecord = { source, candidate, midiMtimeMs, sidecarMtimeMs, entry: null, arrangementDifficulty: {} };
+    const record: CacheRecord = { source, candidate, midiMtimeMs, sidecarMtimeMs, entry: null, arrangementDifficulty: {}, retry: false };
     const fileName = basename(candidate.relPath);
     if (candidate.size > LIMITS.importBytes) {
       record.entry = this.errorEntry(source, candidate, knownId ?? `${source}:${sha1Hex(Buffer.from(key)).slice(0, 16)}`, '', 'File is larger than 20 MB');
@@ -556,6 +571,7 @@ export class LibraryIndex implements LibraryService {
           const message = err instanceof Error ? err.message : String(err);
           this.deps.log.warn(`indexing ${candidate.absPath} failed: ${message}`);
           record.entry = this.errorEntry(source, candidate, id, sha1, message);
+          if (isTransientFailure(err)) record.retry = true;
         }
       }
     }

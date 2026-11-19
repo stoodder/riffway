@@ -1,8 +1,8 @@
 /**
  * Hash router driven by the screens registry (T-018). Implements `RouterApi` (`@shared/ui`).
  * Routes are hash paths (`#/song/local%3Aab12?arr=0`) resolved with `matchRoute` from the registry;
- * `onChange` fires on every hash change that resolves to a screen. Unknown paths resolve to `null`
- * from `current()` (the shell renders "not found"). Rendering, focus and transitions live in the shell.
+ * `onChange` fires on every hash change that resolves to a screen. Unknown paths, including ones with
+ * a malformed `%` escape, resolve to `null` from `current()` (the shell renders "not found"). Rendering, focus and transitions live in the shell.
  * @module
  */
 import type { RouteMatch, RouterApi } from '@shared/ui';
@@ -22,7 +22,15 @@ export function toHash(path: string): string {
 /** Create the app's hash router on `win` (default `window`). */
 export function createHashRouter(win: Window = window): HashRouter {
   const subs = new Set<(r: RouteMatch) => void>();
-  const current = (): RouteMatch | null => matchRoute(win.location.hash || '#/');
+  const current = (): RouteMatch | null => {
+    try {
+      return matchRoute(win.location.hash || '#/');
+    } catch (err) {
+      // A malformed escape in a path parameter (`#/song/%`) is an unknown path, not a crash (R1-P-11).
+      if (err instanceof URIError) return null;
+      throw err;
+    }
+  };
   const onHashChange = (): void => {
     const r = current();
     if (r) [...subs].forEach((cb) => cb(r));

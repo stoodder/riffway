@@ -54,10 +54,10 @@ export interface AsciiOnsetGroup {
 
 /** One 6-line staff block. */
 export interface AsciiBlock {
-  /** 1-based line of the top (string 1) line. */
+  /** 1-based line of the top line (string 1, or string 6 for a staff labelled low string first). */
   startLine: number;
   lines: string[];
-  /** String labels as written (`'e'`, `'B'`, `'D'`…) or null when unlabelled. */
+  /** String labels as written, top to bottom (`'e'`, `'B'`, `'D'`…), or null when unlabelled. */
   labels: (string | null)[];
   /** Columns of `|` bar lines (every `|` column; `||` gives two adjacent columns). */
   barColumns: number[];
