@@ -1,31 +1,36 @@
 /**
- * Builds the `ServerContext` (T-017 owns): config store (`<dataDir>/config.json`), event bus,
- * library index (watchers, `loadSong` + `analyzeDifficulty`, `index.json` cache, MiniSearch),
- * adapters and the adapter context.
- *
- * **Stub (T-010):** in-memory config from defaults, a working event bus, an empty library; nothing
- * is written to disk.
+ * Builds the `ServerContext` (T-017): config store (`<dataDir>/config.json`), event bus, adapters
+ * and the library index (scans, watchers, `index.json` cache, MiniSearch).
  * @module
  */
-import type { ServerConfig, ServerEvent } from '@shared/api';
-import { SOURCE_IDS } from '@shared/song';
-import type { AdapterContext, AdapterLogger } from '@shared/sources';
-import { notImplemented } from '@shared/errors';
-import { join } from 'node:path';
-import { APP_VERSION, defaultDataDir, defaultLibraryDir, defaultStaticDir, resolvePaths } from './paths';
+import type { ServerEvent } from '@shared/api';
+import type { AdapterLogger } from '@shared/sources';
+import { loadConfigStore } from './config-store';
+import { defaultAnalyzer, type SongAnalyzer } from './indexer/analyzer';
+import { LibraryIndex } from './indexer/library-index';
+import { APP_VERSION, defaultDataDir, defaultStaticDir, resolvePaths } from './paths';
 import { createAdapters } from './sources/registry';
-import type { ConfigStore, EventBus, LibraryService, ServerContext, ServerOptions } from './types';
+import type { EventBus, ServerContext, ServerOptions } from './types';
 
-/** Default server config. */
-export function defaultConfig(libraryDir: string = defaultLibraryDir()): ServerConfig {
-  return { schema: 1, libraryDir, enabledSources: [...SOURCE_IDS], importSubfolder: '' };
+/** `createApp` options: the frozen {@link ServerOptions} plus server-local test seams. */
+export interface AppOptions extends ServerOptions {
+  /** Song analysis for the indexer (default: real `loadSong` + `analyzeDifficulty`). */
+  analyzer?: SongAnalyzer;
 }
 
-/** A simple synchronous event bus. */
+/** A synchronous event bus; a throwing subscriber does not affect the others. */
 export function createEventBus(): EventBus {
   const subs = new Set<(e: ServerEvent) => void>();
   return {
-    emit: (event) => subs.forEach((cb) => cb(event)),
+    emit(event) {
+      for (const cb of [...subs]) {
+        try {
+          cb(event);
+        } catch {
+          // A broken subscriber (e.g. a closed SSE socket) must not stop delivery.
+        }
+      }
+    },
     subscribe(cb) {
       subs.add(cb);
       return () => subs.delete(cb);
@@ -33,57 +38,30 @@ export function createEventBus(): EventBus {
   };
 }
 
-/** Assemble the context. */
-export async function createServerContext(opts: ServerOptions, log: AdapterLogger): Promise<ServerContext> {
+/** Assemble the context. The initial scan starts immediately; await `ctx.library.ready` for it. */
+export async function createServerContext(opts: AppOptions, log: AdapterLogger): Promise<ServerContext> {
   const dataDir = opts.dataDir ?? defaultDataDir();
   const paths = resolvePaths(dataDir, opts.staticDir === undefined ? defaultStaticDir() : opts.staticDir);
-  let config = defaultConfig(opts.libraryDir);
-  const configSubs = new Set<(c: ServerConfig) => void>();
-  const configStore: ConfigStore = {
-    get: () => config,
-    async update(patch) {
-      config = { ...config, ...patch };
-      configSubs.forEach((cb) => cb(config));
-      return config;
-    },
-    onChange(cb) {
-      configSubs.add(cb);
-      return () => configSubs.delete(cb);
-    },
-  };
+  const config = await loadConfigStore(paths.configFile, opts.libraryDir);
   const events = createEventBus();
-  const library: LibraryService = {
-    ready: Promise.resolve(),
-    all: () => [],
-    get: () => undefined,
-    search: () => ({ results: [], linkOuts: [], total: 0 }),
-    filePath: (entry) => join(config.libraryDir, entry.path),
-    midiPath: () => null,
-    readBundle: async () => notImplemented('library.readBundle', 'T-017'),
-    reindex: async () => null,
-    rescan: async () => {},
-    sidecarPath: (id) => join(paths.sidecarsDir, `${encodeURIComponent(id)}.json`),
-    close: async () => {},
-  };
-  const adapterContext: AdapterContext = {
-    dataDir,
-    get libraryDir() {
-      return config.libraryDir;
-    },
-    log,
-    indexFiles: async () => notImplemented('adapterContext.indexFiles', 'T-017'),
-    entries: () => library.all(),
-    emit: (e) => events.emit(e),
-  };
   const sources = createAdapters(opts.sources);
+  const library = new LibraryIndex({
+    paths,
+    config,
+    events,
+    adapters: sources,
+    analyzer: opts.analyzer ?? defaultAnalyzer,
+    log,
+    watch: opts.watch ?? true,
+  });
   return {
     version: APP_VERSION,
     paths,
-    config: configStore,
+    config,
     events,
     library,
     sources,
-    adapterContext,
+    adapterContext: library.adapterContext,
     log,
     close: () => library.close(),
   };
