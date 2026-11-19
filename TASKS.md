@@ -404,10 +404,16 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   "mountain king" returns the starter item with tier; `GET /api/songs/:id/file` → `loadSong` in Node gives
   the indexed note count.
 
+### T-030 · Wave 2 integration: contract changes, doc fixes, config, robustness
+- **Status:** in-progress · **Deps:** Wave 2 · **Parallel:** y (with Wave 3; additive changes only) · **Agent:** `impl-integration`
+- **Owns:** `shared/**`, `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `package.json` (scripts only), `src/types/`, `src/ui/screens/index.ts`, `src/ui/screens/library/`, `src/ui/panels/input/`, `src/ui/panels/tuner/` (if separate), `src/audio/monitor/`, `src/core/dsp/amp/`, `src/game/highway/`, `tests/foundation/`, `starter/README.md`, docs: `song-formats.md`, `sources/local-folder.md`, `game-mechanics.md`, `monitoring.md`
+- **Must NOT touch:** Wave 3 owned paths, T-103 paths (`src/core/import/{ascii,align,midi}/`, `server/indexer/`, `tests/server/`), `docs/timing.md` (T-033 this wave — send text in report).
+- **Acceptance:** (1) CCRs: `SongClockMapping.ctxTimeInPass?`; doc wording for `ClockChange.pass` + `Judge.startPass` (T-101); `matchRoute` catches URIError → null; `shared/storage.ts` `passesSinceGain` comment; `AmpPresetId` gains `'crunch'` with a real Crunch preset; `LatencyEstimate.parts.dspMs` + assumed flags (remove local extensions); fix `src/types/signalsmith-stretch.d.ts` (Promises, transfer list) and drop T-027's local workaround types if they live in owned paths, else note. (2) `vite.config.ts` `optimizeDeps.include: ['@coderline/alphatab']`. (3) ESLint `no-restricted-syntax`/regex rule banning `songsterr.com/api` anywhere and `ultimate-guitar.com` except link-out builders (`server/sources/linkout/`, `src/ui/screens/import/model.ts`). (4) Library screen + tuner panel mount gracefully with a minimal context (foundation registries test green without weakening it). (5) Monitor re-reads `input.getInputNode()` on device change; highway uses `cueShowAt`. (6) Vitest browser port collisions when runs overlap: make the browser API port configurable/auto (document). (7) npm script `test:e2e:input` for `tests/input/e2e`. (8) Docs: ClassTab match rule (sim ≥ 0.5, octave shift, skipped run = 1 miss) in song-formats.md; Origin-port rule, two-phase import, transient-only retries in local-folder.md; highway layout line in game-mechanics.md; Mountain King rating in starter README. Full suite, typecheck, lint green (except files mid-edit by Wave 3 / T-103 — list them).
+
 ## Wave 3 (parallel)
 
 ### T-031 · Game session, keyboard mode, game + results screens
-- **Status:** todo · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
+- **Status:** in-progress · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
 - **Orchestrator notes (from W1):** (Superseded by T-101:) one judge per run, created just before `play()`; call `startPass({pass: change.pass})` on ANY clock change with a different pass (loops, seeks, jumps); call `advance(inputHorizon(...))` (not ctx.currentTime), also while paused. Clock `ctxTimeInPass` returns NaN while paused, -Infinity for skipped notes. Use `cueShowAt` for hand cues. Use `guideShouldMute(settings, backing.link)` for guide muting. Send `expect` hints (upcoming note pitches) to the analysis worklet — without them onsets below D#2 get no pitch (Drop D). DOM tests that build the app context must `import 'fake-indexeddb/auto'`. Handle AudioGestureDismissedError.
 - **Owns:** `src/game/session/`, `src/game/input/`, `src/test-hooks/`, `src/ui/screens/game/`,
   `src/ui/screens/results/`, `tests/session/`, `docs/game-mechanics.md` (W3)
@@ -422,7 +428,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Tests: scripted events through a fake engine give the expected `RunSummary`; keyboard mapping.
 
 ### T-032 · Practice panel + mixer UI
-- **Status:** todo · **Deps:** T-014, T-016, T-020 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-014, T-016, T-020 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/panels/practice/`, `src/ui/panels/mixer/`, `tests/practice-ui/`
 - **Acceptance:** speed slider 40–100% (110% opt-in after mastery); A/B loop editor on a section/bar strip
   with snapping and "loop section" buttons; pre-roll rules; speed-trainer toggle with live messages
@@ -430,14 +436,14 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   (monitor, backing, guide, metronome, master) persisted. Tests with a fake session.
 
 ### T-033 · Latency calibration wizard
-- **Status:** todo · **Deps:** T-016, T-022 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** in-progress · **Deps:** T-016, T-022 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/audio/calibration/`, `src/ui/panels/calibration/`, `tests/calibration/`, `docs/timing.md` (W3)
 - **Acceptance:** play-to-click, tap-to-click and visual offset exactly per timing.md (pairing, median,
   MAD rejection, ≥ 8 pairs, spread ≤ 15 ms, retry, "estimated" fallback); results saved in settings;
   algorithm unit tests; browser test recovers a synthetic 37 ms delay within ±3 ms through the analysis worklet.
 
 ### T-034 · Home dashboard + song page
-- **Status:** todo · **Deps:** T-018, T-020, T-026, T-027, T-028 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-018, T-020, T-026, T-027, T-028 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/home/`, `src/ui/screens/song/`, `tests/home/`
 - **Acceptance:** home shows 3 session goals, recommendations (6/3/1), streak (current/best, week dots,
   freezes), daily goal ring, next-day checks, continue last song, first-run checklist (input → tune →
@@ -445,7 +451,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   with mastery, bests per speed, accuracy sparkline, attach backing audio, align rhythm, Play / Practice.
 
 ### T-035 · Settings + audio setup screens + export/import UI
-- **Status:** todo · **Deps:** T-018, T-020, T-022, T-023 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** in-progress · **Deps:** T-018, T-020, T-022, T-023 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/settings/`, `src/ui/screens/audio-setup/`, `tests/settings/`
 - **Acceptance:** settings for library folder (`PUT /api/config`), sources + ClassTab refresh/status,
   game options (feedback detail, hand cues, strict octave, note speed), keyboard mapping, goals,
@@ -453,7 +459,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   assembles input → tuner → monitoring → calibration panels in a guided order. All persist across reload.
 
 ### T-036 · Audio-pipeline tests (generated tones + recorded guitar)
-- **Status:** todo · **Deps:** T-014, T-015, T-016, T-022 · **Parallel:** y · **Agent:** `test`
+- **Status:** in-progress · **Deps:** T-014, T-015, T-016, T-022 · **Parallel:** y · **Agent:** `test`
 - **Owns:** `tests/audio-pipeline/`, `tests/fixtures/audio/`, `scripts/fetch-audio-fixtures.ts`, `docs/audio-input.md` (W3)
 - **Acceptance:**
   - Browser `OfflineAudioContext`: scripted pluck melody (known onsets, one wrong pitch, one omitted note)
