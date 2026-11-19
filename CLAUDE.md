@@ -19,13 +19,13 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 | `npm start` | Run the built app: server serves `dist/` and `/api` on 5174 |
 | `npm test` | Vitest, both projects: `node` (`tests/**/*.test.ts`) and `browser` (`tests/**/*.browser.test.ts`, headless Chromium) |
 | `npm run test:node` / `npm run test:browser` | One Vitest project only (`npm run test:watch` for watch mode) |
-| `npm run test:e2e` | Playwright e2e on the production build (keyboard input mode, fake mic; free port unless `RIFFWAY_E2E_PORT`), screenshots → `e2e/screenshots/` |
+| `npm run test:e2e` | Playwright e2e on the production build (keyboard input mode, fake mic; free port unless `RIFFWAY_E2E_PORT`), screenshots → `test-results/e2e-screenshots/` (git-ignored). `RIFFWAY_UPDATE_SCREENSHOTS=1 npm run test:e2e` refreshes the committed `e2e/screenshots/` instead |
 | `npm run test:e2e:input` | Playwright fake-capture tests for the input/tuner panels (`tests/input/e2e`; own Vite on a random port 5200–5999 or `RIFFWAY_INPUT_E2E_PORT`) |
 | `npm run typecheck` | `tsc` ×3: app/tests (DOM), `tsconfig.node.json` (server + `src/core`, no DOM), worklets (AudioWorklet scope) |
 | `npm run lint` | ESLint (flat config; also guards `src/core` purity and the Songsterr API ban) |
 | `npm run classtab:refresh` | Download/refresh the ClassTab zip and rebuild its index |
 
-Env: `RIFFWAY_DATA_DIR` (default `~/.riffway`), `RIFFWAY_PORT` (5174), `RIFFWAY_LIBRARY_DIR` (override the configured library folder), `RIFFWAY_LOG_LEVEL` (`info`), `RIFFWAY_VITEST_BROWSER_PORT` (fixed Vitest browser-server port; default: free port on 127.0.0.1), `RIFFWAY_E2E_PORT` (Playwright e2e server port; default: a free port), `RIFFWAY_E2E_DATA_DIR` (e2e data dir; default: a new temp dir), `RIFFWAY_INPUT_E2E_PORT` (input/tuner fake-capture e2e Vite port; default: random 5200–5999). (Exact scripts live in `package.json`; keep this table in sync.)
+Env: `RIFFWAY_DATA_DIR` (default `~/.riffway`), `RIFFWAY_PORT` (5174), `RIFFWAY_LIBRARY_DIR` (override the configured library folder), `RIFFWAY_LOG_LEVEL` (`info`), `RIFFWAY_VITEST_BROWSER_PORT` (fixed Vitest browser-server port; default: free port on 127.0.0.1), `RIFFWAY_E2E_PORT` (Playwright e2e server port; default: a free port), `RIFFWAY_E2E_DATA_DIR` (e2e data dir; default: a new temp dir), `RIFFWAY_INPUT_E2E_PORT` (input/tuner fake-capture e2e Vite port; default: random 5200–5999), `RIFFWAY_UPDATE_SCREENSHOTS` (`1` writes the committed `e2e/screenshots/`; default off). (Exact scripts live in `package.json`; keep this table in sync.)
 
 ## Contracts and extension points (frozen by T-010)
 - Types: `shared/*.ts` (`@shared/*`); DOM-free except `shared/ui.ts` and `shared/services.ts`. Aliases
