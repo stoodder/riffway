@@ -94,6 +94,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-103 | ClassTab rhythm recall, composer, failed files | impl | done 13762f1: playable 2353->2581; ruler-readable 2087 (~survey 2127); composer 3956/3976; failed files visible |
 | T-032 | Practice panel + mixer UI | impl | done eec3689: 57 tests; speed 40-100% (110% overspeed) per transport clamp; A/B strip, trainer ladder, mixer |
 | T-030 | Wave 2 integration | impl | done a7b70ef: additive CCRs, Crunch preset, UG/Songsterr lint guard, graceful mounts, vitest port fix |
+| T-035 | Settings + audio setup + export/import UI | impl | done 5ab9b1d: 43 tests; guided audio setup; data export/import with preview + merge/replace |
 
 ---
 
@@ -454,7 +455,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   with mastery, bests per speed, accuracy sparkline, attach backing audio, align rhythm, Play / Practice.
 
 ### T-035 · Settings + audio setup screens + export/import UI
-- **Status:** in-progress · **Deps:** T-018, T-020, T-022, T-023 · **Parallel:** y · **Agent:** `impl-ui`
+- **Status:** done · **Deps:** T-018, T-020, T-022, T-023 · **Parallel:** y · **Agent:** `impl-ui`
 - **Owns:** `src/ui/screens/settings/`, `src/ui/screens/audio-setup/`, `tests/settings/`
 - **Acceptance:** settings for library folder (`PUT /api/config`), sources + ClassTab refresh/status,
   game options (feedback detail, hand cues, strict octave, note speed), keyboard mapping, goals,
