@@ -25,7 +25,8 @@ histogram is on the results screen.
 
 ## Judge algorithm (`src/core/judge/`)
 Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
-`{ctxTime, kind: 'onset'|'pitch-change', midi?: number, cents?, clarity?, source: 'guitar'|'keyboard'|'test'}`.
+`{ctxTime, kind: 'onset'|'pitch-change', midi?: number, cents?, clarity?, source: 'guitar'|'keyboard'|'test', refines?}`
+(`refines` = ctx time of an earlier unpitched onset that this follow-up pitch completes).
 
 1. **Targets.** Notes grouped into *onset groups* (same chord id, or onsets within 10 ms). Tied
    destinations are not targets. Notes in pre-roll/count-in are not judged.
@@ -42,9 +43,10 @@ Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
    pluck) as their onset.
 7. **Retrigger guard.** An event within 50 ms of an already-matched event with the same pitch is
    ignored. Events with no candidates are *strays*: shown as a faint tick, not penalised, do not break
-   combo (DEC-20).
+   combo (DEC-19).
 8. **Miss.** Groups whose window closes without assignment become Miss.
-Every judgement emits `{noteIds, outcome, deltaMs, playedMidi?, expectedMidi}` to the HUD and the run log.
+Every judgement emits `{noteIds, outcome, deltaMs, timing, playedMidi?, expectedMidi, chord, songTime, ctxTime,
+final, pass}` (`Judgement` in `shared/judge.ts`) to the HUD and the run log.
 
 **Chord leniency.** A chord group is hit by one onset whose pitch matches any chord tone; all notes in
 the group get that outcome. HUD shows a small "Chords: any chord tone counts" note while chords are on

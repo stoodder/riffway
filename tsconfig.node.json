@@ -1,0 +1,23 @@
+{
+  "//": "Isomorphic/server check: no DOM lib. Proves server/, scripts/ and src/core/ (pure TS, also runs in workers/worklets) never touch DOM APIs. shared/ui.ts and shared/services.ts are browser-only and must not be imported here.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["node"]
+  },
+  "include": [
+    "server",
+    "scripts",
+    "src/core",
+    "shared/song.ts",
+    "shared/sources.ts",
+    "shared/api.ts",
+    "shared/audio-events.ts",
+    "shared/clock.ts",
+    "shared/judge.ts",
+    "shared/settings.ts",
+    "shared/storage.ts",
+    "shared/errors.ts"
+  ],
+  "exclude": ["node_modules", "dist", "dist-server"]
+}

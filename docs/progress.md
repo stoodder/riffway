@@ -14,14 +14,15 @@ Pure logic is in `src/core/progress/` (Node-testable); persistence in `src/stora
 | Store | Key | Value (abridged) | Indexes |
 |---|---|---|---|
 | `settings` | `'settings'` | `Settings` (`shared/settings.ts`) | — |
-| `runs` | auto | `{songId, arrangement, startedAt, endedAt, speed, loop?: {startBar, endBar}, mode: 'play'|'practice', score, accuracy, stars, maxCombo, counts, sections: {idx, notes, hits, accuracy}[], histogram, clean: boolean, inputSource}` | `[songId+arrangement, startedAt]`, `startedAt` |
+| `runs` | auto | `{songId, arrangement, startedAt, endedAt, speed, loop?: {startBar, endBar}, mode: 'play'|'practice', score, accuracy, stars, maxCombo, counts, sections: {idx, notes, hits, accuracy}[], histogram, clean: boolean, inputSource, activeSec}` | `[songId+arrangement, startedAt]`, `startedAt` |
 | `bests` | `[songId, arrangement, speedBucket]` | `{score, accuracy, stars, runId, at}` (speedBucket = speed rounded to 5%; 100 = full) | — |
-| `sectionProgress` | `[songId, arrangement, sectionIdx]` | `{cleanRuns, cleanRunsAt100, lastSpeed, trainer: {speed, failStreak}, masteredAt?, lockedInAt?, nextCheckAt?, bestAccuracy}` | `nextCheckAt` |
+| `sectionProgress` | `[songId, arrangement, sectionIdx]` | `{cleanRuns, cleanRunsAt100, lastSpeed, trainer: {speed, failStreak}, masteredAt?, lockedInAt?, nextCheckAt?, bestAccuracy, passesSinceGain}` | `nextCheckAt` |
 | `practiceDays` | `'YYYY-MM-DD'` (local) | `{activeSec, runs}` | — |
-| `streak` | `'streak'` | `{weekTarget, current, best, freezes, lastEvaluatedWeek, repairWeek?}` | — |
-| `audioLinks` | `[songId, arrangement]` | `{audioId, fileName, anchors: {songTime, audioTime}[], gainDb}` | — |
+| `streak` | `'streak'` | `{weekTarget, current, best, freezes, weeksTowardFreeze, lastEvaluatedWeek, repairWeek?}` | — |
+| `audioLinks` | `[songId, arrangement]` | `{audioId, fileName, anchors: {songTime, audioTime}[], gainDb, enabled}` | — |
 | `songCache` | `songId` | `{meta, difficulty, lastPlayedAt, favourite}` (for home screen without a server round trip) | `lastPlayedAt` |
 
+Records also carry their key fields (`songId`, `arrangement`, …); exact types are in `shared/storage.ts`.
 A run is **clean** when accuracy ≥ 90% and there are no more than 2 consecutive misses.
 Active time = time the transport is playing (not paused), summed per local day.
 

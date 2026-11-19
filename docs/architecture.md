@@ -81,7 +81,8 @@ a link-out URL in a new tab.
 ## Directory layout and owners (D9)
 | Path | Contents | Owner task |
 |---|---|---|
-| `shared/` | Contracts (types only): `song.ts`, `sources.ts`, `api.ts`, `audio-events.ts`, `clock.ts`, `judge.ts`, `settings.ts`, `storage.ts`, `ui.ts` | T-010 (frozen) |
+| `shared/` | Contracts (types + a few constants such as `DEFAULT_SETTINGS`, `API_ROUTES`, `PROCESSOR_NAMES`): `song.ts`, `sources.ts`, `api.ts`, `audio-events.ts`, `clock.ts`, `judge.ts`, `settings.ts`, `storage.ts`, `errors.ts` (DOM-free) and browser-only `ui.ts`, `services.ts` | T-010 (frozen) |
+| `src/app/`, `src/api/client.ts`, `src/audio/worklet-urls.ts`, `src/ui/placeholder.ts`, `src/core/import/errors.ts`, `server/{types,http,paths}.ts` | AppContext + service registry, typed API client, worklet URLs, stub helpers, server contracts | T-010 (frozen) |
 | `src/core/model/`, `src/core/import/{alphatab,load-song,fret-assign}` | Model helpers, alphaTab importer | T-011 |
 | `src/core/import/{ascii,align,midi}/` | ASCII parser, ruler/MIDI rhythm, alignment math | T-012 |
 | `src/core/{difficulty,handpos}/` | Difficulty, hand positions | T-013 |
@@ -99,7 +100,12 @@ a link-out URL in a new tab.
 
 T-010 pre-creates every route file, screen, panel and cross-task module as a stub with its final
 export signature, plus registries (`server/routes/index.ts`, `server/sources/registry.ts`,
-`src/ui/screens/index.ts`, `src/ui/panels/index.ts`), so no later task edits a shared file.
+`src/ui/screens/index.ts`, `src/ui/panels/index.ts`, `src/app/services.ts`, `src/audio/worklet-urls.ts`),
+so no later task edits a shared file. Stubs throw `NotImplementedError` (`shared/errors.ts`) naming the
+owning task, or return safe defaults (unimplemented routes answer 501 `{code: 'not-implemented'}`).
+Browser services (engine, input, monitor, guide, song loader, backing) are reached with
+`ctx.services.get(id)`; their interfaces are in `shared/services.ts`. Route files export
+`register: RouteModule` and receive the `ServerContext` from `server/types.ts`.
 
 ## Companion server API
 All JSON unless noted; DTOs in `shared/api.ts`.
@@ -109,7 +115,7 @@ All JSON unless noted; DTOs in `shared/api.ts`.
 | `GET, PUT /api/config` | Server config: library folder, enabled sources | T-017 |
 | `GET /api/sources` | Adapters with status (indexed count, last refresh, link-out) | T-017 |
 | `GET /api/search?q&source&tierMin&tierMax&tuning&playable&tags&limit` | Unified search → `{results, linkOuts}` | T-017 (+adapters) |
-| `GET /api/songs/:id` | `SongMeta`: arrangements, rhythm status, difficulty, file URLs | T-017 |
+| `GET /api/songs/:id` | `SongMeta` (`shared/api.ts`): index entry, arrangements, difficulty, file URLs | T-017 |
 | `GET /api/songs/:id/file` | Raw main file bytes | T-017 |
 | `GET /api/songs/:id/rhythm` | Paired MIDI bytes (ClassTab / sibling `.mid`) | T-025 |
 | `GET, PUT /api/songs/:id/sidecar` | Rhythm-alignment sidecar JSON | T-028 |
@@ -138,7 +144,8 @@ content keeps its id. Starter ids are `starter:<slug>`. An *arrangement* is `(so
 only 6-string guitar tracks are playable.
 
 ## Testing layers
-Unit (Vitest, Node) for everything in `src/core/` and `server/`; Vitest browser mode (Playwright
-Chromium) for `OfflineAudioContext` graph tests (`*.browser.test.ts`); audio-pipeline tests with
+Unit (Vitest project `node`) for everything in `src/core/` and `server/` (DOM tests opt in with
+`// @vitest-environment happy-dom`); Vitest project `browser` (Playwright Chromium) for
+`OfflineAudioContext` and worklet tests (`*.browser.test.ts`); audio-pipeline tests with
 generated tones and recorded clips; Playwright e2e in keyboard mode with a `?e2e=1` test hook
 (`window.__riffwayTest`) that injects input through the same judge path.

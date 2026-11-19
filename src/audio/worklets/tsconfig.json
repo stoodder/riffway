@@ -1,0 +1,9 @@
+{
+  "//": "AudioWorkletGlobalScope program (registerProcessor, AudioWorkletProcessor, sampleRate, currentFrame). No DOM. Worklets import pure DSP via @core/* and messages via @shared/audio-events.",
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023"],
+    "types": ["audioworklet"]
+  },
+  "include": ["./**/*.ts"]
+}

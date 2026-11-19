@@ -28,8 +28,8 @@ So a gem reaches the hit line when its sound is heard.
   count-in clicks (oscillator bursts, accent on downbeats), loop wraps, rate changes.
 - Long audio (guide PCM, backing) is started once with `AudioBufferSourceNode.start(when, offset)` /
   the stretch worklet's `schedule()`, and re-issued on seek, speed change or loop wrap.
-- Metronome beats come from the song's beat grid (`timing.beats`), so tempo changes and odd meters
-  click correctly.
+- Metronome beats come from the song's beat grid (`timing.bars[].beats`, flattened by `beatTimes()`), so
+  tempo changes and odd meters click correctly.
 
 ## Speed changes
 - Range 40–110% (110% only after mastery, off by default). Guide audio is re-rendered by alphaSynth

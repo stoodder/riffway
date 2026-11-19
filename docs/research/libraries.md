@@ -28,6 +28,33 @@
 | E2E | `@playwright/test` | 1.65.1 | Apache-2.0 | **Verified**: headless Chrome reads a WAV through `getUserMedia` |
 | Toolchain | `vite` 8.3.8, `typescript` **6.0.3** | — | MIT / Apache-2.0 | The `typescript-eslint` 8.73 peer range is `<6.1.0`, so TS 7.0.2 (the Go port) would conflict |
 
+## Installed pins (T-010)
+
+`package.json` pins every package exactly (no `^`/`~`); `engines.node` is `>=22.12`, so chokidar stays on 5.0.0.
+Survey picks above are installed at the listed versions (TypeScript 6.0.3, not 7). Packages the survey did not
+cover, pinned for compatibility on 2026-11-19 (`npm ls` clean):
+
+| Package | Version | Why this version |
+|---|---|---|
+| `@fastify/multipart` | 10.1.9 | Latest; fastify 5 plugin (multipart import and audio upload) |
+| `@vitest/browser-playwright` | 5.1.1 | Must equal vitest 5.1.1 (peer) |
+| `playwright` | 1.65.1 | Peer of the Vitest provider; same as `@playwright/test` 1.65.1 |
+| `eslint` | 10.15.0 | Within typescript-eslint 8.73 peer range (`^8.57 \|\| ^9 \|\| ^10`) |
+| `@eslint/js` | 10.0.1 | Matches ESLint 10 |
+| `globals` | 17.14.0 | Browser + Node globals for the flat config |
+| `@types/node` | 22.20.5 | Node 22 LTS line (vitest peer `^22 \|\| >=24`) |
+| `@types/yauzl` | 3.4.0 | Types for yauzl 3.4.0 |
+| `@types/audioworklet` | 0.0.102 | `AudioWorkletGlobalScope` types, used only by `src/audio/worklets/tsconfig.json` (conflicts with the DOM lib) |
+
+Notes:
+- Playwright 1.65.1 expects Chromium revision 1255; the agent container ships revision 1243 at
+  `/opt/pw-browsers/chromium` (Chrome for Testing 153). `playwright.config.ts` and `vitest.config.ts` pass
+  `executablePath` when that path exists; elsewhere run `npx playwright install chromium`.
+- `signalsmith-stretch` ships no types; minimal declarations live in `src/types/signalsmith-stretch.d.ts`.
+- Server build: `esbuild --bundle --packages=external` resolves the `@shared/*`/`@core/*` tsconfig paths
+  before externalising packages (verified), so path aliases need no esbuild plugin.
+- Vite `worker.format` is `'es'`; worklets still build to self-contained modules (verified with aliases).
+
 ## 1. Tab parsing and rendering: alphaTab
 
 `ScoreLoader.loadScoreFromBytes(bytes)` detects the format: GP3–5, GPX, GP7/8 (`.gp`), MusicXML and CapXML. `ScoreLoader.loadAlphaTex(str)` parses alphaTex. Both work in Node with no DOM (see the verified section). To use it on the server, import `@coderline/alphatab`. In a browser Web Worker, the main entry's `initializeMain()` returns early, so it does not take over `onmessage`. Avoid `@coderline/alphatab/worker`, which does.

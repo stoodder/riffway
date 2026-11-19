@@ -12,17 +12,31 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 ## Commands
 | Command | What |
 |---|---|
-| `npm install` | Install deps (Node ≥ 20) |
-| `npm run dev` | Start Vite (5173) + companion server (5174) together |
-| `npm run build` | Optimized build: `dist/` (web) + `dist-server/` (server) |
-| `npm start` | Run the built app (server serves `dist/` on 5174) |
-| `npm test` | Vitest unit + audio-pipeline tests |
-| `npm run test:e2e` | Playwright end-to-end (keyboard input mode), screenshots → `e2e/screenshots/` |
-| `npm run typecheck` | `tsc --noEmit` for web + server |
-| `npm run lint` | ESLint |
+| `npm install` | Install deps (Node ≥ 22.12; exact pins, see `docs/research/libraries.md`) |
+| `npx playwright install chromium` | Once on a fresh machine (owner's Mac). **Not** in the agent container: Chromium is preinstalled at `/opt/pw-browsers/chromium` and the configs use it automatically |
+| `npm run dev` | Vite on 127.0.0.1:5173 (`/api` proxied) + companion server (`tsx watch`) on 127.0.0.1:5174 |
+| `npm run build` | Optimized build: `dist/` (web, Vite) + `dist-server/index.js` (server, esbuild bundle) |
+| `npm start` | Run the built app: server serves `dist/` and `/api` on 5174 |
+| `npm test` | Vitest, both projects: `node` (`tests/**/*.test.ts`) and `browser` (`tests/**/*.browser.test.ts`, headless Chromium) |
+| `npm run test:node` / `npm run test:browser` | One Vitest project only (`npm run test:watch` for watch mode) |
+| `npm run test:e2e` | Builds, then Playwright e2e (`e2e/`, keyboard mode, fake media + autoplay) against the built server on 5175 |
+| `npm run typecheck` | `tsc` ×3: app/tests (DOM), `tsconfig.node.json` (server + `src/core`, no DOM), worklets (AudioWorklet scope) |
+| `npm run lint` | ESLint (flat config; also guards `src/core` purity and the Songsterr API ban) |
 | `npm run classtab:refresh` | Download/refresh the ClassTab zip and rebuild its index |
 
-(Exact scripts live in `package.json`; keep this table in sync.)
+Env: `RIFFWAY_DATA_DIR` (default `~/.riffway`), `RIFFWAY_PORT` (5174), `RIFFWAY_LIBRARY_DIR` (override the
+configured library folder), `RIFFWAY_LOG_LEVEL` (`info`). (Exact scripts live in `package.json`; keep this table in sync.)
+
+## Contracts and extension points (frozen by T-010)
+- Types: `shared/*.ts` (`@shared/*`); DOM-free except `shared/ui.ts` and `shared/services.ts`. Aliases
+  `@shared/*` and `@core/*` work in Vite, Vitest, tsx and esbuild.
+- Stubs throw `NotImplementedError` (`@shared/errors`) naming the owning task; fill the body, keep the signature.
+- Registries: screens `src/ui/screens/index.ts`, panels `src/ui/panels/index.ts`, services
+  `src/app/services.ts` (`ctx.services.get('engine')`), routes `server/routes/index.ts`, sources
+  `server/sources/registry.ts`, worklet URLs `src/audio/worklet-urls.ts`. Never edit a registry; file a
+  contract change request in `TASKS.md`.
+- Tests: DOM tests add `// @vitest-environment happy-dom`; Web Audio tests are `*.browser.test.ts`;
+  server tests use `createApp({dataDir, staticDir: null, watch: false})` + `app.inject()`.
 
 ## Layout
 - `src/` — browser app. `src/core/` pure TS (no DOM, no Web Audio): models, parsing, judging,
@@ -30,9 +44,11 @@ pitch-tracked and scored. Spec: `docs/spec.md`. Player profile: `docs/user-profi
 - `src/audio/` — AudioContext graph, AudioWorklet processors (`src/audio/worklets/`), clock.
 - `src/game/` — game loop, highway renderer (canvas), input modes.
 - `src/ui/` — screens and components.
+- `src/app/` — `AppContext` + lazy service registry; `src/api/client.ts` — typed API client + SSE.
 - `src/storage/` — IndexedDB (progress, scores, settings, audio links), export/import.
 - `server/` — companion server (library indexer/watcher, source adapters, ClassTab, API).
-- `shared/` — types shared by web and server (song model, source adapter interface, API DTOs).
+- `shared/` — contracts shared by web and server (song model, sources, API DTOs, clock, judge, settings,
+  storage, worklet messages; browser-only `ui.ts`/`services.ts`).
 - `starter/` — committed starter library (public-domain songs + original exercises).
 - `tests/` — Vitest tests + `tests/fixtures/` (recorded fixtures; never live network).
 - `e2e/` — Playwright tests.

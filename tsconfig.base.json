@@ -1,0 +1,26 @@
+{
+  "//": "Shared compiler options. Path aliases (@shared/*, @core/*) are mirrored in vite.config.ts (Vite + Vitest); tsx and esbuild read them from tsconfig.json.",
+  "compilerOptions": {
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "moduleDetection": "force",
+    "strict": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "allowImportingTsExtensions": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [],
+    "paths": {
+      "@shared/*": ["./shared/*"],
+      "@core/*": ["./src/core/*"]
+    }
+  }
+}

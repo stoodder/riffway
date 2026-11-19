@@ -1,0 +1,10 @@
+{
+  "//": "Main program: browser app (DOM), tests, e2e and config files. Worklets have their own config (src/audio/worklets/tsconfig.json); tsconfig.node.json re-checks server + src/core + DOM-free shared contracts without DOM types.",
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "types": ["node", "vite/client"]
+  },
+  "include": ["src", "shared", "server", "scripts", "tests", "e2e", "*.ts"],
+  "exclude": ["node_modules", "dist", "dist-server", "src/audio/worklets"]
+}

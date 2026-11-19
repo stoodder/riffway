@@ -13,24 +13,28 @@
 ```ts
 interface Song {
   schema: 1; id: string; arrangement: number;           // (songId, trackIndex)
-  meta: { title: string; artist?: string; composer?: string; arranger?: string;
-          source: SourceRef; tags: SongTags; tuning: number[] /* MIDI, [0] = string 1 = high e */;
-          capo: number; durationSec: number; rhythm: RhythmStatus };
+  meta: SongInfo;  // { title; artist?; composer?; arranger?; source: SourceRef; tags: SongTags;
+                   //   tuning: number[] /* MIDI, [0] = string 1 = high e */; capo; durationSec;
+                   //   rhythm: RhythmStatus; tempoEstimated?; tracks: TrackInfo[] /* all tracks */ }
   timing: { tempos: { time: number; bpm: number }[];
-            bars: { index: number; time: number; dur: number; num: number; den: number; beats: number[] }[] };
-  sections: { name: string; startBar: number; endBar: number; start: number; end: number }[];
+            bars: { index: number; sourceIndex?: number; time: number; dur: number; num: number; den: number;
+                    beats: number[] /* absolute beat times */ }[] };
+  sections: { name: string; startBar: number; endBar: number /* exclusive */; start: number; end: number }[];
   notes: Note[];                                         // sorted by time, then string
   chords: { id: number; time: number; noteIds: number[]; name?: string }[];
+  diagnostics?: ImportDiagnostic[];                      // unparsed lines, clipped bars, …
 }
 interface Note { id: number; time: number; dur: number; string: 1|2|3|4|5|6; fret: number;
-  midi: number; bar: number; chordId?: number; tiedFrom?: number; tech: Tech }
+  midi: number; bar: number; chordId?: number; tiedFrom?: number; column?: number /* ASCII */; tech: Tech }
 interface Tech { hammerOn?: true; pullOff?: true; legatoDest?: true;
   slide?: 'in-below'|'in-above'|'out-up'|'out-down'|'shift'|'legato';
   bend?: { semitones: number; release?: boolean }; palmMute?: true; letRing?: true;
-  vibrato?: true; harmonic?: 'natural'|'artificial'|'pinch'|'tap'|'semi'|'feedback'; dead?: true }
+  vibrato?: true; harmonic?: 'natural'|'artificial'|'pinch'|'tap'|'semi'|'feedback'; dead?: true; ghost?: true }
 type RhythmStatus = 'exact' | 'midi' | 'ruler' | 'aligned' | 'needs-alignment';
 type SongTags = { style: ('pick'|'fingerstyle')[]; genre: string[]; skills: string[] };
 type SourceRef = { source: SourceId; path?: string; url?: string; origin?: string };
+// SourceId = 'local'|'starter'|'classtab'|'songsterr'|'ultimate-guitar'|'gp-pack'
+// loadSong(bundle: SongBundle, {arrangement?, id?}) → Song; errors are ImportError (src/core/import/errors.ts)
 ```
 Invariants (validated by `src/core/model/validate.ts`): times non-decreasing; `midi = tuning[string−1] +
 capo + fret` except harmonics; no two non-tied notes on one string at one time; bars contiguous;
@@ -93,7 +97,7 @@ Goal: playable in under a minute.
 4. **Tap-along (optional):** a metronome plays at the BPM (optionally 50% speed); the player taps
    Space for each note onset (chords = one tap). Taps map to onsets in order; optional quantise to grid.
    Undo last tap, restart from bar.
-5. **Confirm** → sidecar `{bpm, timeSig, grid, onsets[], method}` saved via `PUT /api/songs/:id/sidecar`
+5. **Confirm** → sidecar `RhythmSidecar` `{schema, bpm, timeSig, grid, onsets[], method, savedAt}` saved via `PUT /api/songs/:id/sidecar`
    (pasted tabs: `POST /api/library/paste` writes `<artist> - <title>.txt` + sidecar); `rhythm = 'aligned'`.
 
 ## ClassTab pairing (`src/core/import/align/`)

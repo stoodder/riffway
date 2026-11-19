@@ -57,11 +57,11 @@ Pure DSP in `src/core/dsp/` (unit-tested in Node with generated tones); the work
 
 **Pitch** (`pitch.ts`, MPM/NSDF via a radix-2 FFT, preallocated buffers):
 - Window N = 2048 when the expected note is below ~160 Hz, else 1024. The main thread posts
-  `{type:'expect', minMidi, maxMidi}` hints from the upcoming notes so the worklet can choose N and a
+  `{type:'expect', range: {minMidi, maxMidi} | null}` hints from the upcoming notes so the worklet can choose N and a
   search range (expected ±7 semitones, widened to E2–E6 when no hint).
 - After an onset, wait 25 ms, then estimate on the next window; emit
   `{type:'onset', frame, midi, cents, clarity, rmsDb}`. If clarity < 0.6, emit `midi: null`; a
-  follow-up `{type:'pitch', frame, midi…}` may arrive within 40 ms (the judge waits for it).
+  follow-up `{type:'pitch', frame, onsetFrame, midi…}` may arrive within 40 ms (the judge waits for it).
 - Octave check: if the NSDF peak at 2× period is ≥ 0.9 of the chosen peak, prefer the lower octave
   only when it is in the expected range.
 
