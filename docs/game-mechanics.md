@@ -70,7 +70,9 @@ Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
 7. **Retrigger guard.** An event within 50 ms of an already-assigned event is a detector double
    trigger and is ignored, unless the gap is at least half the target spacing between that event's
    group and the group the new event would take (so a 45 ms tremolo still counts). Events with no
-   candidates are *strays*: shown as a faint tick, not penalised, do not break combo (DEC-19).
+   candidates are *strays*: shown as a faint tick, not penalised, do not break combo (DEC-19). A stray up
+   to 250 ms before a lane's next note shows **TOO EARLY** on that lane; if that note is then missed it
+   reads "MISS · pressed too early ▸" (hidden with Minimal feedback).
 8. **Miss.** Groups whose window closes without assignment become Miss.
 Every judgement emits `{noteIds, outcome, deltaMs, timing, playedMidi?, expectedMidi, chord, songTime, ctxTime,
 final, pass}` (`Judgement` in `shared/judge.ts`) to the HUD and the run log. Hits are emitted once with
@@ -222,21 +224,23 @@ Query: `arr`, `mode` (`play` | `practice`), `section` (loop it), `speed`, `input
 - **Layout.** While a run plays or counts in, the app's top nav is hidden (it returns on pause, the
   start card and results), so the lanes get its height. HUD bar: song, mode, current section, score,
   accuracy, live star meter (stars + progress to the next threshold), speed, "Practice tools" and a
-  labelled **Pause · Esc** button of the same size.
+  labeled **Pause · Esc** button of the same size (it reads **Resume · Esc** while paused). Coach
+  messages (speed trainer, loop progress) sit in the HUD meta row after the section name.
 - **One outcome display**, on the highway: the gutter text left of the hit line (see § Highway) —
   nothing is drawn over the notes still to come, and the combo shows once (the canvas cluster in the
   gutter; the HUD has no combo). Live accuracy and stars count a provisional WrongNote at once and
   show "—" until 5 notes are judged.
 - **Overlays**: the count-in number over the gutter (and, during every loop pass's pre-roll, a beat
-  countdown captioned "Loop" while the highway shows the loop's section and hand position); coach
-  messages as a pill in the highway's top strip; the note "Chords: judged on timing + any chord
-  tone" in the gutter's bottom strip while chords are in view. None of them covers a lane.
+  countdown captioned "Loop" while the highway shows the loop's section and hand position); the note
+  "Chords: judged on timing + any chord tone" (short form "Chords: timing + any tone" when the gutter
+  is narrow) in the gutter's bottom strip while chords are in view. None of them covers a lane.
 - **Footer**: section progress bar (live per-section accuracy as the underline colour, loop region,
   a playhead on the underline that never covers a name, the played part; click to jump in practice
   mode) and a key hint shown until the first run starts.
 - **Start card**: mode, speed, loop, input, key legend named from the song's tuning (string 1 always
   lower case: Drop D reads e B G D A D) and, for a non-standard tuning, a retune reminder ("Drop D —
-  tune string 6 down to D") with **Open tuner** (the tuner panel in a modal).
+  tune string 6 down to D") with **Open tuner** (the tuner panel in a modal); a capo line when the song has a capo; and
+  "Retune to Standard — your last song was in Drop D" when the previous song used another tuning.
 - **Pause menu**: Resume, Restart, Practice tools, End run & see results, Quit to song; when the
   session paused itself it says why (guitar unplugged, audio stopped). The tab going hidden pauses.
 - **Errors**: a song not in the library (404) shows "This song isn't in your library" with **Back to

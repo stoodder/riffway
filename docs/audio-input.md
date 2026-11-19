@@ -90,7 +90,9 @@ audio".
 - Display: the chromatic note and cents, plus the nearest open string of the **current song's tuning**
   (panel prop `tuning`; default standard; Drop D etc. when the song says so) with "Tune up/down to D2
   (2 semitones)". "In tune" = |cents| ≤ 3 for 0.5 s **on the target string's note**; strings tuned this
-  session get a check mark.
+  session get a check mark. The first in-tune reading per string dispatches a DOM event
+  (`TUNER_IN_TUNE_EVENT` in `src/ui/panels/tuner/`) that audio setup and the home checklist
+  count as "tuned"; the **I'm tuned** button on the tuner step does the same.
 - A4 reference adjustable 415–466 Hz in 1 Hz steps (default 440, `settings.tuner.a4`).
 
 ## Pitch and onset detection worklet
