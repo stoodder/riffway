@@ -40,6 +40,7 @@
  * @module
  */
 import type { OnsetDetector, OnsetDetectorOptions } from './index';
+import { pitchWindowScale } from './pitch';
 
 /** Novelty must exceed this (dB rise of a hop's energy) whatever the adaptive threshold says. */
 export const MIN_NOVELTY_DB = 6;
@@ -85,12 +86,12 @@ export const RISE_DB = 3;
 /** A no-new-energy contact that then damps the string by this much is not a note, dB. */
 export const DAMP_DB = 10;
 /**
- * Holding a suspect trigger needs the last reported onset to be this long + 2560 samples old: the
- * analysis core's pitch window for an onset ends 25 ms + 2048 samples (+ 512 for its one retry)
- * after it.
+ * Holding a suspect trigger needs the last reported onset to be this long + 2560 samples
+ * (× `pitchWindowScale`) old: the analysis core's pitch window for an onset ends 25 ms + 2048
+ * samples (+ 512 for its one retry), both scaled with the rate, after it.
  */
 export const HOLD_GUARD_SEC = 0.025;
-/** Samples the hold guard adds to {@link HOLD_GUARD_SEC} (largest window + retry shift). */
+/** Samples the hold guard adds to {@link HOLD_GUARD_SEC} at scale 1 (largest window + retry shift). */
 const HOLD_GUARD_SAMPLES = 2048 + 512;
 
 /**
@@ -182,7 +183,7 @@ class EnergyOnsetDetector implements OnsetDetector {
     this.attackFrames = Math.round((ATTACK_MS / 1000) * sampleRate);
     this.confirmFrames = Math.round((CONFIRM_MS / 1000) * sampleRate);
     this.sustainFrames = Math.round((SUSTAIN_MS / 1000) * sampleRate);
-    this.holdGuardFrames = Math.round(HOLD_GUARD_SEC * sampleRate) + HOLD_GUARD_SAMPLES;
+    this.holdGuardFrames = Math.round(HOLD_GUARD_SEC * sampleRate) + HOLD_GUARD_SAMPLES * pitchWindowScale(sampleRate);
     this.recentDecay = powerRatio((-RECENT_DECAY_DB_PER_SEC * hop) / sampleRate);
     const refHops = Math.max(1, Math.ceil(((REF_SPAN_MS / 1000) * sampleRate) / hop));
     this.hfEnergies = new Float64Array(refHops);

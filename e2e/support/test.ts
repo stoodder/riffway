@@ -14,7 +14,7 @@ import { test as base, expect, type Page } from '@playwright/test';
 import type { Judgement } from '@shared/judge';
 import type { TestHookState } from '@shared/ui';
 import type { RiffwayTestHookExt, TestHookNote } from '../../src/test-hooks';
-import { SCREENSHOT_DIR } from './env';
+import { screenshotDir } from './env';
 
 /** Hosts the app and the tests must never contact (link-out only, D1). */
 export const FORBIDDEN_HOSTS = /(^|\.)(songsterr\.com|ultimate-guitar\.com)$/i;
@@ -64,12 +64,16 @@ export async function openApp(page: Page, hashPath = '/'): Promise<void> {
   await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible();
 }
 
-/** Save a full-resolution screenshot for the owner to `e2e/screenshots/<name>.png`. */
+/**
+ * Save a full-resolution screenshot as `<name>.png` in {@link screenshotDir}: `test-results/e2e-screenshots/`
+ * by default, the committed `e2e/screenshots/` with `RIFFWAY_UPDATE_SCREENSHOTS=1`.
+ */
 export async function shot(page: Page, name: string, opts: { fullPage?: boolean } = {}): Promise<void> {
-  mkdirSync(SCREENSHOT_DIR, { recursive: true });
+  const dir = screenshotDir();
+  mkdirSync(dir, { recursive: true });
   // Let fonts settle; never capture a blinking caret.
   await page.evaluate(() => document.fonts.ready);
-  await page.screenshot({ path: join(SCREENSHOT_DIR, `${name}.png`), fullPage: opts.fullPage ?? false, caret: 'hide' });
+  await page.screenshot({ path: join(dir, `${name}.png`), fullPage: opts.fullPage ?? false, caret: 'hide' });
 }
 
 /** Wait until the game session on screen has loaded (test hook `ready()`). */

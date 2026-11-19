@@ -1,8 +1,8 @@
 /**
  * The judge's guitar input horizon covers held onsets (T-111 check of T-104): an onset whose report
  * the detector holds back (a lone soft note after a loud one, contact noise before a pluck, a re-pick
- * on a ringing string) still reaches the main thread within `GUITAR_ANALYSIS_DELAY_SEC`, at 44.1 and
- * 48 kHz and with either pitch window, and the delivery margin left in `INPUT_LAG_SEC.guitar` keeps
+ * on a ringing string) still reaches the main thread within `GUITAR_ANALYSIS_DELAY_SEC`, at 44.1, 48,
+ * 88.2 and 96 kHz and with either pitch window, and the delivery margin left in `INPUT_LAG_SEC.guitar` keeps
  * a late Good (+115 ms) a Good when the worst measured main-thread delay is added on top
  * (docs/audio-input.md § Worklet → main-thread delay: ≤ 29.3 ms with 30 ms jank every 100 ms).
  */
@@ -66,14 +66,15 @@ function heldScenarios(sr: number): { label: string; signal: Float32Array }[] {
   return out;
 }
 
-/** Pitch-window hints: low notes (N = 2048) and high notes only (N = 1024). */
+/** Pitch-window hints: low notes (N = 2048 × scale) and high notes only (N = 1024 × scale). */
 const HINTS: { label: string; cmd: AnalysisCommand }[] = [
-  { label: 'N=2048', cmd: { type: 'expect', range: { minMidi: 40, maxMidi: 76 } } },
-  { label: 'N=1024', cmd: { type: 'expect', range: { minMidi: 55, maxMidi: 76 } } },
+  { label: 'long window', cmd: { type: 'expect', range: { minMidi: 40, maxMidi: 76 } } },
+  { label: 'short window', cmd: { type: 'expect', range: { minMidi: 55, maxMidi: 76 } } },
 ];
 
 describe('held onsets stay inside the judge input horizon', () => {
-  for (const sr of [44100, 48000]) {
+  // 88.2 and 96 kHz scale the pitch windows (R3-C-03) and must stay inside the same budget.
+  for (const sr of [44100, 48000, 88200, 96000]) {
     it(`${sr} Hz: every onset message (held or not) is posted within GUITAR_ANALYSIS_DELAY_SEC`, () => {
       let worst = 0;
       let onsets = 0;
@@ -117,5 +118,59 @@ describe('held onsets stay inside the judge input horizon', () => {
       for (const j of judge.advance(inputHorizon(now, 'guitar', 0)).judgements) outcomes.push(`${j.outcome}/${j.timing}`);
     }
     expect(outcomes).toEqual(['Good/late']);
+  });
+});
+
+/**
+ * R3-C-01: on the owner's Mac the main thread can be blocked longer than the 30 ms measured in
+ * headless Chromium, and `currentTime` runs up to one CoreAudio callback (512 frames = 11.6 ms at
+ * 44.1 kHz) ahead of messages not yet dispatched. When a long task ends, the session's delayed tick
+ * can run before the worklet message: the horizon must still not have closed the note.
+ */
+describe('delivery margin under main-thread long tasks (R3-C-01)', () => {
+  /** One 512-frame CoreAudio callback at 44.1 kHz. */
+  const CALLBACK_STEP_SEC = 512 / 44100;
+
+  /**
+   * Judge a guitar onset `lateSec` after note 0 that reaches the main thread after the worst
+   * analysis delay plus `extraSec`; the session ticks every 20 ms and one tick runs exactly when the
+   * message arrives, before it. Returns every judgement (provisional ones marked `?`) and the combo.
+   */
+  function run(lateSec: number, extraSec: number, notes: { time: number; midi: number }[]) {
+    const judge = createJudge(makeSong(notes), { clock: { songTimeAt: (c: number) => c, ctxTimeAt: (t: number) => t } });
+    const ev: InputEvent = { ctxTime: notes[0]!.time + lateSec, kind: 'onset', midi: notes[0]!.midi, cents: 0, clarity: 0.95, source: 'guitar' };
+    const arrives = ev.ctxTime + GUITAR_ANALYSIS_DELAY_SEC + extraSec;
+    const ticks = Array.from({ length: 125 }, (_, k) => k * 0.02).concat(arrives).sort((a, b) => a - b);
+    const out: string[] = [];
+    let pushed = false;
+    for (const now of ticks) {
+      for (const j of judge.advance(inputHorizon(now, 'guitar', 0)).judgements) out.push(`n${j.noteIds[0]}:${j.outcome}${j.final ? '' : '?'}`);
+      if (!pushed && now >= arrives) {
+        pushed = true;
+        for (const j of judge.push(ev).judgements) out.push(`n${j.noteIds[0]}:${j.outcome}${j.final ? '' : '?'}`);
+      }
+    }
+    return { out, maxCombo: judge.state().maxCombo };
+  }
+
+  it('the delivery margin covers a 45 ms long task on top of a 512-frame callback step', () => {
+    expect(INPUT_DELIVERY_MARGIN_SEC).toBeGreaterThanOrEqual(CALLBACK_STEP_SEC + 0.045);
+    expect(INPUT_LAG_SEC.guitar).toBeCloseTo(GUITAR_ANALYSIS_DELAY_SEC + INPUT_DELIVERY_MARGIN_SEC, 12);
+  });
+
+  for (const lateMs of [100, 110, 115, 119]) {
+    it(`a late Good (+${lateMs} ms) stays a Good with an 11.6 ms callback step and a 45 ms long task`, () => {
+      const { out } = run(lateMs / 1000, CALLBACK_STEP_SEC + 0.045, [{ time: 1, midi: 64 }]);
+      expect(out).toEqual(['n0:Good']);
+    });
+  }
+
+  it('the next note 200 ms later is not hit by the late onset (no WrongNote, combo kept)', () => {
+    const { out, maxCombo } = run(0.115, CALLBACK_STEP_SEC + 0.0293, [
+      { time: 1, midi: 64 },
+      { time: 1.2, midi: 67 },
+    ]);
+    expect(out).toEqual(['n0:Good', 'n1:Miss']);
+    expect(maxCombo).toBe(1);
   });
 });

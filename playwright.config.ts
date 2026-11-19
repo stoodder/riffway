@@ -3,7 +3,9 @@
  * server (`node dist-server/index.js`) on a free port with a throwaway data dir whose library folder
  * holds authored fixtures (a Guitar Pro file and an ASCII tab; the starter library is always there).
  * Chromium flags: autoplay without a gesture, fake media devices, and a fake microphone that plays a
- * generated WAV (plucked A2). Screenshots go to `e2e/screenshots/` at device scale factor 2.
+ * generated WAV (plucked A2). Screenshots (device scale factor 2) go to the git-ignored
+ * `test-results/e2e-screenshots/`; `RIFFWAY_UPDATE_SCREENSHOTS=1 npm run test:e2e` refreshes the
+ * committed `e2e/screenshots/` instead (see `e2e/support/env.ts` `screenshotDir`).
  *
  * Env: `RIFFWAY_E2E_PORT` (default: a free port, chosen once in the runner and inherited by the
  * workers, which re-evaluate this file) and `RIFFWAY_E2E_DATA_DIR` (default: a new temp dir).

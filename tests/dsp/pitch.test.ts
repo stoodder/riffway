@@ -7,7 +7,9 @@ import {
   freqToMidi,
   freqToMidiFloat,
   midiToFreq,
+  pitchWindowScale,
   planPitchWindow,
+  type PitchDetector,
 } from '@core/dsp';
 import {
   addNoise,
@@ -58,8 +60,8 @@ interface Sweep {
 function sweep(timbre: string, sampleRate: number, hinted: boolean): Sweep {
   const gen = TIMBRES[timbre];
   const res: Sweep = { worstCents: 0, octaveErrors: 0, nulls: 0, minClarity: 1, worstPitchyGap: 0, pitchyOctaveErrors: 0 };
-  const detectors = { 1024: createPitchDetector({ sampleRate, size: 1024 }), 2048: createPitchDetector({ sampleRate, size: 2048 }) };
-  const oracles = { 1024: Pitchy.forFloat32Array(1024), 2048: Pitchy.forFloat32Array(2048) };
+  const detectors: Record<number, PitchDetector> = { 1024: createPitchDetector({ sampleRate, size: 1024 }), 2048: createPitchDetector({ sampleRate, size: 2048 }) };
+  const oracles: Record<number, Pitchy<Float32Array>> = { 1024: Pitchy.forFloat32Array(1024), 2048: Pitchy.forFloat32Array(2048) };
   for (const midi of NOTES) {
     const freq = midiToHz(midi);
     const signal = gen(freq, sampleRate, midi);
@@ -202,6 +204,52 @@ describe('MPM pitch detector: API', () => {
     expect(planPitchWindow({ minMidi: 45, maxMidi: 52 })).toEqual({ size: 2048, range: { minMidi: 38, maxMidi: 59 } });
     expect(planPitchWindow({ minMidi: 52, maxMidi: 64 })).toEqual({ size: 1024, range: { minMidi: 45, maxMidi: 71 } });
   });
+});
+
+describe('sample-rate-aware pitch windows (R3-C-03)', () => {
+  /** USB interfaces run at any of these; the owner's may be set to 44.1, 48 or 96 kHz. */
+  const ALL_RATES = [44100, 48000, 88200, 96000] as const;
+
+  it('scales the windows with the rate so they stay 42.7–46.4 ms long', () => {
+    expect([44100, 48000, 88200, 96000, 176400, 192000].map(pitchWindowScale)).toEqual([1, 1, 2, 2, 4, 4]);
+    for (const sr of [...ALL_RATES, 176400, 192000]) {
+      const long = planPitchWindow(null, sr).size / sr;
+      const short = planPitchWindow({ minMidi: 52, maxMidi: 64 }, sr).size / sr;
+      expect(long, `${sr} Hz`).toBeGreaterThanOrEqual(0.0426);
+      expect(long, `${sr} Hz`).toBeLessThanOrEqual(2048 / 44100 + 1e-12);
+      expect(short).toBeCloseTo(long / 2, 12);
+    }
+    // The default rate keeps the documented sizes.
+    expect(planPitchWindow(null)).toEqual(planPitchWindow(null, 48000));
+    expect(planPitchWindow({ minMidi: 40, maxMidi: 64 }, 96000)).toEqual({ size: 4096, range: { minMidi: 33, maxMidi: 71 } });
+    expect(planPitchWindow({ minMidi: 52, maxMidi: 64 }, 96000)).toEqual({ size: 2048, range: { minMidi: 45, maxMidi: 71 } });
+  });
+
+  const CASES: { label: string; hint: { minMidi: number; maxMidi: number } | null; midis: number[] }[] = [
+    { label: 'no hint', hint: null, midis: [40, 41, 42, 45] },
+    { label: 'standard E2–E4', hint: { minMidi: 40, maxMidi: 64 }, midis: [40, 41, 42, 45] },
+    { label: "Drop D's D2", hint: { minMidi: 38, maxMidi: 62 }, midis: [38, 40] },
+    { label: 'short window E3–E5', hint: { minMidi: 52, maxMidi: 76 }, midis: [52, 53, 54, 57] },
+  ];
+  for (const sr of ALL_RATES) {
+    it(`${sr} Hz: pitches the low E string (E2–F♯2), Drop D's D2 and E3–F♯3 on the short window`, () => {
+      const offset = Math.round(OFFSET_SEC * sr);
+      for (const { label, hint, midis } of CASES) {
+        const plan = planPitchWindow(hint, sr);
+        const det = createPitchDetector({ sampleRate: sr, size: plan.size });
+        det.setRange(plan.range);
+        for (const midi of midis) {
+          for (const [timbre, signal] of [
+            ['Karplus-Strong', karplusStrong(midiToHz(midi), 0.2, sr, { seed: midi })],
+            ['guitar partials + pluck', applyPluckEnvelope(harmonicTone(midiToHz(midi), 0.2, sr, GUITAR_PARTIALS), sr)],
+          ] as const) {
+            const est = det.detect(addNoise(signal, NOISE_DB, midi), offset);
+            expect(est?.midi, `${label}, ${timbre}, MIDI ${midi}`).toBe(midi);
+          }
+        }
+      }
+    });
+  }
 });
 
 describe('frequency ↔ MIDI helpers', () => {

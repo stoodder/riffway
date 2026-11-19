@@ -9,6 +9,7 @@ import {
   createPitchChangeDetector,
   createPitchDetector,
   type PitchDetector,
+  type PitchWindowSize,
 } from '@core/dsp';
 
 export const HOP = 128;
@@ -44,7 +45,7 @@ export interface AnalysisResult {
 export function analyse(
   signal: Float32Array,
   sampleRate: number,
-  opts: { size?: 1024 | 2048; range?: { minMidi: number; maxMidi: number } | null } = {},
+  opts: { size?: PitchWindowSize; range?: { minMidi: number; maxMidi: number } | null } = {},
 ): AnalysisResult {
   const size = opts.size ?? 2048;
   const onsetDetector = createOnsetDetector({ sampleRate });

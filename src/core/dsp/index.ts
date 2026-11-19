@@ -27,11 +27,17 @@ export interface PitchDetector {
   setRange(range: { minMidi: number; maxMidi: number } | null): void;
 }
 
+/**
+ * Pitch window sizes (samples): 1024 / 2048 (onset pitch) and 4096 (tuner) at 44.1–48 kHz, times
+ * `pitchWindowScale(sampleRate)` (2 or 4) at higher rates.
+ */
+export type PitchWindowSize = 1024 | 2048 | 4096 | 8192 | 16384;
+
 /** Options for {@link createPitchDetector}. */
 export interface PitchDetectorOptions {
   sampleRate: number;
-  /** Window: 1024, 2048 or 4096 (tuner). */
-  size: 1024 | 2048 | 4096;
+  /** Window size; see {@link PitchWindowSize}. */
+  size: PitchWindowSize;
   a4?: number;
 }
 
@@ -98,6 +104,7 @@ export {
   freqToMidi,
   freqToMidiFloat,
   midiToFreq,
+  pitchWindowScale,
   planPitchWindow,
   E2_MIDI,
   E6_MIDI,

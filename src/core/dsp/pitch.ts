@@ -16,7 +16,7 @@
  * @module
  */
 import { RealFft } from './fft';
-import type { PitchDetector, PitchDetectorOptions, PitchEstimate } from './index';
+import type { PitchDetector, PitchDetectorOptions, PitchEstimate, PitchWindowSize } from './index';
 
 /** Lowest note of standard tuning (E2, 82.4 Hz). */
 export const E2_MIDI = 40;
@@ -95,28 +95,54 @@ export function freqToMidi(freq: number, a4 = 440): { midi: number; cents: numbe
 
 /** Window size and search range for an expected-note hint; see {@link planPitchWindow}. */
 export interface PitchWindowPlan {
-  size: 1024 | 2048;
+  size: PitchWindowSize;
   /** Search range for {@link PitchDetector.setRange}; `null` = E2–E6. */
   range: { minMidi: number; maxMidi: number } | null;
+}
+
+/** The sample rate the base window sizes (1024 / 2048 / tuner 4096) are designed for. */
+const BASE_RATE = 44100;
+/** Largest {@link pitchWindowScale} (192 kHz); the windows then reach the detector's 16384 limit. */
+const MAX_WINDOW_SCALE = 4;
+
+/**
+ * Factor applied to every sample-counted analysis length (pitch windows, tuner window and hop,
+ * legato step, retry shift, the onset hold guard) so they keep the same duration at any rate
+ * (R3-C-03): the largest power of two ≤ `sampleRate / 44100`, clamped to 1–4. 44.1 and 48 kHz → 1
+ * (N = 2048 is 46.4 / 42.7 ms), 88.2 and 96 kHz → 2, 176.4 and 192 kHz → 4. The windows therefore
+ * never last longer than at 44.1 kHz (the judge's `GUITAR_ANALYSIS_DELAY_SEC` budget), and two
+ * periods of Drop D's D2 always fit the long one. Rates below 44.1 kHz are not supported.
+ */
+export function pitchWindowScale(sampleRate: number): 1 | 2 | 4 {
+  if (!(sampleRate > 0)) throw new RangeError(`sample rate must be > 0, got ${sampleRate}`);
+  const scale = 2 ** Math.floor(Math.log2(sampleRate / BASE_RATE) + 1e-9);
+  return Math.min(MAX_WINDOW_SCALE, Math.max(1, scale)) as 1 | 2 | 4;
 }
 
 /**
  * Choose the analysis window and search range from the main thread's `expect` hint
  * (docs/audio-input.md): N = 2048 when the lowest expected note is below ~160 Hz or there is no
- * hint, else 1024; search the expected range widened by ±7 semitones, or E2–E6 without a hint.
+ * hint, else 1024, both × {@link pitchWindowScale} of `sampleRate` (default 48 kHz); search the
+ * expected range widened by ±7 semitones, or E2–E6 without a hint.
  */
-export function planPitchWindow(expect: { minMidi: number; maxMidi: number } | null): PitchWindowPlan {
-  if (!expect) return { size: 2048, range: null };
+export function planPitchWindow(expect: { minMidi: number; maxMidi: number } | null, sampleRate = 48000): PitchWindowPlan {
+  const scale = pitchWindowScale(sampleRate);
+  const long = (2048 * scale) as PitchWindowSize;
+  if (!expect) return { size: long, range: null };
   return {
-    size: midiToFreq(expect.minMidi) < LONG_WINDOW_BELOW_HZ ? 2048 : 1024,
+    size: midiToFreq(expect.minMidi) < LONG_WINDOW_BELOW_HZ ? long : ((1024 * scale) as PitchWindowSize),
     range: { minMidi: expect.minMidi - EXPECT_WIDEN_SEMITONES, maxMidi: expect.maxMidi + EXPECT_WIDEN_SEMITONES },
   };
 }
 
+/** Window sizes {@link createPitchDetector} accepts. */
+const PITCH_WINDOW_SIZES: readonly number[] = [1024, 2048, 4096, 8192, 16384];
+
 /**
  * Create an MPM pitch detector for windows of `opts.size` samples. The search range defaults to
  * E2–E6; lags are capped at `size / 2` so at least two periods fit the window (at 48 kHz a
- * 1024 window reaches down to ~94 Hz, 2048 to E2 and below). `detect()` returns the same
+ * 1024 window reaches down to ~94 Hz, 2048 to E2 and below; at higher rates scale the size with
+ * {@link pitchWindowScale}). `detect()` returns the same
  * {@link PitchEstimate} object on every call.
  */
 export function createPitchDetector(opts: PitchDetectorOptions): PitchDetector {
@@ -146,7 +172,7 @@ class MpmDetector implements PitchDetector {
 
   constructor(opts: PitchDetectorOptions) {
     const { size, sampleRate } = opts;
-    if (size !== 1024 && size !== 2048 && size !== 4096) throw new RangeError(`unsupported window size ${String(size)}`);
+    if (!PITCH_WINDOW_SIZES.includes(size)) throw new RangeError(`unsupported window size ${String(size)}`);
     if (!(sampleRate > 0)) throw new RangeError(`sample rate must be > 0, got ${sampleRate}`);
     this.size = size;
     this.sampleRate = sampleRate;

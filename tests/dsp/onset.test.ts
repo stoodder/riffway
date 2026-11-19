@@ -276,6 +276,26 @@ describe('onset detector: pick/finger contact before the pluck (recorded guitar)
     expect(found[1].detectedAt - found[1].frame).toBeLessThanOrEqual(((ATTACK_MS + 6) / 1000) * sr);
   });
 
+  for (const sr of [48000, 96000]) {
+    it(`${sr} Hz: the guard scales with the pitch window, so a soft onset 65 ms after a loud one is not held (R3-C-03)`, () => {
+      // The previous onset's long window (+ retry) ends 25 ms + 53.3 ms after it at either rate
+      // (2560 samples at 48 kHz, 5120 at 96 kHz), so a suspect trigger 65 ms later is reported at once.
+      const signal = renderTimeline(
+        [
+          { atSec: 0.1, signal: pluckAt(110, 0.045, sr, -6, 1) },
+          { atSec: 0.165, signal: pluckAt(220, 0.3, sr, -26, 2) },
+        ],
+        0.6,
+        sr,
+        -75,
+      );
+      const found = detect(signal, sr);
+      expect(found).toHaveLength(2);
+      expect(Math.abs(found[1].frame - 0.165 * sr)).toBeLessThanOrEqual(0.005 * sr);
+      expect(found[1].detectedAt - found[1].frame).toBeLessThanOrEqual(((ATTACK_MS + 6) / 1000) * sr);
+    });
+  }
+
   it('reports a lone soft note after a loud one, at most CONFIRM_MS + 1 hop late', () => {
     const sr = 48000;
     const signal = renderTimeline(

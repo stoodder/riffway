@@ -175,6 +175,63 @@ describe('AnalysisCore channel selection', () => {
   });
 });
 
+describe('AnalysisCore at the interface sample rate (R3-C-03)', () => {
+  /** E2, F2, F♯2 (low E frets 0–2), A2, then E3, F3, F♯3. */
+  const LOW = [40, 41, 42, 45, 52, 53, 54];
+  const at = (midis: readonly number[]) => midis.map((midi, i) => ({ atSec: 0.3 + i * 0.4, midi }));
+
+  for (const sr of [44100, 48000, 88200, 96000]) {
+    describe(`${sr} Hz`, () => {
+      const scale = sr >= 88200 ? 2 : 1;
+
+      it('scales the pitch window with the rate', () => {
+        const core = new AnalysisCore({ sampleRate: sr, channel: 0, tuner: false }, () => undefined);
+        expect(core.windowSize).toBe(2048 * scale);
+        core.command({ type: 'expect', range: { minMidi: 60, maxMidi: 72 } });
+        expect(core.windowSize).toBe(1024 * scale);
+      });
+
+      it('pitches the low E string and E3–F♯3, hinted and unhinted', () => {
+        const notes = at(LOW);
+        const signal = melody(notes, 3.4, sr);
+        for (const range of [null, { minMidi: 40, maxMidi: 64 }]) {
+          const onsets = ofType(runCore([signal], { sampleRate: sr, commands: [{ frame: 0, cmd: { type: 'expect', range } }] }), 'onset');
+          expect(onsets.map((o) => o.midi), JSON.stringify(range)).toEqual(LOW);
+          onsets.forEach((o, i) => expect(Math.abs(o.frame - notes[i].atSec * sr)).toBeLessThanOrEqual(0.005 * sr));
+        }
+      });
+
+      it("pitches Drop D's D2 with its hint", () => {
+        const notes = at([38, 45, 50]);
+        const onsets = ofType(
+          runCore([melody(notes, 1.6, sr)], { sampleRate: sr, commands: [{ frame: 0, cmd: { type: 'expect', range: { minMidi: 38, maxMidi: 62 } } }] }),
+          'onset',
+        );
+        expect(onsets.map((o) => o.midi)).toEqual([38, 45, 50]);
+      });
+
+      it('pitches E3–F♯3 on the short window (hint above 160 Hz)', () => {
+        const notes = at([52, 53, 54, 57]);
+        const onsets = ofType(
+          runCore([melody(notes, 2, sr)], { sampleRate: sr, commands: [{ frame: 0, cmd: { type: 'expect', range: { minMidi: 52, maxMidi: 76 } } }] }),
+          'onset',
+        );
+        expect(onsets.map((o) => o.midi)).toEqual([52, 53, 54, 57]);
+      });
+
+      it("tunes Drop D's low D2 with ~23 Hz frames", () => {
+        const dropD = midiToHz(38) * 2 ** (-12 / 1200);
+        const frames = ofType(runCore([pluckedTone(dropD, 1.5, sr, { decaySec: 3 })], { sampleRate: sr, tuner: true }), 'tuner');
+        expect(frames.length).toBeGreaterThan(20);
+        for (const f of frames.slice(1, -1)) expect(Math.abs(centsBetween(f.freq, dropD))).toBeLessThan(2);
+        const gapSec = (frames[2].frame - frames[1].frame) / sr;
+        expect(gapSec).toBeGreaterThan(0.04);
+        expect(gapSec).toBeLessThan(0.05);
+      });
+    });
+  }
+});
+
 describe('AnalysisCore tuner frames', () => {
   const dropD = midiToHz(38) * 2 ** (-12 / 1200);
   const tone = pluckedTone(dropD, 2.5, SR, { decaySec: 3 });

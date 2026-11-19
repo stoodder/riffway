@@ -26,7 +26,10 @@ Code: `src/audio/input/` (`devices.ts` matching rules, `constraints.ts`, `analys
 3. Choice, in order: the saved `deviceId`; the saved label (exact, then normalised); a physical device
    whose label matches `/usb|cubilux|guitar|audio codec/i`; the `default` alias; the first input.
    When something was saved but is not connected, the input still opens on the fallback, flagged
-   `fellBackToDefault`, and the panel says "Your guitar input wasn't found".
+   `fellBackToDefault`, and the panel says "Your guitar input wasn't found". A game never judges a
+   fallback input (R3-C-02): in `auto` and `guitar` input mode it plays with the keys and the start
+   card says the guitar isn't connected (a fallback the game opened is closed again). Picking that
+   input in the panel saves it and is the explicit opt-in.
 4. `{deviceId, label}` is persisted in `settings.input` on every successful open that did not fall back
    (an explicit pick or the automatic USB preselect); `channel` is its own setting.
 5. **Unplug:** the track's `ended` event closes the input (`current = null`, `getInputNode() = null`)
@@ -54,7 +57,13 @@ warning in the panel. If an automatic choice cannot be opened (`OverconstrainedE
 **Sample rate.** When the track reports a rate different from the context's, the service calls
 `engine.setSampleRate(trackRate)` so Chrome does not resample; the engine recreates its context and
 the service rebuilds its graph on the new one (`onContextChange`; monitoring re-reads `getInputNode()`
-on `onDevicesChanged`).
+on `onDevicesChanged`). Supported rates: 44.1 kHz and up (a USB interface such as the Cubilux may run
+at 44.1, 48, 88.2 or 96 kHz). Every sample-counted analysis length below (pitch windows, tuner window
+and hop, legato step, retry shift, onset hold guard) is given for 44.1–48 kHz and multiplied by
+`pitchWindowScale(sampleRate)` (`@core/dsp`): 2 at 88.2/96 kHz, 4 at 176.4/192 kHz. The windows thus
+keep their duration (42.7–46.4 ms for the long one), two periods of Drop D's D2 always fit, and the
+delivery budget is unchanged (R3-C-03; before, a fixed 2048-sample window at 96 kHz could not pitch
+E2–F♯2).
 
 **Channels.** The analysis node takes exactly two discrete input channels; the worklet analyses
 channel 0, channel 1 or their mean (`settings.input.channel`: 0, 1 or `mix`; the panel shows the
@@ -72,7 +81,7 @@ audio".
 
 ## Tuner
 - Same worklet, in tuner mode (`setTunerMode(true)`, sent as `config`): N = 4096, hop 2048 (~23 Hz at
-  48 kHz), search range B1–E6 (covers Drop C and Drop D below standard's E2). Frames are
+  48 kHz; both × 2 at 88.2/96 kHz), search range B1–E6 (covers Drop C and Drop D below standard's E2). Frames are
   `{type:'tuner', frame, freq, clarity}` (`freq` 0 for none); the panel smooths them on the main thread
   with `createTunerSmoother` (`@core/dsp`).
 - Median of the last 5 valid frames (clarity ≥ 0.9); numbers never jump on noise (the last value is
@@ -108,11 +117,12 @@ worklet's state machine (Node-tested quantum by quantum); the worklet file is a 
   attack proves loud, after 40 ms sustained undamped (a re-pick at the ringing level), when an
   unrelated trigger arrives past the refractory period (held one first, the new one a hop later), or
   after 70 ms (`CONFIRM_MS`). Only the report is delayed, never the frame. A trigger is held only
-  when the last reported onset is ≥ 25 ms + 2560 samples old, so `AnalysisCore` never measures the
+  when the last reported onset is ≥ 25 ms + 2560 samples (× the rate scale) old, so `AnalysisCore` never measures the
   previous onset's pitch window (or its retry) across an onset still held.
 
 **Pitch** (`pitch.ts`, MPM/NSDF via a radix-2 FFT, preallocated buffers):
-- Window N = 2048, or 1024 when the `expect` hint's lowest note is above ~160 Hz. The main thread posts
+- Window N = 2048, or 1024 when the `expect` hint's lowest note is above ~160 Hz (× 2 at 88.2/96 kHz:
+  4096 / 2048; `planPitchWindow(hint, sampleRate)`). The main thread posts
   `{type:'expect', range: {minMidi, maxMidi} | null}` from the upcoming notes; the search range is the
   hint ±7 semitones (E2–E6 without a hint), and the lag search extends one more semitone each way so
   out-of-tune edge notes are found. Without a hint, notes below D♯2 (Drop D's low D) are not searched:
@@ -132,17 +142,19 @@ worklet's state machine (Node-tested quantum by quantum); the worklet file is a 
 - The onset's pitch is measured on the N-sample window starting 25 ms after it and emitted as
   `{type:'onset', frame, midi, cents, clarity, rmsDb}` (`rmsDb` of that window) as soon as the window is
   complete. If clarity < 0.6, `midi: null`, and one retry window 512 samples later may produce a
-  follow-up `{type:'pitch', frame, onsetFrame, midi…}` (≈ 11 ms later; the judge holds the onset open).
+  follow-up `{type:'pitch', frame, onsetFrame, midi…}` (≈ 11 ms later, 512 samples × the rate scale;
+  the judge holds the onset open).
 - If the next onset arrives before the window is complete, the latest window that ends at the new
   onset is used instead when it starts ≥ 8 ms after the old one, else the old onset is unpitched — a
   window never spans two plucks. At N = 2048 that pitches notes ≥ ~51 ms apart.
 - Delivery: an onset message leaves the worklet within one quantum of 25 ms + N after the onset
   (67.7–70.3 ms at N = 2048 / 48 kHz), or of 70 ms for a held suspect onset (72.9 ms at 44.1 kHz;
-  at N = 2048 a hold adds ≤ 2.3 ms, at N = 1024 ≤ 24 ms); 74.3 ms worst case at 44.1 kHz either way.
-  The judge's guitar input horizon (`INPUT_LAG_SEC.guitar` = 109.3 ms) covers this plus main-thread
-  delivery. Measured in § Audio-pipeline results.
+  at N = 2048 a hold adds ≤ 2.3 ms, at N = 1024 ≤ 24 ms); 74.3 ms worst case at 44.1 kHz either way
+  (88.2 / 96 kHz with the scaled windows: ≤ 72.9 / 69.0 ms unheld, measured worst held 72.7 / 70.7 ms).
+  The judge's guitar input horizon (`INPUT_LAG_SEC.guitar` = 134.3 ms) covers this plus a 60 ms
+  main-thread delivery margin. Measured in § Audio-pipeline results.
 
-**Pitch-change detector** (legato, `pitch-change.ts`): every 256 samples an MPM frame on the newest
+**Pitch-change detector** (legato, `pitch-change.ts`): every 256 samples (× the rate scale) an MPM frame on the newest
 N-sample window, stamped at the window centre, feeds the detector. During a sustained note, a pitch
 that moves ≥ 0.8 semitone and stays for ≥ 25 ms without an amplitude onset emits
 `{type:'pitch-change', frame, midi, cents, clarity}` with `frame` = the detector's `changeFrame` (first
@@ -175,7 +187,10 @@ Chord *verification* (harmonic salience at expected f0s, chroma template match) 
   note and from silence), a pick damping a ringing string before the pluck, an undamped re-pick, a
   soft note followed 50 ms later by a louder one, the hold guard, a lone soft note; a faint
   sub-octave / sub-twelfth under noise at N = 1024 and 2048; bends and slides through the window;
-  steady out-of-tune notes; octave jumps in the legato detector.
+  steady out-of-tune notes; octave jumps in the legato detector. R3-C-03 adds the rate scaling:
+  E2–F♯2, Drop D's D2 and E3–F♯3 (short window) pitched at 44.1, 48, 88.2 and 96 kHz, hinted and
+  unhinted, through the detector and `AnalysisCore`, tuner frames at every rate, the scaled hold
+  guard, and the held-onset delivery budget at all four rates.
 - Browser (`npx vitest run --project browser tests/input`): the real worklet on an
   `OfflineAudioContext` fed by an `AudioBufferSource` of plucks (frames ±5 ms, pitches, stereo channel
   select, tuner frames) and the service on Chrome's fake capture device.
@@ -303,10 +318,18 @@ detectors themselves have no rumble rejection, so a microphone in a noisy room i
 | 30 ms busy block every 100 ms | 71.3–74.0 ms | 79.3–83.3 ms | 80.7–83.3 ms | 21.3 / 29.3 ms |
 
 The analysis part is exact (Node, every onset of the Ode to Joy run): 25 ms + 2048 samples + ≤ 1
-quantum ≤ 70.3 ms at 48 kHz (`GUITAR_ANALYSIS_DELAY_SEC` budgets 74.3 ms for 44.1 kHz). Against
-`INPUT_LAG_SEC.guitar` = 109.3 ms that leaves ≥ 32 ms idle and ≥ 26 ms under 30 ms jank. Only a
+quantum ≤ 70.3 ms at 48 kHz (`GUITAR_ANALYSIS_DELAY_SEC` budgets 74.3 ms for 44.1 kHz). Only a
 late Good near +120 ms is at risk when delivery overruns: `pipeline.test.ts` shows a +115 ms pluck
 stays Good with delivery 20 ms inside the budget and becomes a Miss 30 ms beyond it.
-**Recommendation:** keep `INPUT_LAG_SEC.guitar` at ≈ 0.110 s (no change). Re-measure on the owner's
-Mac: a CoreAudio callback of 256–512 frames makes `currentTime` advance in 5–11 ms steps, which
-the 35 ms delivery margin absorbs.
+
+**Delivery margin: 60 ms** (`INPUT_DELIVERY_MARGIN_SEC`, so `INPUT_LAG_SEC.guitar` = 134.3 ms;
+R3-C-01 widened it from 35 ms). The 29.3 ms measured above is only the length of the test's own
+30 ms busy block in headless Chromium. On a Mac a CoreAudio callback of 256–512 frames also lets
+`currentTime` run 5.8–11.6 ms ahead of messages not yet dispatched, and when a long task ends the
+session's delayed tick can run before the worklet message. With the old 35 ms margin a ~40 ms long
+task turned a late Good into a Miss, and the late onset then landed on the next note as a WrongNote
+(combo broken). 60 ms covers a 512-frame step plus a ~45 ms long task even at +119 ms
+(`held-onset-budget.test.ts` § R3-C-01). Cost: hits are final at once, so hit feedback is unchanged;
+Miss and final WrongNote marks (and the combo reset on a Miss) appear ~25 ms later, ~255 ms instead
+of ~230 ms after the note; unpitched-onset expiry, the song-end settle and the loop-pass / trainer
+evaluation move 25 ms later too. Keyboard-only play is unaffected.

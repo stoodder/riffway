@@ -24,8 +24,21 @@ export const FIXTURES = {
   pasteTab: join(ROOT, 'e2e/fixtures/paste-arpeggio.txt'),
 } as const;
 
-/** Where screenshots for the owner go (committed). */
-export const SCREENSHOT_DIR = join(ROOT, 'e2e/screenshots');
+/** The committed screenshots for the owner; written only on request (see {@link screenshotDir}). */
+export const COMMITTED_SCREENSHOT_DIR = join(ROOT, 'e2e/screenshots');
+
+/** Where an ordinary e2e run writes its screenshots (git-ignored). */
+export const SCRATCH_SCREENSHOT_DIR = join(ROOT, 'test-results/e2e-screenshots');
+
+/**
+ * The screenshot directory for this run. A plain `npm run test:e2e` writes to
+ * {@link SCRATCH_SCREENSHOT_DIR}, so the gate leaves the working tree clean (PNG bytes differ from run
+ * to run). `RIFFWAY_UPDATE_SCREENSHOTS=1` (or `true`) refreshes the committed
+ * {@link COMMITTED_SCREENSHOT_DIR} instead.
+ */
+export function screenshotDir(env: Readonly<Record<string, string | undefined>> = process.env): string {
+  return /^(1|true)$/i.test(env.RIFFWAY_UPDATE_SCREENSHOTS ?? '') ? COMMITTED_SCREENSHOT_DIR : SCRATCH_SCREENSHOT_DIR;
+}
 
 /** The library folder inside a data dir (`RIFFWAY_LIBRARY_DIR` for the server). */
 export function libraryDir(dataDir: string): string {

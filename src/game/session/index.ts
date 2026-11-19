@@ -213,17 +213,39 @@ async function loadSession(
 }
 
 /**
+ * Start-card notice when the saved guitar input is not connected (R3-C-02). `label` is the saved
+ * device's label, if any.
+ */
+export function guitarMissingNotice(label: string | null): string {
+  const name = label ? ` “${label}”` : '';
+  return `Your guitar input${name} isn’t connected — playing with the keys. Plug it in and open the song again, or choose another input in Audio setup.`;
+}
+
+/**
  * The guitar input to judge, or null for keyboard only. `auto` uses an input that is already open,
  * or opens the device the player chose before; it never prompts for a device on its own.
+ *
+ * Neither `auto` nor `guitar` judges a fallback input (R3-C-02): when the saved device is unplugged,
+ * the input service falls back to the system default (typically the laptop microphone, which also
+ * hears the guide synth). The session then plays with the keys and posts {@link guitarMissingNotice};
+ * a fallback this call opened is closed again, one opened elsewhere (Audio setup) is left alone.
+ * Choosing that input in Audio setup saves it and is the explicit opt-in.
  */
 async function openGuitar(ctx: AppContext, mode: SessionInputMode, notice: (t: string) => void): Promise<InputService | null> {
   if (mode === 'keyboard') return null;
-  const chosen = ctx.settings.get().input.deviceId !== null;
+  const saved = ctx.settings.get().input;
+  const chosen = saved.deviceId !== null;
   const existing = ctx.services.peek('input');
   if (mode === 'auto' && !existing?.current && !chosen) return null;
   try {
     const input = existing ?? (await ctx.services.get('input'));
-    if (!input.current) await input.open();
+    const openedHere = !input.current;
+    if (openedHere) await input.open();
+    if (input.current?.fellBackToDefault) {
+      if (openedHere) input.close();
+      notice(guitarMissingNotice(saved.label));
+      return null;
+    }
     // Monitoring follows its settings once the input is open.
     void ctx.services.get('monitor').catch((err: unknown) => console.warn('Riffway: monitoring unavailable', err));
     return input;

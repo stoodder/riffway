@@ -31,10 +31,11 @@ histogram is on the results screen.
 
 The guitar horizon covers held onsets too: the onset detector may hold a suspect trigger (contact
 noise, a soft note after a loud one, a re-pick on a ringing string) for up to 70 ms, and every onset
-message — held or not, at 44.1 or 48 kHz, either pitch window — is still posted within
-`GUITAR_ANALYSIS_DELAY_SEC` (74.3 ms; measured worst 74.1 ms at 44.1 kHz). With the worst measured
-main-thread delay (29.3 ms under 30 ms jank) a late Good at +115 ms stays a Good
-(`tests/judge/held-onset-budget.test.ts`).
+message — held or not, at 44.1, 48, 88.2 or 96 kHz, either pitch window — is still posted within
+`GUITAR_ANALYSIS_DELAY_SEC` (74.3 ms; measured worst 74.1 ms at 44.1 kHz). The 60 ms delivery margin
+on top keeps a late Good a Good through a 512-frame audio-callback step plus a ~45 ms main-thread
+long task, also when the delayed tick runs before the message, and the late onset then never lands
+on the next note (`tests/judge/held-onset-budget.test.ts`; R3-C-01).
 
 ## Judge algorithm (`src/core/judge/`)
 Pure and deterministic; input is a stream of `InputEvent`s (`shared/judge.ts`):
@@ -90,9 +91,11 @@ stretch task (T-070).
   `keyboardEventCtx(timeStamp, outputTimestamp, keyboardOffsetMs)` for keys.
 - **`advance(now)`** every frame (also while paused) takes the *input horizon*, not `ctx.currentTime`:
   `inputHorizon(ctxNow, source, offsetMs, outputLatency)` = `ctxNow − offset − INPUT_LAG_SEC[source]`
-  (guitar ≈ 110 ms: 25 ms pitch wait + a 2048-sample window at 44.1 kHz + one render quantum + 35 ms
+  (guitar ≈ 134 ms: 25 ms pitch wait + a 2048-sample window at 44.1 kHz + one render quantum + 60 ms
   delivery margin; keyboard 20 ms). A window therefore closes only after every onset that could land
-  in it has arrived, so a pluck 110 ms late is still a Good.
+  in it has arrived, so a pluck 110 ms late is still a Good. Hits are final at once; with a guitar
+  open, Miss and final WrongNote marks appear when the horizon passes the Good window, ~255 ms after
+  the note (keyboard only: ~140 ms).
 - **Targets** resolve live per pass from `clock.ctxTimeInPass(note.time, pass)`, so speed changes are
   followed exactly. A finite value is the target. `NaN` means not known yet: **while paused** the
   notes after the pause point are not candidates and never close, so onsets during a pause are strays
@@ -201,7 +204,9 @@ start speed, loads the backing link (guide muted per `guideShouldMute`), opens t
   loop with its 1- or 2-bar pre-roll.
 - **Guitar input:** the `input` route param, else settings `game.inputMode`: `keyboard` never opens
   it; `auto` (default) uses an input that is already open or the device chosen before (it never
-  prompts on its own); `guitar` opens it. With `?e2e=1` the default is `keyboard` (a fake capture
+  prompts on its own); `guitar` opens it. Neither judges a fallback input: when the saved guitar is
+  unplugged the run is keyboard-only and the start card says "Your guitar input “…” isn’t connected"
+  (R3-C-02; [audio-input.md](audio-input.md)). With `?e2e=1` the default is `keyboard` (a fake capture
   device's beeps would add onsets).
 - **Practice state** read by the practice panel: `countInBars` (from settings `practice.countInBars`,
   then `setCountInBars`), `metronome` (settings `practice.metronome`, `setMetronome`, and later settings

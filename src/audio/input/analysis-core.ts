@@ -16,6 +16,10 @@
  * - **Tuner** (when on): N = 4096, hop 2048 (~23 Hz at 48 kHz) → `tuner` frames, smoothed on the main
  *   thread.
  *
+ * Every sample count above is for 44.1–48 kHz; at 88.2/96 kHz (and 176.4/192 kHz) it is multiplied by
+ * `pitchWindowScale(sampleRate)` (2, 4), so windows, hops and shifts keep their duration and the
+ * lowest strings still fit two periods in the window (R3-C-03).
+ *
  * Allocation-free per quantum apart from the event objects handed to `emit`.
  * @module
  */
@@ -24,12 +28,14 @@ import {
   createOnsetDetector,
   createPitchChangeDetector,
   createPitchDetector,
+  pitchWindowScale,
   planPitchWindow,
   type LegatoDetector,
   type LevelMeter,
   type OnsetDetector,
   type PitchDetector,
   type PitchEstimate,
+  type PitchWindowSize,
 } from '@core/dsp';
 import type { AnalysisCommand, AnalysisEvent, AnalysisProcessorOptions } from '@shared/audio-events';
 
@@ -42,13 +48,13 @@ export const QUANTUM = 128;
 export const LEVEL_INTERVAL_SEC = 0.05;
 /** The onset's pitch window starts this long after the onset (past the inharmonic attack). */
 export const ONSET_PITCH_DELAY_SEC = 0.025;
-/** An onset whose first estimate is unclear is re-measured once, this many samples later. */
+/** An onset whose first estimate is unclear is re-measured once, this many samples later (× scale). */
 export const RETRY_SHIFT_FRAMES = 512;
 /** Below this clarity an onset is reported unpitched (`midi: null`). */
 export const ONSET_MIN_CLARITY = 0.6;
-/** Legato pitch frames every this many samples. */
+/** Legato pitch frames every this many samples (× scale). */
 export const PITCH_STEP_FRAMES = 256;
-/** Tuner window and hop. */
+/** Tuner window and hop (× scale). */
 export const TUNER_WINDOW = 4096;
 export const TUNER_HOP_FRAMES = 2048;
 /**
@@ -58,9 +64,11 @@ export const TUNER_HOP_FRAMES = 2048;
 export const TUNER_RANGE = { minMidi: 35, maxMidi: 88 } as const;
 /** An early (cut-short) pitch window must start at least this long after its onset. */
 const EARLY_MIN_SEC = 0.008;
-/** Ring buffer length (power of two; holds the tuner window plus the onset delay and retry). */
+/**
+ * Ring buffer length at scale 1 (power of two; holds the tuner window, and the onset delay, retry
+ * and long window, with room to spare). Scaled like the windows.
+ */
 const RING_SIZE = 16384;
-const RING_MASK = RING_SIZE - 1;
 
 /** Options for {@link AnalysisCore}. */
 export interface AnalysisCoreOptions {
@@ -95,7 +103,8 @@ export class AnalysisCore {
   private tuner: boolean;
   private readonly emit: (ev: AnalysisEvent) => void;
 
-  private readonly ring = new Float32Array(RING_SIZE);
+  private readonly ring: Float32Array;
+  private readonly ringMask: number;
   private readonly mono = new Float32Array(QUANTUM);
   /** Frame just past the newest sample in the ring; −1 before the first quantum. */
   private endFrame = -1;
@@ -108,16 +117,20 @@ export class AnalysisCore {
 
   private readonly onsets: OnsetDetector;
   private readonly legato: LegatoDetector;
-  private readonly detectors: { 1024: PitchDetector; 2048: PitchDetector };
-  private readonly windows: { 1024: Float32Array; 2048: Float32Array };
-  private size: 1024 | 2048 = 2048;
+  /** The short and the long onset/legato pitch window; `win` is the one the last hint chose. */
+  private readonly shortWin: PitchWindow;
+  private readonly longWin: PitchWindow;
+  private win: PitchWindow;
   private readonly delayFrames: number;
+  private readonly retryShiftFrames: number;
+  private readonly pitchStepFrames: number;
   private readonly earlyMinFrames: number;
   private pending: PendingOnset | null = null;
   private readonly measured: Measured = { midi: 0, cents: 0, clarity: 0, rmsDb: -120 };
 
   private readonly tunerDetector: PitchDetector;
-  private readonly tunerWindow = new Float32Array(TUNER_WINDOW);
+  private readonly tunerWindow: Float32Array;
+  private readonly tunerHopFrames: number;
   private nextTunerFrame = 0;
 
   constructor(opts: AnalysisCoreOptions, emit: (ev: AnalysisEvent) => void) {
@@ -131,29 +144,39 @@ export class AnalysisCore {
     this.levelEvery = Math.max(1, Math.round((LEVEL_INTERVAL_SEC * sampleRate) / QUANTUM));
     this.onsets = createOnsetDetector({ sampleRate, hop: QUANTUM });
     this.legato = createPitchChangeDetector({ sampleRate });
-    this.detectors = {
-      1024: createPitchDetector({ sampleRate, size: 1024 }),
-      2048: createPitchDetector({ sampleRate, size: 2048 }),
-    };
-    this.windows = { 1024: new Float32Array(1024), 2048: new Float32Array(2048) };
+    const scale = pitchWindowScale(sampleRate);
+    this.ring = new Float32Array(RING_SIZE * scale);
+    this.ringMask = this.ring.length - 1;
+    const long = planPitchWindow(null, sampleRate).size;
+    this.longWin = pitchWindow(sampleRate, long);
+    this.shortWin = pitchWindow(sampleRate, (long / 2) as PitchWindowSize);
+    this.win = this.longWin;
     this.delayFrames = Math.round(ONSET_PITCH_DELAY_SEC * sampleRate);
+    this.retryShiftFrames = RETRY_SHIFT_FRAMES * scale;
+    this.pitchStepFrames = PITCH_STEP_FRAMES * scale;
     this.earlyMinFrames = Math.round(EARLY_MIN_SEC * sampleRate);
-    this.tunerDetector = createPitchDetector({ sampleRate, size: TUNER_WINDOW });
+    const tunerSize = (TUNER_WINDOW * scale) as PitchWindowSize;
+    this.tunerWindow = new Float32Array(tunerSize);
+    this.tunerHopFrames = TUNER_HOP_FRAMES * scale;
+    this.tunerDetector = createPitchDetector({ sampleRate, size: tunerSize });
     this.tunerDetector.setRange(TUNER_RANGE);
   }
 
-  /** Current pitch window (1024 or 2048), chosen by the last `expect` hint. */
-  get windowSize(): 1024 | 2048 {
-    return this.size;
+  /**
+   * Current pitch window, chosen by the last `expect` hint: 2048 or 1024 at 44.1–48 kHz, scaled with
+   * the rate above (see {@link pitchWindowScale}).
+   */
+  get windowSize(): PitchWindowSize {
+    return this.win.size;
   }
 
   /** Apply a main-thread command. */
   command(cmd: AnalysisCommand): void {
     switch (cmd.type) {
       case 'expect': {
-        const plan = planPitchWindow(cmd.range);
-        this.size = plan.size;
-        setRangeSafe(this.detectors[plan.size], plan.range);
+        const plan = planPitchWindow(cmd.range, this.sampleRate);
+        this.win = plan.size === this.longWin.size ? this.longWin : this.shortWin;
+        setRangeSafe(this.win.detector, plan.range);
         break;
       }
       case 'config':
@@ -176,8 +199,8 @@ export class AnalysisCore {
     if (this.endFrame !== startFrame) this.restartAt(startFrame);
     const mono = this.mono;
     this.mixDown(channels, mono);
-    const ring = this.ring;
-    for (let i = 0; i < QUANTUM; i++) ring[(startFrame + i) & RING_MASK] = mono[i];
+    const { ring, ringMask } = this;
+    for (let i = 0; i < QUANTUM; i++) ring[(startFrame + i) & ringMask] = mono[i];
     const end = startFrame + QUANTUM;
     this.endFrame = end;
 
@@ -196,7 +219,7 @@ export class AnalysisCore {
     }
     if (this.pending) this.measureDue(this.pending, end);
 
-    if ((end - this.startFrame) % PITCH_STEP_FRAMES === 0 && end - this.startFrame >= this.size) {
+    if ((end - this.startFrame) % this.pitchStepFrames === 0 && end - this.startFrame >= this.win.size) {
       this.trackLegato(end);
     }
     if (this.tuner) this.runTuner(end);
@@ -233,10 +256,10 @@ export class AnalysisCore {
 
   /** Measure the pending onset once its window (or its retry window) is complete. */
   private measureDue(p: PendingOnset, end: number): void {
-    const n = this.size;
-    const start = p.frame + this.delayFrames + (p.stage === 1 ? RETRY_SHIFT_FRAMES : 0);
+    const n = this.win.size;
+    const start = p.frame + this.delayFrames + (p.stage === 1 ? this.retryShiftFrames : 0);
     if (end < start + n) return;
-    const m = this.measure(n, start);
+    const m = this.measure(start);
     this.report(p, m, start + n / 2);
   }
 
@@ -245,9 +268,9 @@ export class AnalysisCore {
    * starts far enough after `p` (the long window, or 1024 when the hint already chose it).
    */
   private measureEarly(p: PendingOnset, next: number): void {
-    const n = this.size;
+    const n = this.win.size;
     const start = next - n;
-    const m = start >= p.frame + this.earlyMinFrames && start >= this.endFrame - RING_SIZE ? this.measure(n, start) : null;
+    const m = start >= p.frame + this.earlyMinFrames && start >= this.endFrame - this.ring.length ? this.measure(start) : null;
     if (p.stage === 0) {
       this.emitOnset(p.frame, m && m.clarity >= ONSET_MIN_CLARITY ? m : null, m);
     } else if (m && m.clarity >= ONSET_MIN_CLARITY) {
@@ -283,10 +306,10 @@ export class AnalysisCore {
   }
 
   /** Pitch of the `n`-sample window starting at `start` (null for silence / no peak). */
-  private measure(n: 1024 | 2048, start: number): Measured | null {
-    const win = this.windows[n];
+  private measure(start: number): Measured | null {
+    const { size: n, buf: win, detector } = this.win;
     this.copyWindow(win, start);
-    const est = this.detectors[n].detect(win);
+    const est = detector.detect(win);
     if (!est) return null;
     let sum = 0;
     for (let i = 0; i < n; i++) sum += win[i] * win[i];
@@ -299,10 +322,9 @@ export class AnalysisCore {
   }
 
   private trackLegato(end: number): void {
-    const n = this.size;
-    const win = this.windows[n];
+    const { size: n, buf: win, detector } = this.win;
     this.copyWindow(win, end - n);
-    const est: PitchEstimate | null = this.detectors[n].detect(win);
+    const est: PitchEstimate | null = detector.detect(win);
     const midi = this.legato.push(est, end - n / 2);
     if (midi >= 0 && est) {
       this.emit({ type: 'pitch-change', frame: this.legato.changeFrame, midi, cents: est.cents, clarity: est.clarity });
@@ -310,19 +332,31 @@ export class AnalysisCore {
   }
 
   private runTuner(end: number): void {
-    if (end - this.startFrame < TUNER_WINDOW) return;
+    const n = this.tunerWindow.length;
+    if (end - this.startFrame < n) return;
     if (this.nextTunerFrame === 0) this.nextTunerFrame = end;
     if (end < this.nextTunerFrame) return;
-    this.nextTunerFrame = end + TUNER_HOP_FRAMES;
-    this.copyWindow(this.tunerWindow, end - TUNER_WINDOW);
+    this.nextTunerFrame = end + this.tunerHopFrames;
+    this.copyWindow(this.tunerWindow, end - n);
     const est = this.tunerDetector.detect(this.tunerWindow);
-    this.emit({ type: 'tuner', frame: end - TUNER_WINDOW / 2, freq: est ? est.freq : 0, clarity: est ? est.clarity : 0 });
+    this.emit({ type: 'tuner', frame: end - n / 2, freq: est ? est.freq : 0, clarity: est ? est.clarity : 0 });
   }
 
   private copyWindow(dst: Float32Array, start: number): void {
-    const ring = this.ring;
-    for (let i = 0; i < dst.length; i++) dst[i] = ring[(start + i) & RING_MASK];
+    const { ring, ringMask } = this;
+    for (let i = 0; i < dst.length; i++) dst[i] = ring[(start + i) & ringMask];
   }
+}
+
+/** A pitch window: its size, detector and sample buffer. */
+interface PitchWindow {
+  size: PitchWindowSize;
+  detector: PitchDetector;
+  buf: Float32Array;
+}
+
+function pitchWindow(sampleRate: number, size: PitchWindowSize): PitchWindow {
+  return { size, detector: createPitchDetector({ sampleRate, size }), buf: new Float32Array(size) };
 }
 
 /** `setRange` that falls back to the default range when the window cannot resolve the hint. */
