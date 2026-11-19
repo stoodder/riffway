@@ -86,6 +86,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-102 | R1 platform fixes | impl | done bdb1b54: R1-P-02..12 fixed w/ regression tests; P-01 open for owner |
 | T-028 | ASCII paste import + rhythm-alignment UI | impl | done 2ca0d10: 43 tests; snap-to-grid + tap-along + preview; UG link-out only |
 | T-101 | R1 core fixes (judge <-> transport) | impl | done 6e58f87: 7 fixed, C-06 rejected, C-08 -> T-022, C-09 provisional; judge driven through real TransportCore |
+| T-022 | Input device, analysis worklet, meter, tuner | impl | done 9d805c6: 69 node + 4 browser + 2 fake-mic e2e; flags verified via getSettings |
 
 ---
 
@@ -306,7 +307,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - 3-minute song renders in < 2 s in a Chrome worker (browser test or logged measurement).
 
 ### T-022 · Input device, analysis worklet, level meter, tuner
-- **Status:** in-progress · **Deps:** T-015, T-016, T-018 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-015, T-016, T-018 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** Also own the docs/audio-input.md update to match T-015's DSP (no spectral flux; 2nd-diff+energy onset; octave check +0.03; 1-semitone range margin; -120 dB floor). Pass the window-centre frame to the pitch-change detector (`changeFrame`). Synthetic test notes must fade out (abrupt cut reads as onset). Thresholds were tuned on synthetic signals only; T-036 validates on recordings.
 - **Owns:** `src/audio/input/`, `src/audio/worklets/analysis.worklet.ts`, `src/ui/panels/input/`,
   `src/ui/panels/tuner/`, `tests/input/`, `docs/audio-input.md` (W2)
