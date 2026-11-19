@@ -70,6 +70,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-010 | Foundation, configs, shared contracts, stubs | impl-foundation | done 07019f4: 25 tests, all scripts green |
 
 | T-013 | Difficulty + hand-position analysis | impl | done 4bc1e80: 41 tests; worked example changed (old example contradicted window rule) |
+| T-020 | Storage and progress core | impl | done dd18d75: 88 tests; CCR: SectionProgress.session (stored locally for now) |
 
 ---
 
@@ -235,7 +236,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Notes:** Calibration against computed difficulty happens in T-029.
 
 ### T-020 · Storage and progress core
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-storage`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-storage`
 - **Owns:** `src/storage/`, `src/core/progress/`, `tests/storage/`, `tests/progress/`, `docs/progress.md` (W1)
 - **Acceptance:**
   - `idb` schema v1 exactly per `docs/progress.md`, fall-through migrations harness; settings store
