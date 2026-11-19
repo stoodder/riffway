@@ -93,6 +93,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-024 | Highway renderer (canvas) | impl | done 6734ee6: 23 node + 13 browser; 19.2k notes draw p95 ~0.6 ms |
 | T-103 | ClassTab rhythm recall, composer, failed files | impl | done 13762f1: playable 2353->2581; ruler-readable 2087 (~survey 2127); composer 3956/3976; failed files visible |
 | T-032 | Practice panel + mixer UI | impl | done eec3689: 57 tests; speed 40-100% (110% overspeed) per transport clamp; A/B strip, trainer ladder, mixer |
+| T-030 | Wave 2 integration | impl | done a7b70ef: additive CCRs, Crunch preset, UG/Songsterr lint guard, graceful mounts, vitest port fix |
 
 ---
 
@@ -407,7 +408,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   the indexed note count.
 
 ### T-030 · Wave 2 integration: contract changes, doc fixes, config, robustness
-- **Status:** in-progress · **Deps:** Wave 2 · **Parallel:** y (with Wave 3; additive changes only) · **Agent:** `impl-integration`
+- **Status:** done · **Deps:** Wave 2 · **Parallel:** y (with Wave 3; additive changes only) · **Agent:** `impl-integration`
 - **Owns:** `shared/**`, `vite.config.ts`, `vitest.config.ts`, `eslint.config.js`, `package.json` (scripts only), `src/types/`, `src/ui/screens/index.ts`, `src/ui/screens/library/`, `src/ui/panels/input/`, `src/ui/panels/tuner/` (if separate), `src/audio/monitor/`, `src/core/dsp/amp/`, `src/game/highway/`, `tests/foundation/`, `starter/README.md`, docs: `song-formats.md`, `sources/local-folder.md`, `game-mechanics.md`, `monitoring.md`
 - **Must NOT touch:** Wave 3 owned paths, T-103 paths (`src/core/import/{ascii,align,midi}/`, `server/indexer/`, `tests/server/`), `docs/timing.md` (T-033 this wave — send text in report).
 - **Acceptance:** (1) CCRs: `SongClockMapping.ctxTimeInPass?`; doc wording for `ClockChange.pass` + `Judge.startPass` (T-101); `matchRoute` catches URIError → null; `shared/storage.ts` `passesSinceGain` comment; `AmpPresetId` gains `'crunch'` with a real Crunch preset; `LatencyEstimate.parts.dspMs` + assumed flags (remove local extensions); fix `src/types/signalsmith-stretch.d.ts` (Promises, transfer list) and drop T-027's local workaround types if they live in owned paths, else note. (2) `vite.config.ts` `optimizeDeps.include: ['@coderline/alphatab']`. (3) ESLint `no-restricted-syntax`/regex rule banning `songsterr.com/api` anywhere and `ultimate-guitar.com` except link-out builders (`server/sources/linkout/`, `src/ui/screens/import/model.ts`). (4) Library screen + tuner panel mount gracefully with a minimal context (foundation registries test green without weakening it). (5) Monitor re-reads `input.getInputNode()` on device change; highway uses `cueShowAt`. (6) Vitest browser port collisions when runs overlap: make the browser API port configurable/auto (document). (7) npm script `test:e2e:input` for `tests/input/e2e`. (8) Docs: ClassTab match rule (sim ≥ 0.5, octave shift, skipped run = 1 miss) in song-formats.md; Origin-port rule, two-phase import, transient-only retries in local-folder.md; highway layout line in game-mechanics.md; Mountain King rating in starter README. Full suite, typecheck, lint green (except files mid-edit by Wave 3 / T-103 — list them).
