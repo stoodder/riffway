@@ -1,29 +1,37 @@
 /**
  * Difficulty constants (docs/difficulty.md). Owned by T-013, calibrated by T-029 against the starter
- * library (every item within ±1 of its target tier). Change a value → update docs/difficulty.md.
+ * library (every item within ±1 of its target tier, `tests/integration/starter-calibration.test.ts`).
+ * Change a value → update docs/difficulty.md (formula, worked example, § Calibration).
  * @module
  */
 import type { DifficultyFactorId } from '@shared/song';
 
-/** Factor weights (sum = 1). */
+/**
+ * Factor weights (sum = 1). T-029 calibration against the starter library (rationale per change in
+ * docs/difficulty.md § Calibration): skipping 0.10 → 0.25, shifts 0.15 → 0.10, span 0.10 → 0.05,
+ * chords 0.10 → 0.05.
+ */
 export const WEIGHTS: Readonly<Record<DifficultyFactorId, number>> = {
   density: 0.35,
   tempo: 0.05,
-  shifts: 0.15,
-  span: 0.1,
-  skipping: 0.1,
+  shifts: 0.1,
+  span: 0.05,
+  skipping: 0.25,
   techniques: 0.15,
-  chords: 0.1,
+  chords: 0.05,
 };
 
-/** Normalisation constants for each factor's `c = clamp((measure − offset) / scale)`. */
+/**
+ * Normalisation constants for each factor's `c = clamp((measure − offset) / scale)`. T-029 calibration:
+ * density scale 7 → 4.5, skipping 0.4 → 0.25, techniques 2 → 1.
+ */
 export const NORMALISE: Readonly<Record<DifficultyFactorId, { offset: number; scale: number }>> = {
-  density: { offset: 1, scale: 7 },
+  density: { offset: 1, scale: 4.5 },
   tempo: { offset: 60, scale: 120 },
   shifts: { offset: 0, scale: 3 },
   span: { offset: 3, scale: 3 },
-  skipping: { offset: 0, scale: 0.4 },
-  techniques: { offset: 0, scale: 2 },
+  skipping: { offset: 0, scale: 0.25 },
+  techniques: { offset: 0, scale: 1 },
   chords: { offset: 0, scale: 3 },
 };
 
@@ -72,8 +80,11 @@ export const SKILL_TECH_SHARE = 0.05;
 /** `chords` tag: ≥ max(`SKILL_CHORD_MIN_GROUPS`, `SKILL_CHORD_SHARE` × groups) chord groups. */
 export const SKILL_CHORD_MIN_GROUPS = 4;
 export const SKILL_CHORD_SHARE = 0.25;
-/** `string-skipping` / `position-shifts` tags: some section's `c` reaches this. */
-export const SKILL_SKIP_MIN_C = 0.5;
+/**
+ * `string-skipping` / `position-shifts` tags: some section's `c` reaches this. The skipping threshold
+ * keeps the tag at `K ≥ 0.2` (0.8 × the 0.25 scale) after the T-029 rescale.
+ */
+export const SKILL_SKIP_MIN_C = 0.8;
 export const SKILL_SHIFT_MIN_C = 1 / 3;
 
 /** Highlights: factors whose peak section `c` reaches this, ordered by peak `weight × c`, at most `HIGHLIGHT_MAX`. */
