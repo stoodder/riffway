@@ -75,6 +75,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-011 | Song model helpers + alphaTab importer | impl | done 3efcc30: 142 tests; golden files; GP7 exports round-trip; triplet feel not applied |
 | T-014 | Judge, scoring and practice logic | impl | done 2d337d8: 159 tests incl. window-edge tables at 40-110% speed; bias-corrected matching |
 | T-018 | App shell, design system, navigation | impl | done 43884ab: 52 tests; gallery at #/dev/components; reduced motion in e2e |
+| T-016 | Audio engine: clock, scheduler, metronome, mixer | impl | done b438eea: 40 node + 9 OfflineAudioContext tests (clicks within 1 sample); limiter = waveshaper (compressor added 6ms) |
 
 ---
 
@@ -181,7 +182,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   - Budget in Node: onset step < 0.1 ms per 128-sample hop; MPM N=2048 < 0.5 ms.
 
 ### T-016 · Audio engine: context, clock, scheduler, metronome, mixer
-- **Status:** in-progress · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-010 · **Parallel:** y · **Agent:** `impl-audio`
 - **Owns:** `src/audio/engine/`, `tests/engine/`, `docs/timing.md` (W1)
 - **Acceptance:**
   - `createEngine()`: context (`latencyHint: 0`, sample rate parameter), resume on gesture, `setSinkId`,
