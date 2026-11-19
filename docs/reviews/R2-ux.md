@@ -1,0 +1,107 @@
+# Review round R2 — UX (independent reviewer)
+
+Date: 2026-11-19. The reviewer did not build Riffway. Method: `npm run build`, then the built server
+(`node dist-server/index.js`) on a random free port with a throwaway `RIFFWAY_DATA_DIR` and library folder
+(seeded with `Riff Test.gp` and the ASCII "Synthetic Riff Study"). Playwright Chromium with fake media and
+autoplay flags, `deviceScaleFactor: 1`, at **1440×900** and **1280×720**, using `?e2e=1`. The starter song
+*Pentatonic Box Lick* was played with real key presses (keys 1–6, Shift+key for a wrong note, deliberately
+early and late presses, skipped notes). The practice loop passes were scripted through `window.__riffwayTest`.
+Screenshots (104) are in the session scratchpad `r2ux/`. They are referenced below by file name and are
+not committed.
+
+Measured against: `docs/spec.md` (UI, Core experience, Practice tools, Definition of done),
+`docs/user-profile.md` (beginner–intermediate pick player who wants a Guitar Hero + Rocksmith look),
+`docs/game-mechanics.md` and `docs/research/learning.md`.
+
+## Summary
+
+Riffway already feels like a real product. It uses one consistent dark visual language with
+Rocksmith-style lane colours, glossy fret gems, flame combo rings and well-written, encouraging copy. It is
+free of dark patterns: there are no streak-loss messages, and the weekly-goal widget is gentle. Onboarding
+(a 4-step checklist, a keyboard-mode fallback and a "friendly first pick") is clear. The audio setup wizard,
+tuner, calibration and results screen are high quality.
+
+The largest problems are in the part the player looks at most, the highway while playing:
+
+- **The big outcome pop always sits over the high-e lane**, whatever lane the note was on. It covers the
+  next gems on that lane, the very notes the player must read next. This shows in most mid-song
+  screenshots.
+- **Outcome colours reuse the lane colours.** Perfect is yellow like A, Great green like B, Good blue like
+  D and Wrong red like low E. Early and late differ only by a small grey word. Telling Wrong-note from
+  early/late from Miss mostly relies on reading text.
+- **Hand-position cues come late and are small.** A cue pill appears about 0.7–1 s ahead and is about 35 px
+  wide.
+- **The global nav stays on screen during play**, which costs about 8% of the height at 1280×720.
+
+Secondary issues:
+
+- The recommender labels comfort-tier songs as "Stretch" and a tier-4 song as "Comfort".
+- The Drop-D start card shows key 6 as "E".
+- The section bar on the song page uses difficulty colours under a legend that defines those colours as
+  progress states.
+- The audio-setup summary says "Ready to play" while the guitar latency is still uncalibrated.
+- There are small overflow bugs and some copy inconsistencies.
+
+| Severity | Count |
+|---|---|
+| High | 3 |
+| Medium | 12 |
+| Low | 15 |
+| **Total** | **30** |
+
+## Findings
+
+| ID | Severity | Screen | Finding | Evidence | Suggested fix |
+|---|---|---|---|---|---|
+| R2-U-01 | high | Game (highway) | The large outcome pop ("PERFECT", "WRONG NOTE played A#4", "GOOD late", "MISS") is drawn at a fixed spot over the **high-e lane**, about 250–800 px right of the hit line. It covers the incoming gems on that lane, which are the notes the player must read next. It appears there even when the judged note was on another lane (for example, a MISS on the D/A/D chord shows over the e lane). | 1440-08a-game-wrongnote, 1440-09-game-bends, 1280-08a-game-wrongnote, 1280-09-game-cue2…cue4, 1440-20-dropd-playing | Move the pop to the gutter left of the hit line, or above the top strip, or to the lane of the judged note at the hit line only. Never draw it over the note area to the right of the hit line. Alternatively, make it translucent and fade it within about 300 ms. The per-lane gutter label already repeats the outcome, so the big pop could be reserved for streak and multiplier moments. |
+| R2-U-02 | high | Game (feedback) | **Outcome colours reuse lane colours:** Perfect is yellow (= A lane), Great green (= B), Good blue (= D) and Wrong red/pink (= low E). Early and late differ only by a small grey word ("early"/"late") in the same place and colour. At a glance, the three outcomes the spec says must be distinct (wrong note, early/late, miss) are told apart mainly by reading words. | 1440-08a-game-wrongnote, 1440-08c-game-early, 1440-08d-game-late, 1440-08b-game-miss, 1280-08c-game-early | Give outcomes their own visual channel that no lane uses. Examples: white/gold for hits; magenta with a "✕" or a pitch-off icon for Wrong; grey with a hollow ring for Miss; a left/right chevron or offset (◀ early / late ▶) beside the hit marker for timing. Keep lane colours only for gems. |
+| R2-U-03 | high | Game (hand-position cue) | The position-shift cue ("▲7fr" pill and bracket) first appears only about 0.7–1.0 s before the shift (about 1.5 beats at 88 BPM). It is about 35 px wide in the top strip, while the large outcome pop draws attention elsewhere. A beginner needs more warning for a 2-fret shift, and the cue is easy to miss. | 1280-09-game-cue3 (cue appears), 1280-09-game-cue4, 1280-09-game-powerchords | Show the cue at least 2 beats or 1.5 s ahead (whichever is longer). Make the label larger, give it a tinted band across all six lanes until the shift, and briefly pulse the current "5fr" label when the change lands. |
+| R2-U-04 | medium | Game (layout) | The global top nav (Home / Library / …, about 60 px) and the keyboard-hint strip stay visible during play. At 1280×720, nav and HUD use about 150 of 720 px. The nav links are clickable mid-song and pull attention away from the highway. | 1280-08b-game-miss, 1280-09-game-x2burst | Hide or collapse the app nav on `#/play` (show it on pause), or use a compact game header. Give the height back to the lanes. |
+| R2-U-05 | medium | Game (chord hint) | At 1280×720 the "Chords: judged on timing + any chord tone" pill overlaps the bottom edge of the low-E lane and the chord gems on it. | 1280-08b-game-miss, 1280-09-game-x2burst | Put the pill in the 26 px bottom strip, or in the gutter. It should never sit on top of lanes. Shrink it to an icon plus a tooltip once the player has seen it a few times. |
+| R2-U-06 | medium | Game start card (Drop D) | For *Drop-D Palm-Mute Chug* the start card legend says key 6 = **E**, while the highway labels the lane **D**. The top lane also switches from "e" to "E". The start card has no "Tune to Drop D" reminder, so a player who goes straight to Play plays out of tune. The song page does have such a banner. | 1440-20-dropd-startcard, 1440-20-dropd-playing, 1440-04-song-needs-rhythm (banner) | Build the legend from the song's tuning. Keep "e" lowercase for string 1. Add a one-line "Drop D — string 6 down to D · Open tuner" notice to the start card whenever the tuning is not standard. |
+| R2-U-07 | medium | Home / Results (recommendations) | The recommender labels are contradictory. Greensleeves and Ode to Joy are labelled **STRETCH** but described as "Tier 2, at your comfort tier (2)". Power Chord Drive is labelled **COMFORT** but described as "Tier 4, two above your comfort tier". After a 98% run on a 4.6 song, the results screen still bases picks on comfort tier 2 and offers tier 3–4 songs as "stretch". | 1280-01-home-returning, 1440-11-results-full | Derive each card's label from its tier delta, so the label and the description always agree. Raise the comfort-tier estimate quickly after strong runs on harder songs, or say why it has not moved ("based on 1 run"). |
+| R2-U-08 | medium | Song page (sections) | The section bar under "Sections" is coloured by section **difficulty** (Triplet Run 5.1 is yellow). The legend directly above defines colours as **progress** states (New grey, Practising blue, Mastered green, Locked in yellow). The yellow segment therefore reads as "Locked in" on a song never played. | 1440-04-song-page-full, 1280-04-song-page | Colour the bar by progress state as the legend says, and put difficulty in the existing per-row chip. Alternatively, drop the legend. |
+| R2-U-09 | medium | Audio setup (summary) | After calibrating only the keyboard, the summary shows **"You're set up / Ready to play"** with a green dot for "Latency calibration: Guitar 0 ms · keyboard −146 ms". Step 4 shows a check mark. The guitar is still uncalibrated: the Latency step lists it as "NOT CALIBRATED", and the guitar is this player's main input. | 1440-06-audio-5-summary-after-finish, 1440-17-calibration-result | Show "Guitar: not calibrated" with an amber dot and a "Calibrate guitar" button. Keep step 4 unchecked until the guitar (or the selected input mode) is calibrated. |
+| R2-U-10 | medium | Audio setup (monitoring) | Monitoring is **live from step 1**: the input is opened and "On · Clean" is checked before the player reaches the headphones advice in step 3. With speakers or the built-in output this can feed back immediately. Step 3 then repeats the headphone advice three times (banner, toggle subtitle, "Use headphones" card). | 1440-06-audio-setup, 1440-06-audio-3-monitoring | Keep monitoring off until step 3. Turn it on there with a single headphone check ("I'm wearing headphones" → on), and warn specifically when the output is built-in speakers. Merge the three headphone messages into one. |
+| R2-U-11 | medium | Song page (needs rhythm) | A tab that needs rhythm alignment shows "Loop this" on every section. These open practice with an estimated, proportional rhythm and give no warning that the timing is a guess. The page also has three orange primary CTAs (Align rhythm to play, Open tuner, Align rhythm). | 1440-04-song-needs-rhythm, 1440-19-needs-rhythm-loop-click | Disable or relabel the section loops ("Align first") until the song is aligned, or warn on the start card that the rhythm is estimated. Keep one primary CTA (Align rhythm) and make the others secondary. |
+| R2-U-12 | medium | Library (sources) | ClassTab is invisible from the library. The Source filter has only All / My files / Starter, and nothing hints that a large fingerstyle and classical source can be downloaded. The only place to get it is Settings → Library & sources. "Find more tabs" lists Songsterr, UG and the GP pack, but not ClassTab. | 1440-02-library-full, 1440-03-library-search-nomatch, 1440-12-settings-library-sources | Add a ClassTab chip ("not downloaded") and a "Get ClassTab (14 MB)" card under "Find more tabs". Keep it low-key, since the profile says not to push fingerstyle by default. |
+| R2-U-13 | medium | Library (search) | A starter song found by search gets a **"SONGSTERR MATCH"** badge (*Ode to Joy*). Riffway never queries Songsterr, so the badge is unexplained and suggests the song came from Songsterr. | 1440-03-library-search-ode | Drop the badge, or rename it to something that matches its meaning (for example, show "In your library" on the Songsterr link-out card only, as it already does). |
+| R2-U-14 | medium | Game (pause control and HUD) | The pause control is a tiny, low-contrast "॥" glyph about 10 px wide at the far right of the HUD, with no label. Next to it, "Practice tools" is the only labelled control, so the mouse affordance for pause is weak. | 1440-07-game-startcard, 1280-08c-game-early | Make it a labelled icon button ("Pause · Esc") at the same size as "Practice tools". |
+| R2-U-15 | medium | Home (today's focus) | "Pick today's focus … Choose one" shows only 2 cards. The research doc specifies 3 process goals: weakest section, next-day check and one stretch song. The "Fix the tricky bit" goal says "Get **section 1** of 'Power Chord Drive' clean" instead of naming the section ("Intro"). | 1280-01-home-returning | Always offer 3 cards (fall back to a warm-up or review goal) and use section names. |
+| R2-U-16 | low | Game (HUD) | Right after a wrong note the HUD still shows **Accuracy 100.0% and 5 stars**, because the WrongNote is still provisional, while the pop says WRONG NOTE. After a first-note miss it shows "0.0%" with 0 stars, which feels harsh. | 1440-08a-game-wrongnote, 1440-20-dropd-playing | Count provisional WrongNotes in the live accuracy. Show "—" until about 5 notes have been judged. |
+| R2-U-17 | low | Game (wrong-note copy) | "played A#4" is pitch-class information. A tab reader thinks in frets and strings, and a beginner gains little from "A#4". | 1440-08a-game-wrongnote | In standard detail say "1 fret high" or "played fret 6". Keep the pitch name for Detailed mode. |
+| R2-U-18 | low | Game (footer) | The section progress bar labels are about 11 px grey on dark. The playhead overlaps the label text ("Outro", "Bend Lick"). The footer key hint repeats what the start card says. | 1440-09-game-later3, 1440-09-game-bends | Raise the labels to 12–13 px with more contrast and offset the playhead. Hide the footer hint after the first run. |
+| R2-U-19 | low | Practice drawer | Each "Clean run! +5% → 75%" message appears twice: as a toast on the highway and as a banner in the drawer. The toast also stays through pause and resume. | 1440-14-practice-after-pass2, 1440-16-practice-shortcuts | Show it in one place (the highway toast) and auto-dismiss it after about 3 s. |
+| R2-U-20 | low | Practice drawer / Mixer | The Backing track fader stays enabled when the song has no backing track ("No backing track attached"). The drawer heading "Practice" does not match the HUD button "Practice tools". Count-in is "Off" here but "None" in Settings. The shortcut row reads "1–6 Always go to the game (strings)". | 1440-15-mixer, 1440-16-practice-shortcuts, 1440-12-settings-practice-goals | Disable the fader and offer "Attach audio" when no track is attached. Use one name for the drawer and one label for count-in. Reword the row to "1–6: play strings (always)". |
+| R2-U-21 | low | Practice (loop pre-roll) | At the start of every loop pass the highway is empty for about 1 s, with no count number, section label or position label during the pre-roll bar. On the first pass, a count-in number is shown. | 1440-14-practice-after-pass2, 1440-14-practice-after-pass3 | Show a small "1 bar" pre-roll indicator or beat dots, plus the upcoming section and position labels, during the pre-roll. |
+| R2-U-22 | low | Results | At 1280×720 the main next actions (Loop this, Play again) are below the fold. "Play again" appears twice (in Next up and in the footer). "FIRST BEST AT THIS SPEED" reads oddly. "Timing 99%" beside "Accuracy 98.0%" is ambiguous. Progress lines such as "(1 total, 1/2 at 100% this session)" are jargon. | 1280-11-results, 1440-11-results-full | Put a compact action row ("Play again · Loop weakest · Song page") under the score card. Rename the badge to "New best at 100%" and "Timing" to "Timing precision" with a tooltip. Rephrase progress as "1 of 2 clean runs toward mastering Box Run". |
+| R2-U-23 | low | Library (layout) | The "≈ est." marker overflows the difficulty column (163 px in a 150 px box) and collides with "MY FILES". At 1280×720 the filter panel uses so much height that only 3 songs show above the fold, and there is no sort control (the list is alphabetical; difficulty order would help a beginner). | 1440-02-library-full (Synthetic Riff Study row), 1280-02-library | Let the difficulty column fit the marker, or move "est." into a tooltip. Make the filters collapsible or a single row at ≤ 720 px height. Add "Sort: Easiest / A–Z / Recently played". |
+| R2-U-24 | low | Library (rows) | "Rhythm from file" is repeated on every starter row as grey noise. Exercise rows read "Riffway · Riffway (original exercise)". The "Techniques" card on the song page lists genre tags (Rock, Blues, Exercise) alongside techniques. | 1440-02-library-full, 1440-04-song-page-full | Show only the exception ("Needs rhythm"). De-duplicate the artist line. Split tags into Techniques and Style. |
+| R2-U-25 | low | Import (preview strip) | The preview strip's lane lines overflow the rounded container on the right by about 8 px (`.imp-strip` 1172 > 1164) at both viewports. | 1440-05-import-pasted, 1440-05-import | Clip the canvas to the container (`overflow:hidden`) or size it to the inner width. |
+| R2-U-26 | low | Import | The Import nav item handles only ASCII paste or .txt files. A player with a Guitar Pro or MusicXML file who opens "Import" finds no way to add it there; that is the Library's "Add files". | 1440-05-import | Add a short line with a button at the top: "Have a .gp / MusicXML file? Add files to your library". |
+| R2-U-27 | low | Audio setup (calibration copy) | The result reads "Keyboard **−146 ms** … Riffway **adds** 146 ms to every key press". The sign and the verb point in opposite directions. Home says calibration takes "20 seconds" while the step says "about 15 s". Each step shows "STEP n OF 4" and then "STEP n" again inside the card. | 1440-17-calibration-result, 1440-01-home-firstrun, 1440-06-audio-2-tune | Phrase the result as "Your presses arrive 146 ms late; Riffway corrects for it". Use one duration. Drop the duplicate step label in the card. |
+| R2-U-28 | low | Shell (keyboard hints) | The global hint "Esc Content" is cryptic. Arrow keys move only within card rows, and nothing explains this. Focus rings are visible and well done, as is focus placement on route change. | 1440-18-keyboard-focus-nav, 1440-18-keyboard-arrows, 1440-10b-pause-tabfocus | Rename the hint to "Esc: back to page", or show it only after the first arrow key press. |
+| R2-U-29 | low | Copy (spelling) | British and US spelling are mixed: "Practise", "Favourite", "Recognisable tunes" (Home, Settings) next to the "recognizable" tag and "Practice" (Library, song page). | 1440-01-home-firstrun, 1440-12-settings-practice-goals, 1440-02-library-full | Pick one locale (the owner is on a Mac in English) and apply it, tags included. |
+| R2-U-30 | low | Error states | A missing song in the game shows "Song not found: local:doesnotexist" with a **Try again** button that cannot help. The song-page error ("It may have been moved…") is better. | 1440-19-error-play-missing, 1440-19-error-song-missing | Hide the raw id and drop "Try again" for 404s. Offer "Back to library" and "Rescan library" instead. |
+
+## What already works best
+
+1. **Highway readability and the GH + Rocksmith look.** It uses Rocksmith string colours (e purple … E red)
+   and high-contrast glossy gems with large fret numbers. Technique glyphs are clear: `h`/`p` arcs, a bend
+   arrow with "full"/"½", vibrato squiggles on tails, ✕ dead notes, dashed let-ring tails and "PM" brackets.
+   Chord gems are grouped in a frame. The flame combo ring that grows from ×1 to ×4 gives exactly the
+   "punchy GH feedback on a clean Rocksmith highway" the profile asks for. (1440-09-game-later,
+   1440-09-game-later3, 1280-09-game-x2burst)
+2. **Motivation without dark patterns, and the copy.** The weekly forgiving streak has no loss messages
+   ("Streaks are weekly and forgiving: no reminders, no 'streak lost' messages"). Coach copy is
+   informational ("Clean run! +5% → 80%", "Timing centred — no early or late tendency"). Empty states are
+   friendly ("No scores yet. Your first run sets the bar"). The results screen has a section heatmap,
+   names the weakest section and offers a one-click "Loop this". (1440-01-home-firstrun,
+   1440-11-results-full, 1440-12-settings-practice-goals)
+3. **Setup and practice tooling.** The first-run checklist offers a keyboard-mode escape hatch. The audio
+   setup wizard has a live level meter, a large readable tuner, a monitoring delay breakdown and a
+   tap-to-click calibration with per-click feedback. The practice drawer offers a big speed readout with
+   presets, a speed-trainer ladder ("NOW 75% → GOAL 100%, 5 clean runs to go"), a section-aware A/B strip
+   and a documented shortcuts popover. The pause and resume flow has a visible count-in and good focus
+   handling. (1440-06-audio-2-tune, 1440-17-calibration-running, 1440-14-practice-after-pass2,
+   1440-10-pause-menu)
