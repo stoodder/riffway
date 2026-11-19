@@ -1,0 +1,110 @@
+/* Backing audio panel (T-027). Design tokens only. */
+.rw-backing .rw-card__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rw-backing__body,
+.rw-backing__align,
+.rw-backing__tap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rw-backing__lead {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.rw-backing__hint,
+.rw-backing__summary {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.rw-backing__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+.rw-backing__error {
+  margin: 0;
+  color: var(--color-danger);
+}
+
+.rw-backing__row,
+.rw-backing__file-row,
+.rw-backing__view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.rw-backing__file-row {
+  align-items: center;
+}
+
+.rw-backing__file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: var(--weight-semibold);
+}
+
+.rw-backing__toggles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--space-3) var(--space-5);
+  align-items: end;
+}
+
+.rw-backing__wave {
+  display: block;
+  width: 100%;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.rw-backing__wave:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+.rw-backing__tap {
+  padding: var(--space-3);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.rw-backing__tap[data-mode='tap'] {
+  border-style: solid;
+  border-color: var(--color-accent);
+  background: var(--color-accent-soft);
+}
+
+.rw-backing__tap-pad {
+  min-width: 160px;
+  min-height: 64px;
+  font-size: var(--text-lg);
+}
+
+.rw-backing__tap-count {
+  font-size: var(--text-lg);
+  color: var(--color-text);
+}
+
+.rw-backing__check {
+  align-items: flex-end;
+}
