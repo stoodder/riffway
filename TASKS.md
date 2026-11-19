@@ -87,6 +87,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-028 | ASCII paste import + rhythm-alignment UI | impl | done 2ca0d10: 43 tests; snap-to-grid + tap-along + preview; UG link-out only |
 | T-101 | R1 core fixes (judge <-> transport) | impl | done 6e58f87: 7 fixed, C-06 rejected, C-08 -> T-022, C-09 provisional; judge driven through real TransportCore |
 | T-022 | Input device, analysis worklet, meter, tuner | impl | done 9d805c6: 69 node + 4 browser + 2 fake-mic e2e; flags verified via getSettings |
+| T-023 | Monitoring + amp/cab sim + latency display + feedback guard | impl | done 8f8ee10: 48 node + 22 browser; amp+cab adds <0.5 ms; feedback guard |
 
 ---
 
@@ -322,7 +323,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
     and pitches; unit tests for device matching.
 
 ### T-023 · Monitoring + amp/cab sim + latency display + feedback guard
-- **Status:** in-progress · **Deps:** T-016 · **Parallel:** y · **Agent:** `impl-audio`
+- **Status:** done · **Deps:** T-016 · **Parallel:** y · **Agent:** `impl-audio`
 - **Orchestrator notes (from W1):** docs/monitoring.md: engine limiter is a zero-latency WaveShaper soft clipper (DynamicsCompressor added ~6 ms), update the doc. Screens calling requireAudioGesture() must handle AudioGestureDismissedError.
 - **Owns:** `src/core/dsp/amp/`, `src/audio/monitor/`, `src/audio/worklets/amp.worklet.ts`,
   `src/ui/panels/monitor/`, `tests/monitor/`, `docs/monitoring.md` (W2)
