@@ -403,7 +403,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 
 ### T-031 · Game session, keyboard mode, game + results screens
 - **Status:** todo · **Deps:** T-014, T-020, T-021, T-022, T-024, T-027 · **Parallel:** y · **Agent:** `impl-game`
-- **Orchestrator notes (from W1):** Call `judge.startPass` in the loop-wrap handler; call `advance(inputHorizon(...))`, not ctx.currentTime (T-014). Clock returns non-finite times while paused. DOM tests that build the app context must `import 'fake-indexeddb/auto'`. Handle AudioGestureDismissedError.
+- **Orchestrator notes (from W1):** (Superseded by T-101:) one judge per run, created just before `play()`; call `startPass({pass: change.pass})` on ANY clock change with a different pass (loops, seeks, jumps); call `advance(inputHorizon(...))` (not ctx.currentTime), also while paused. Clock `ctxTimeInPass` returns NaN while paused, -Infinity for skipped notes. Use `cueShowAt` for hand cues. DOM tests that build the app context must `import 'fake-indexeddb/auto'`. Handle AudioGestureDismissedError.
 - **Owns:** `src/game/session/`, `src/game/input/`, `src/test-hooks/`, `src/ui/screens/game/`,
   `src/ui/screens/results/`, `tests/session/`, `docs/game-mechanics.md` (W3)
 - **Acceptance:**
