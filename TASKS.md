@@ -106,6 +106,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 | T-111 | R2 game runtime + game UX fixes | impl | done 432cef0: I-01..09 fixed; outcome display in gutter, distinct outcome colours, earlier hand cues; held-onset worst 74.1 vs 74.3 ms budget (thin) |
 | T-121 | R3 correctness fixes | impl | done 817e710: delivery margin 60 ms; no silent mic fallback; pitch windows scale to 88.2/96/192 kHz; e2e screenshots only with RIFFWAY_UPDATE_SCREENSHOTS=1 |
 | T-122 | R3 UX/copy fixes + US spelling sweep | impl | done 98febd4: all R3-U fixed; 1969 tests, e2e 10/10 |
+| T-099 | Wrap-up: docs, gates, merge to main | impl | done: all gates green; screenshots refreshed; merged to main |
 
 ---
 
@@ -551,7 +552,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
   current; fix tasks closed or explicitly deferred with the owner's visibility.
 
 ### T-099 · Wrap-up
-- **Status:** todo · **Deps:** T-092 · **Parallel:** n · **Agent:** orchestrator
+- **Status:** done · **Deps:** T-092 · **Parallel:** n · **Agent:** orchestrator
 - **Owns:** `docs/README.md`, `TASKS.md`, `CLAUDE.md`
 - **Acceptance:** README state updated, CLAUDE.md commands match `package.json`, open questions listed
   for the owner (D1 acceptance, DEC-24), branch merged to `main` and pushed.
