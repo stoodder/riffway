@@ -1,6 +1,7 @@
 /**
  * Library & sources settings: the library folder and drop subfolder (`PUT /api/config`, path checked
- * with the library screen's `validateLibraryPath`), rescan, enabled sources, and ClassTab's status
+ * with the library screen's `validateLibraryPath`), rescan, enabled sources (plus Songsterr's opt-in
+ * remote search, `ServerConfig.remoteSearch`, docs/guides/songsterr-search.md), and ClassTab's status
  * and refresh with live progress from `classtab.progress` events.
  * @module
  */
@@ -227,6 +228,20 @@ export function libraryTab(ctx: AppContext): { el: HTMLElement; destroy(): void 
           onChange: (on) => void setSource(s.id, on, sw.set),
         });
         if (state) sw.el.querySelector('.rw-field__label')?.append(badge(state.text, { tone: state.tone, title: s.message }));
+        if (s.id === 'songsterr') {
+          const remoteSw = toggle({
+            label: 'Show Songsterr results in Library search',
+            description: 'Sends what you type to Songsterr (titles and artists come back, no tabs). Off by default.',
+            checked: config?.remoteSearch.includes('songsterr') ?? false,
+            onChange: (on) => void setRemote(on, remoteSw.set),
+          });
+          return h(
+            'li',
+            { class: 'set-source set-source--with-sub', dataset: { source: s.id } },
+            sw.el,
+            h('div', { class: 'set-source__sub' }, remoteSw.el),
+          );
+        }
         return h('li', { class: 'set-source', dataset: { source: s.id } }, sw.el);
       }),
     );
@@ -242,6 +257,16 @@ export function libraryTab(ctx: AppContext): { el: HTMLElement; destroy(): void 
     } catch (err) {
       revert(!on);
       ctx.ui.toast(`Couldn’t change the source: ${serverError(err)}`, { kind: 'error' });
+    }
+  }
+  async function setRemote(on: boolean, revert: (checked: boolean) => void): Promise<void> {
+    if (!config) return;
+    try {
+      config = await ctx.api.putConfig({ remoteSearch: on ? ['songsterr'] : [] });
+      ctx.ui.toast(on ? 'Library search now also shows Songsterr results.' : 'Songsterr results are off.', { kind: 'success' });
+    } catch (err) {
+      revert(!on);
+      ctx.ui.toast(`Couldn’t change Songsterr search: ${serverError(err)}`, { kind: 'error' });
     }
   }
   async function refreshSources(): Promise<void> {

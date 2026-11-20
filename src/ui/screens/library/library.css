@@ -579,6 +579,74 @@
   font-size: var(--text-sm);
 }
 
+/* "On Songsterr": opt-in remote search results, a card in "Find more tabs" (docs/guides/songsterr-search.md). */
+.lib-remote {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-1);
+}
+
+.lib-remote[hidden] {
+  display: none;
+}
+
+.lib-remote__title {
+  font-size: var(--text-md);
+}
+
+.lib-remote__note {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+  line-height: var(--leading-snug);
+}
+
+.lib-remote__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.lib-remote__list[hidden] {
+  display: none;
+}
+
+.lib-remote__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.lib-remote__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-2);
+  min-width: 0;
+}
+
+.lib-remote__name {
+  font-weight: 600;
+}
+
+.lib-remote__artist,
+.lib-remote__tuning {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.lib-remote__btn {
+  flex: none;
+}
+
 /* ClassTab offer: a full-width card below the link-outs (hidden once ClassTab is downloaded). */
 .lib-classtab[hidden] {
   display: none;

@@ -20,7 +20,11 @@ export function trackDetails(track: SongMeta['arrangements'][number]): string {
  * Resolve the arrangement to open for `result`: the default one when it is the only playable track,
  * else the user's choice from a modal (null when dismissed). `loadMeta` fetches `GET /api/songs/:id`.
  */
-export async function pickArrangement(result: SearchResult, loadMeta: (id: string) => Promise<SongMeta>, host?: HTMLElement): Promise<number | null> {
+export async function pickArrangement(
+  result: Pick<SearchResult, 'id' | 'title' | 'arrangements' | 'defaultArrangement'>,
+  loadMeta: (id: string) => Promise<SongMeta>,
+  host?: HTMLElement,
+): Promise<number | null> {
   if (result.arrangements <= 1) return result.defaultArrangement;
   const meta = await loadMeta(result.id);
   const playable = meta.arrangements.filter((t) => t.playable);

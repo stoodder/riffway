@@ -255,6 +255,26 @@ describe('settings screen', () => {
       await vi.waitFor(() => expect(fake.toasts.at(-1)).toEqual({ message: 'ClassTab disabled.', kind: 'success' }));
     });
 
+    it('turns Songsterr results in Library search on and off (opt-in, off by default)', async () => {
+      await start({ tab: 'library' });
+      await vi.waitFor(() => expect(el.querySelectorAll('.set-source')).toHaveLength(6));
+      const remote = (): HTMLButtonElement => q<HTMLButtonElement>('.set-source[data-source="songsterr"] .set-source__sub button[role="switch"]');
+      expect(q('.set-source[data-source="songsterr"] .set-source__sub').textContent).toContain('Show Songsterr results in Library search');
+      expect(remote().getAttribute('aria-checked')).toBe('false');
+      remote().click();
+      await vi.waitFor(() => expect(server.config.remoteSearch).toEqual(['songsterr']));
+      expect(server.requests.at(-1)).toBe('PUT /api/config {"remoteSearch":["songsterr"]}');
+      await vi.waitFor(() => expect(fake.toasts.at(-1)?.kind).toBe('success'));
+      remote().click();
+      await vi.waitFor(() => expect(server.config.remoteSearch).toEqual([]));
+
+      server.configError = 'nope';
+      remote().click();
+      await vi.waitFor(() => expect(fake.toasts.at(-1)?.kind).toBe('error'));
+      expect(remote().getAttribute('aria-checked')).toBe('false');
+      expect(el.querySelectorAll('.set-source__sub')).toHaveLength(1);
+    });
+
     it('shows ClassTab status, refuses a too-early refresh with a reason, forces it and follows progress', async () => {
       server.refreshAnswer = { started: false, reason: 'Checked 3 h ago; refresh is limited to once a day (force to check again)' };
       await start({ tab: 'library' });
