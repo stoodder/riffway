@@ -12,6 +12,7 @@ import { register as events } from './events';
 import { register as health } from './health';
 import { register as library } from './library';
 import { register as search } from './search';
+import { register as searchRemote } from './search-remote';
 import { register as sidecars } from './sidecars';
 import { register as songs } from './songs';
 import { register as sources } from './sources';
@@ -27,6 +28,7 @@ export const ROUTES: readonly RouteRegistration[] = [
   { name: 'classtab', owner: 'T-025', register: classtab },
   { name: 'audio', owner: 'T-027', register: audio },
   { name: 'sidecars', owner: 'T-028', register: sidecars },
+  { name: 'search-remote', owner: 'T-130', register: searchRemote },
 ];
 
 /** Register every route module in its own encapsulated scope. */
