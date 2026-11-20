@@ -9,6 +9,8 @@
  *
  * Env: `RIFFWAY_E2E_PORT` (default: a free port, chosen once in the runner and inherited by the
  * workers, which re-evaluate this file) and `RIFFWAY_E2E_DATA_DIR` (default: a new temp dir).
+ * The server always runs with `RIFFWAY_SONGSTERR_FIXTURES=e2e/fixtures/songsterr-mapped` (opt-in
+ * Songsterr search answers from synthetic fixtures, never the site; `songsterr-search.spec.ts`).
  * On a fresh Mac run `npx playwright install chromium` once; the agent container uses its
  * preinstalled Chromium.
  */
@@ -16,7 +18,7 @@ import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
-import { fakeMicWav, freePortSync, libraryDir, prepareDataDir } from './e2e/support/env';
+import { fakeMicWav, freePortSync, libraryDir, prepareDataDir, ROOT } from './e2e/support/env';
 
 const PREINSTALLED_CHROMIUM = '/opt/pw-browsers/chromium';
 
@@ -59,6 +61,13 @@ export default defineConfig({
     url: `http://127.0.0.1:${PORT}/api/health`,
     reuseExistingServer: false,
     timeout: 60_000,
-    env: { RIFFWAY_PORT: String(PORT), RIFFWAY_DATA_DIR: dataDir, RIFFWAY_LIBRARY_DIR: libraryDir(dataDir), RIFFWAY_LOG_LEVEL: 'warn' },
+    env: {
+      RIFFWAY_PORT: String(PORT),
+      RIFFWAY_DATA_DIR: dataDir,
+      RIFFWAY_LIBRARY_DIR: libraryDir(dataDir),
+      RIFFWAY_LOG_LEVEL: 'warn',
+      // Opt-in Songsterr search reads synthetic, already-mapped hits from here; nothing is requested.
+      RIFFWAY_SONGSTERR_FIXTURES: join(ROOT, 'e2e/fixtures/songsterr-mapped'),
+    },
   },
 });

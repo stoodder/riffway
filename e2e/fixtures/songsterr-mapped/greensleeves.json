@@ -1,0 +1,23 @@
+[
+  {
+    "source": "songsterr",
+    "remoteId": "fixture-1",
+    "title": "Greensleeves",
+    "url": "https://fixtures.invalid/greensleeves",
+    "tracks": [{ "name": "Fixture Guitar", "tuning": [64, 59, 55, 50, 45, 40] }],
+    "tuning": [64, 59, 55, 50, 45, 40],
+    "tuningId": "standard",
+    "tuningLabel": "Standard"
+  },
+  {
+    "source": "songsterr",
+    "remoteId": "fixture-2",
+    "title": "Fixture Riff Variations",
+    "artist": "The Fixture Band",
+    "url": "https://fixtures.invalid/fixture-riff-variations",
+    "tracks": [{ "name": "Fixture Lead", "tuning": [64, 59, 55, 50, 45, 38] }],
+    "tuning": [64, 59, 55, 50, 45, 38],
+    "tuningId": "drop-d",
+    "tuningLabel": "Drop D"
+  }
+]
