@@ -62,7 +62,7 @@ export function readyClassTab(): ClassTabStatus {
 /** Create the fake server. */
 export function createFakeServer(): FakeServer {
   const server: FakeServer = {
-    config: { schema: 1, libraryDir: '/Users/me/Music/Tabs', enabledSources: [...SOURCE_IDS], importSubfolder: '' },
+    config: { schema: 1, libraryDir: '/Users/me/Music/Tabs', enabledSources: [...SOURCE_IDS], importSubfolder: '', remoteSearch: [] },
     classtab: readyClassTab(),
     refreshAnswer: { started: true },
     sidecars: {},

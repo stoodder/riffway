@@ -4,7 +4,7 @@
  * screen in happy-dom. Every request URL is recorded so tests can prove no third-party host is hit.
  */
 import { vi } from 'vitest';
-import type { ClassTabStatus, ImportFileResult, SearchResponse, ServerConfig, ServerEvent, SongMeta, SourcesResponse } from '@shared/api';
+import type { ClassTabStatus, ImportFileResult, RemoteSearchResponse, SearchResponse, ServerConfig, ServerEvent, SongMeta, SourcesResponse } from '@shared/api';
 import type { SearchResult } from '@shared/sources';
 import { SOURCE_IDS, type TrackInfo } from '@shared/song';
 import type { AppContext, RouteParams, ScreenId, ToastKind } from '@shared/ui';
@@ -71,6 +71,13 @@ export interface FakeServer {
   classtab: ClassTabStatus | null;
   /** `POST /api/classtab/refresh` bodies received. */
   classtabRefreshes: unknown[];
+  /** `GET /api/search/remote` answer for a query (default: `off`). */
+  remote: (q: string) => RemoteSearchResponse;
+  /** Remote search queries received, and how many were aborted by the client. */
+  remoteQueries: string[];
+  remoteAborted: number;
+  /** Delay before the remote answer (ms, fake timers), so tests can cancel a request in flight. */
+  remoteDelayMs: number;
   fetch: typeof fetch;
 }
 
@@ -108,7 +115,7 @@ function search(server: FakeServer, params: URLSearchParams): SearchResponse {
 export function createFakeServer(songs: SearchResult[]): FakeServer {
   const server: FakeServer = {
     songs,
-    config: { schema: 1, libraryDir: '/Users/me/Music/Tabs', enabledSources: [...SOURCE_IDS], importSubfolder: '' },
+    config: { schema: 1, libraryDir: '/Users/me/Music/Tabs', enabledSources: [...SOURCE_IDS], importSubfolder: '', remoteSearch: [] },
     requests: [],
     searches: [],
     metas: new Map(),
@@ -117,6 +124,10 @@ export function createFakeServer(songs: SearchResult[]): FakeServer {
     configError: null,
     classtab: null,
     classtabRefreshes: [],
+    remote: () => ({ source: 'songsterr', status: 'off', hits: [] }),
+    remoteQueries: [],
+    remoteAborted: 0,
+    remoteDelayMs: 0,
     fetch: vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
       const url = new URL(String(input), 'http://127.0.0.1:5174');
       const method = init?.method ?? 'GET';
@@ -124,6 +135,17 @@ export function createFakeServer(songs: SearchResult[]): FakeServer {
       if (url.host !== '127.0.0.1:5174') throw new Error(`third-party request: ${url.href}`);
       if (server.down) throw new TypeError('Failed to fetch');
       const path = url.pathname;
+      if (path === '/api/search/remote') {
+        const q = url.searchParams.get('q') ?? '';
+        server.remoteQueries.push(q);
+        const signal = init?.signal;
+        if (server.remoteDelayMs) await new Promise((r) => setTimeout(r, server.remoteDelayMs));
+        if (signal?.aborted) {
+          server.remoteAborted += 1;
+          throw new DOMException('Aborted', 'AbortError');
+        }
+        return json(server.remote(q));
+      }
       if (path === '/api/search') {
         server.searches.push(url.searchParams);
         return json(search(server, url.searchParams));

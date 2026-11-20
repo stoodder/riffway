@@ -23,7 +23,7 @@ describe('config, health and local-only guard', () => {
   it('serves defaults and persists updates to <dataDir>/config.json', async () => {
     t = await startApp(dirs);
     const get = await t.app.inject({ method: 'GET', url: '/api/config' });
-    expect(get.json<ServerConfig>()).toEqual({ schema: 1, libraryDir: dirs.libraryDir, enabledSources: [...SOURCE_IDS], importSubfolder: '' });
+    expect(get.json<ServerConfig>()).toEqual({ schema: 1, libraryDir: dirs.libraryDir, enabledSources: [...SOURCE_IDS], importSubfolder: '', remoteSearch: [] });
 
     const put = await t.app.inject({ method: 'PUT', url: '/api/config', payload: { enabledSources: ['starter', 'local'], importSubfolder: 'Imported/' } });
     expect(put.statusCode).toBe(200);
@@ -49,10 +49,10 @@ describe('config, health and local-only guard', () => {
   });
 
   it('ignores invalid fields of a hand-edited config file', async () => {
-    writeFileSync(join(dirs.dataDir, 'config.json'), JSON.stringify({ schema: 1, enabledSources: ['bogus'], importSubfolder: '../../x', libraryDir: join(dirs.root, 'lib2') }));
+    writeFileSync(join(dirs.dataDir, 'config.json'), JSON.stringify({ schema: 1, enabledSources: ['bogus'], importSubfolder: '../../x', remoteSearch: 'all', libraryDir: join(dirs.root, 'lib2') }));
     const { createApp } = await import('../../server/app');
     const { app, ctx } = await createApp({ dataDir: dirs.dataDir, staticDir: null, watch: false, sources: [] });
-    expect(ctx.config.get()).toEqual({ schema: 1, libraryDir: join(dirs.root, 'lib2'), enabledSources: [...SOURCE_IDS], importSubfolder: '' });
+    expect(ctx.config.get()).toEqual({ schema: 1, libraryDir: join(dirs.root, 'lib2'), enabledSources: [...SOURCE_IDS], importSubfolder: '', remoteSearch: [] });
     await app.close();
   });
 

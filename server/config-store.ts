@@ -1,6 +1,6 @@
 /**
  * Server config persisted in `<dataDir>/config.json` (DEC-20): library folder, enabled sources,
- * import subfolder. Validates updates (`PUT /api/config`) and notifies subscribers.
+ * import subfolder, opt-in remote search sources (default none). Validates updates (`PUT /api/config`) and notifies subscribers.
  * @module
  */
 import { homedir } from 'node:os';
@@ -14,7 +14,7 @@ import type { ConfigStore } from './types';
 
 /** Default server config. */
 export function defaultConfig(libraryDir: string = defaultLibraryDir()): ServerConfig {
-  return { schema: 1, libraryDir, enabledSources: [...SOURCE_IDS], importSubfolder: '' };
+  return { schema: 1, libraryDir, enabledSources: [...SOURCE_IDS], importSubfolder: '', remoteSearch: [] };
 }
 
 /** A rejected config update. */
@@ -52,6 +52,14 @@ export function parseConfigUpdate(body: unknown): ConfigUpdate {
           throw new ConfigError(`enabledSources must be a list of: ${SOURCE_IDS.join(', ')}`);
         }
         patch.enabledSources = SOURCE_IDS.filter((id) => value.includes(id));
+        break;
+      }
+      case 'remoteSearch': {
+        // Opt-in remote catalog search (docs/guides/songsterr-search.md); only adapters with `searchRemote` act on it.
+        if (!Array.isArray(value) || !value.every((v): v is SourceId => typeof v === 'string' && SOURCE_IDS.includes(v as SourceId))) {
+          throw new ConfigError(`remoteSearch must be a list of: ${SOURCE_IDS.join(', ')}`);
+        }
+        patch.remoteSearch = SOURCE_IDS.filter((id) => value.includes(id));
         break;
       }
       case 'importSubfolder': {

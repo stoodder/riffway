@@ -12,7 +12,7 @@
  */
 import type { Unsubscribe } from './clock';
 import type { DifficultyReport, RhythmSidecar, SongBundle, SourceId, TrackInfo } from './song';
-import type { IndexEntry, LinkOut, SearchFilters, SearchResult, SourceStatus } from './sources';
+import type { IndexEntry, LinkOut, RemoteSearchHit, SearchFilters, SearchResult, SourceStatus } from './sources';
 
 /** Default ports (D7). */
 export const DEV_WEB_PORT = 5173;
@@ -36,6 +36,7 @@ export const API_ROUTES = {
   putConfig: 'PUT /api/config',
   sources: 'GET /api/sources',
   search: 'GET /api/search',
+  searchRemote: 'GET /api/search/remote',
   song: 'GET /api/songs/:id',
   songFile: 'GET /api/songs/:id/file',
   songRhythm: 'GET /api/songs/:id/rhythm',
@@ -79,6 +80,8 @@ export interface ServerConfig {
   enabledSources: SourceId[];
   /** Drag-drop imports go here, relative to `libraryDir` (`''` = root). */
   importSubfolder: string;
+  /** Sources allowed to search their remote catalog (opt-in; default none). */
+  remoteSearch: SourceId[];
 }
 
 /** `PUT /api/config` body. */
@@ -100,6 +103,20 @@ export interface SearchResponse {
   linkOuts: LinkOut[];
   /** Total matches before `limit`. */
   total: number;
+}
+
+/**
+ * `GET /api/search/remote?q=&source=` (opt-in remote catalog search, docs/guides/songsterr-search.md).
+ * - `'ok'`: `hits` holds the results (possibly none).
+ * - `'off'`: not enabled in settings, or not set up yet (then `message` says so).
+ * - `'refused'`: the site said no (403/429); off until the server restarts.
+ * - `'error'`: timeout, network or server error; try again later.
+ */
+export interface RemoteSearchResponse {
+  source: SourceId;
+  status: 'ok' | 'off' | 'refused' | 'error';
+  message?: string;
+  hits: RemoteSearchHit[];
 }
 
 /** `GET /api/songs/:id`: entry + arrangements + difficulty + file URLs. */
@@ -219,6 +236,8 @@ export interface ApiClient {
   putConfig(update: ConfigUpdate): Promise<ServerConfig>;
   sources(): Promise<SourcesResponse>;
   search(query: SearchQuery): Promise<SearchResponse>;
+  /** Opt-in remote catalog search (`GET /api/search/remote`); `signal` cancels a superseded query. */
+  searchRemote(query: string, source: SourceId, signal?: AbortSignal): Promise<RemoteSearchResponse>;
   song(id: string): Promise<SongMeta>;
   songFile(id: string): Promise<Uint8Array>;
   songRhythm(id: string): Promise<Uint8Array>;

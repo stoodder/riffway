@@ -126,6 +126,29 @@ export interface LinkOut {
   localMatchIds?: string[];
 }
 
+/**
+ * One remote catalog hit (search metadata only; no tab content). Produced by an adapter's
+ * {@link SourceAdapter.searchRemote} (opt-in, `ServerConfig.remoteSearch`; docs/guides/songsterr-search.md).
+ */
+export interface RemoteSearchHit {
+  source: SourceId;
+  /** The remote site's id for the song (stable; used to link imports back to hits). */
+  remoteId: string;
+  title: string;
+  artist?: string;
+  /** Song page on the remote site, opened in a new tab. */
+  url: string;
+  /** Guitar tracks only (6-string). Empty when the site lists none. */
+  tracks: { name: string; tuning?: number[] }[];
+  /** MIDI tuning of the first guitar track, string 1 = high e (same order as `IndexEntry.tuning`). */
+  tuning?: number[];
+  /** Filter slug and label from `describeTuning` (`'drop-d'`, `'Drop D'`, …). */
+  tuningId?: string;
+  tuningLabel?: string;
+  /** Indexed songs that match this hit by normalized title + artist (playable now). */
+  localMatchIds?: string[];
+}
+
 /** Adapter status (`GET /api/sources`). */
 export interface SourceStatus {
   id: SourceId;
@@ -201,7 +224,8 @@ export interface RefreshResult {
 /**
  * The shared adapter interface. Optional methods depend on {@link SourceKind}:
  * - `library` / `download`: `scan` (+ optional `watch`), `download` also `refresh`.
- * - `link-out`: `linkOuts` (+ optional `matchLocal`); never any I/O.
+ * - `link-out`: `linkOuts` (+ optional `matchLocal`); no I/O, except the opt-in `searchRemote`
+ *   (off by default; docs/guides/songsterr-search.md).
  */
 export interface SourceAdapter {
   readonly id: SourceId;
@@ -221,6 +245,12 @@ export interface SourceAdapter {
   linkOuts?(query: string, filters: SearchFilters): LinkOut[];
   /** Ids of indexed entries this source considers a match for the query (normalised title/artist). Pure. */
   matchLocal?(query: string, entries: readonly IndexEntry[]): string[];
+  /**
+   * Remote catalog search (opt-in; `ServerConfig.remoteSearch`). Metadata only. Must honor `signal`,
+   * rate-limit itself, throw {@link RemoteSearchRefused} on 403/429 and {@link RemoteSearchUnavailable}
+   * while the request isn't set up (docs/guides/songsterr-search.md).
+   */
+  searchRemote?(query: string, ctx: AdapterContext, signal: AbortSignal): Promise<RemoteSearchHit[]>;
   /** Read a raw song bundle for an entry this adapter owns (default: the server reads `path`). */
   readBundle?(entry: IndexEntry, ctx: AdapterContext): Promise<SongBundle>;
   status(ctx: AdapterContext): Promise<SourceStatus>;
@@ -249,4 +279,27 @@ export interface StarterItem {
 export interface StarterManifest {
   schema: 1;
   items: StarterItem[];
+}
+
+/** The remote site refused the request (403/429). The adapter turns remote search off for the session. */
+export class RemoteSearchRefused extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'RemoteSearchRefused';
+  }
+}
+
+/**
+ * Remote search can't run because its request isn't set up (e.g. the owner hasn't written the
+ * request URL yet, docs/guides/songsterr-search.md § 3c). No request is made; the route answers
+ * `status: 'off'` with this message.
+ */
+export class RemoteSearchUnavailable extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RemoteSearchUnavailable';
+  }
 }
