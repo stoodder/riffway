@@ -1,15 +1,17 @@
 /**
  * Source adapter registry (frozen by T-010). Order = display order in search and settings.
- * Link-out adapters must do no network I/O (D1; `songsterr.com/api` is forbidden).
+ * Link-out adapters do no network I/O (D1), with one opt-in exception: Songsterr remote search,
+ * off by default, whose only request lives in `server/sources/songsterr/client.ts`
+ * (docs/guides/songsterr-search.md).
  * @module
  */
 import type { SourceId } from '@shared/song';
 import type { SourceAdapter, SourceAdapterFactory } from '@shared/sources';
 import { createClassTabAdapter } from './classtab';
 import { createGpPackAdapter } from './linkout/gp-pack';
-import { createSongsterrAdapter } from './linkout/songsterr';
 import { createUltimateGuitarAdapter } from './linkout/ultimate-guitar';
 import { createLocalAdapter } from './local';
+import { createSongsterrAdapter } from './songsterr';
 import { createStarterAdapter } from './starter';
 
 export const SOURCE_REGISTRY: readonly { id: SourceId; owner: string; create: SourceAdapterFactory }[] = [

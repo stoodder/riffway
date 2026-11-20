@@ -4,16 +4,18 @@
  * link-outs to Songsterr / Ultimate Guitar / the Guitar Pro free pack (new tab, `noopener`), the
  * ClassTab download offer while it isn't downloaded, a sort control (best match / easiest / A–Z /
  * recently played; applied to the returned rows), the library-folder chooser, whole-window drag-and-drop + file-picker import, live refresh over SSE and
- * the arrangement picker → song page. State lives in the route (`#/library?q=…&tierMax=4`).
+ * the arrangement picker → song page, and the opt-in "On Songsterr" remote results (500 ms debounce,
+ * cancelled by a newer query; docs/guides/songsterr-search.md). State lives in the route
+ * (`#/library?q=…&tierMax=4`).
  *
  * Keyboard: `/` focuses the search box, ↓ moves into the results, ↑/↓/Home/End move between songs,
  * Enter opens, Esc goes back to the search box (and clears it when pressed there).
  * @module
  */
 import { ApiError } from '../../../api/client';
-import type { SearchResponse, ServerConfig, ServerEvent } from '@shared/api';
+import type { SearchResponse, ServerConfig, ServerEvent, SongMeta } from '@shared/api';
 import { SOURCE_IDS } from '@shared/song';
-import type { SearchResult } from '@shared/sources';
+import type { Availability, SearchResult } from '@shared/sources';
 import type { AppContext, ScreenHandle, ScreenMount } from '@shared/ui';
 import { button, emptyState, h, icon, select, uid } from '../../components';
 import { pickArrangement } from './arrangement-picker';
@@ -23,12 +25,17 @@ import { filterBar, type SourceFacet, type TuningFacet } from './filters';
 import { AVAILABILITY, SOURCE_LABEL, songCount } from './labels';
 import { importDestination, libraryFolder } from './library-folder';
 import { linkOutSection } from './link-outs';
+import { remoteResults } from './remote-results';
 import { DEFAULT_QUERY, hasFilters, queryFromParams, queryToParams, sameQuery, sortResults, toSearchQuery, type LibraryQuery, type SortOrder } from './query';
 import { resultList } from './results';
 import './library.css';
 
 /** Search-as-you-type debounce (TASKS.md T-026). */
 export const SEARCH_DEBOUNCE_MS = 150;
+/** Remote search waits this long after typing stops (its own debounce; the server also rate-limits). */
+export const REMOTE_DEBOUNCE_MS = 500;
+/** Shorter queries don't search remotely (matches the server's minimum). */
+export const REMOTE_MIN_QUERY = 3;
 /** Coalesce bursts of `library.changed` events into one refresh. */
 export const REFRESH_DEBOUNCE_MS = 250;
 /** Rows read to build the tuning filter and the "library is empty" check (server maximum). */
@@ -62,6 +69,16 @@ export function tuningFacets(results: readonly SearchResult[]): TuningFacet[] {
   return [...byId]
     .map(([id, label]) => ({ id, label }))
     .sort((a, b) => Number(b.id === 'standard') - Number(a.id === 'standard') || Number(a.id === 'custom') - Number(b.id === 'custom') || a.label.localeCompare(b.label));
+}
+
+/** What opening a song needs: a search row, or the same fields built from `GET /api/songs/:id`. */
+type Openable = Pick<SearchResult, 'id' | 'title' | 'availability' | 'arrangements' | 'defaultArrangement'>;
+
+/** {@link Openable} for a song known only by its metadata (a remote hit's library match). */
+export function openableFromMeta(meta: SongMeta): Openable {
+  const e = meta.entry;
+  const availability: Availability = e.error || e.defaultArrangement < 0 ? 'needs-import' : e.rhythm === 'needs-alignment' ? 'needs-rhythm' : 'playable';
+  return { id: e.id, title: e.title, availability, arrangements: e.tracks.filter((t) => t.playable).length, defaultArrangement: e.defaultArrangement };
 }
 
 /** True for keyboard targets where `/` is typed text, not a shortcut. */
@@ -111,6 +128,11 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
   let searchSeq = 0;
   let facetSeq = 0;
   let searchTimer: number | undefined;
+  /** Remote search: the query it last scheduled ('' = none/off), its sequence, timer and request. */
+  let remoteKey = '';
+  let remoteSeq = 0;
+  let remoteTimer: number | undefined;
+  let remoteAbort: AbortController | null = null;
   let refreshTimer: number | undefined;
   let destroyed = false;
   /** The route this screen last wrote (its own echo arrives later through `update`). */
@@ -181,6 +203,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
   list.el.id = resultsId;
   const empty = h('div', { class: 'lib-empty' });
   const linkOuts = linkOutSection(win);
+  const remote = remoteResults(win);
   const root = h(
     'div',
     { class: 'lib' },
@@ -194,7 +217,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
     linkOuts.el,
     drop.overlay,
   );
-  linkOuts.el.append(offer.el);
+  linkOuts.el.append(remote.el, offer.el);
   el.append(root);
   filters.set(query);
   syncSort();
@@ -288,6 +311,58 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       error = describeError(err);
     }
     render();
+    scheduleRemote();
+  }
+
+  /** Remote search is on for Songsterr (Settings › Library & sources). */
+  function remoteEnabled(): boolean {
+    return !!config && config.remoteSearch.includes('songsterr') && config.enabledSources.includes('songsterr');
+  }
+
+  /**
+   * Start (debounced) or clear the remote search for the current query. A new query cancels the
+   * pending one; the same query (filter or sort changes, library refreshes) keeps the shown results.
+   */
+  function scheduleRemote(): void {
+    const q = query.q.trim();
+    const key = remoteEnabled() && q.length >= REMOTE_MIN_QUERY ? q : '';
+    if (key === remoteKey) return;
+    remoteKey = key;
+    win.clearTimeout(remoteTimer);
+    remoteAbort?.abort();
+    remoteAbort = null;
+    const my = ++remoteSeq;
+    if (!key) {
+      remote.render(null, playLocal);
+      return;
+    }
+    remote.loading();
+    remoteTimer = win.setTimeout(() => void runRemote(key, my), REMOTE_DEBOUNCE_MS);
+  }
+
+  async function runRemote(q: string, my: number): Promise<void> {
+    const ac = new AbortController();
+    remoteAbort = ac;
+    try {
+      const res = await ctx.api.searchRemote(q, 'songsterr', ac.signal);
+      if (my === remoteSeq && !destroyed) remote.render(res, playLocal);
+    } catch {
+      if (my === remoteSeq && !destroyed) remote.render({ source: 'songsterr', status: 'error', hits: [] }, playLocal);
+    } finally {
+      if (remoteAbort === ac) remoteAbort = null;
+    }
+  }
+
+  /** Open a library song a remote hit matched (the row's open path: arrangement picker → song page). */
+  async function playLocal(id: string): Promise<void> {
+    const known = response?.results.find((r) => r.id === id);
+    if (known) return open(known);
+    try {
+      const meta = await ctx.api.song(id);
+      if (!destroyed) await open(openableFromMeta(meta));
+    } catch (err) {
+      ctx.ui.toast(`Couldn't open the song: ${describeError(err)}`, { kind: 'error' });
+    }
   }
 
   async function loadFacets(): Promise<void> {
@@ -297,6 +372,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       if (my !== facetSeq || destroyed) return;
       config = cfg;
       folder.set(cfg);
+      scheduleRemote();
       // The no-match text mentions the ClassTab card while it is offered: refresh it once known.
       void offer.load(cfg).then(() => {
         if (my === facetSeq && response?.results.length === 0) render();
@@ -364,7 +440,7 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
     }
   }
 
-  async function open(result: SearchResult): Promise<void> {
+  async function open(result: Openable): Promise<void> {
     try {
       if (result.availability === 'needs-rhythm') {
         ctx.router.navigate(ctx.router.href('import', { song: result.id }));
@@ -429,6 +505,8 @@ export const mount: ScreenMount = (el: HTMLElement, ctx: AppContext, params) => 
       destroyed = true;
       win.clearTimeout(searchTimer);
       win.clearTimeout(refreshTimer);
+      win.clearTimeout(remoteTimer);
+      remoteAbort?.abort();
       win.removeEventListener('keydown', onWindowKey);
       unsubscribe();
       drop.destroy();

@@ -519,6 +519,15 @@
   flex: 1;
 }
 
+.set-source--with-sub {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.set-source__sub {
+  padding-left: var(--space-5);
+}
+
 .set-source .rw-badge {
   margin-left: var(--space-2);
   vertical-align: 1px;

@@ -5,6 +5,7 @@ Written by the Riffway authors for the Playwright suite (TASKS.md D2); not copie
 | File | Used by |
 |---|---|
 | `paste-arpeggio.txt` | `import.spec.ts`: pasted on the Import screen, snapped to the grid, saved and played |
+| `songsterr-mapped/greensleeves.json` | `songsterr-search.spec.ts`: synthetic, already-mapped `RemoteSearchHit[]` (invented titles, `fixtures.invalid` URLs) served by the opt-in Songsterr search in fixture mode (`RIFFWAY_SONGSTERR_FIXTURES`); not a real response |
 
 The suite also seeds its temp library with committed unit-test fixtures (`tests/fixtures/import/gp/riff.gp`,
 `tests/fixtures/ascii/ug-style-riff.txt`) and drops `tests/fixtures/import/gp/capo.gp`; see `e2e/support/env.ts`.

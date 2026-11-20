@@ -17,6 +17,7 @@ import type {
   ImportResponse,
   PasteRequest,
   PasteResponse,
+  RemoteSearchResponse,
   RescanResponse,
   SearchQuery,
   SearchResponse,
@@ -28,7 +29,7 @@ import type {
   SourcesResponse,
 } from '@shared/api';
 import type { Unsubscribe } from '@shared/clock';
-import type { RhythmSidecar, SongBundle, SourceRef } from '@shared/song';
+import type { RhythmSidecar, SongBundle, SourceId, SourceRef } from '@shared/song';
 
 /** A non-2xx response. */
 export class ApiError extends Error {
@@ -82,8 +83,15 @@ export function createApiClient(opts: ApiClientOptions = {}): ApiClient {
   const base = opts.baseUrl ?? '';
   const doFetch: typeof fetch = opts.fetch ?? ((input, init) => globalThis.fetch(input, init));
 
-  async function request(method: string, path: string, body?: BodyInit | object, headers: Record<string, string> = {}): Promise<Response> {
+  async function request(
+    method: string,
+    path: string,
+    body?: BodyInit | object,
+    headers: Record<string, string> = {},
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const init: RequestInit = { method, headers: { ...headers } };
+    if (signal) init.signal = signal;
     if (body !== undefined) {
       if (body instanceof FormData || body instanceof Blob || body instanceof ArrayBuffer || typeof body === 'string') {
         init.body = body as BodyInit;
@@ -151,6 +159,8 @@ export function createApiClient(opts: ApiClientOptions = {}): ApiClient {
     putConfig: (update: ConfigUpdate) => json<ServerConfig>('PUT', '/api/config', update),
     sources: () => json<SourcesResponse>('GET', '/api/sources'),
     search: (query: SearchQuery) => json<SearchResponse>('GET', `/api/search${searchQueryString(query)}`),
+    searchRemote: async (q: string, source: SourceId, signal?: AbortSignal) =>
+      (await request('GET', `/api/search/remote?q=${encodeURIComponent(q)}&source=${encodeURIComponent(source)}`, undefined, {}, signal)).json() as Promise<RemoteSearchResponse>,
     song: (id) => json<SongMeta>('GET', `/api/songs/${encodeId(id)}`),
     songFile: (id) => bytes(`/api/songs/${encodeId(id)}/file`),
     songRhythm: (id) => bytes(`/api/songs/${encodeId(id)}/rhythm`),
