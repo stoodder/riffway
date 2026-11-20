@@ -112,9 +112,10 @@ All JSON unless noted; DTOs in `shared/api.ts`.
 | Method & path | Purpose | Owner |
 |---|---|---|
 | `GET /api/health` | `{ok, version, dataDir, libraryDir}` | T-017 |
-| `GET, PUT /api/config` | Server config: library folder, enabled sources | T-017 |
+| `GET, PUT /api/config` | Server config: library folder, enabled sources, remote-search opt-in | T-017 |
 | `GET /api/sources` | Adapters with status (indexed count, last refresh, link-out) | T-017 |
 | `GET /api/search?q&source&tierMin&tierMax&tuning&playable&tags&limit` | Unified search → `{results, linkOuts}` | T-017 (+adapters) |
+| `GET /api/search/remote?q&source` | Opt-in remote catalog search (Songsterr; `ServerConfig.remoteSearch`, off by default) → `RemoteSearchResponse` `{status: ok\|off\|refused\|error, hits}`; see `docs/guides/songsterr-search.md` | T-130 |
 | `GET /api/songs/:id` | `SongMeta` (`shared/api.ts`): index entry, arrangements, difficulty, file URLs | T-017 |
 | `GET /api/songs/:id/file` | Raw main file bytes | T-017 |
 | `GET /api/songs/:id/rhythm` | Paired MIDI bytes (ClassTab / sibling `.mid`) | T-025 |

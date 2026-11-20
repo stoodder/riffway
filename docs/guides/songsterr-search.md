@@ -1,10 +1,39 @@
 # Guide: in-app Songsterr search (owner-implemented)
 
-Status: **plan for the owner to implement.** Riffway currently ships Songsterr as a link-out only
-(TASKS.md D1, `docs/sources/songsterr.md`). This guide adds opt-in, search-only results from a remote
-catalog without changing anything else. Every Riffway-side file, type, route, UI piece, guard change
-and test is spelled out below. The two Songsterr-specific pieces are yours to write: the request URL
-in `client.ts` and the response mapping in `map.ts`. Both are marked `OWNER:`.
+Status: **Riffway side done (T-130); Songsterr-specific parts left for the owner.** Riffway ships
+Songsterr as a link-out (TASKS.md D1, `docs/sources/songsterr.md`). This guide adds opt-in,
+search-only results from a remote catalog without changing anything else. All site-agnostic pieces
+(types, config, limiter, cache, generic request, adapter, route, client, UI, settings, offline tests,
+e2e in fixture mode) are in place. The two Songsterr-specific pieces are yours to write: the request
+URL in `client.ts` and the response mapping in `map.ts`. Both are marked `OWNER:` in the code. Until
+`buildSearchUrl()` returns a URL, turning the feature on shows "Songsterr search isn't set up yet."
+in the Library and sends nothing.
+
+### Status
+
+| Step | Item | Status |
+|---|---|---|
+| 1 | `RemoteSearchHit`, `SourceAdapter.searchRemote?`, `RemoteSearchRefused`, `RemoteSearchUnavailable`, `RemoteSearchResponse`, `API_ROUTES.searchRemote`, `ServerConfig.remoteSearch`, `ApiClient.searchRemote` | ✅ Done |
+| 2 | Config flag `remoteSearch` (default `[]`, validation, tests updated) | ✅ Done |
+| 3a, 3b | `limiter.ts`, `cache.ts` | ✅ Done |
+| 3c | `client.ts`: generic `fetchSearch` (UA, timeout, 403/429, unavailable) | ✅ Done |
+| 3c | `client.ts`: `buildSearchUrl()` | ⬜ OWNER |
+| 3d | `map.ts`: skeleton, `mapSearchResponse` signature, `tuningFields` | ✅ Done |
+| 3d | `map.ts`: `RawSong`, `songUrl`, `rawTuning`, `isSixStringGuitar`, `readItem`, `trackName` | ⬜ OWNER |
+| 3e | `index.ts` adapter (injectable `fetchImpl`/`buildUrl`/`mapResponse`, fixture mode) | ✅ Done |
+| 3f | Registry import + header comment | ✅ Done |
+| 4 | Route `GET /api/search/remote` + `ROUTES` row | ✅ Done |
+| 5 | API client `searchRemote` + `AbortSignal` in `request` | ✅ Done |
+| 6 | Narrow the guards (`eslint.config.js`, `network-guard.test.ts`, `lint-guards.test.ts`) | ⬜ OWNER |
+| 7 | Library UI (`remote-results.ts`, wiring, CSS) | ✅ Done |
+| 8 | Settings toggle | ✅ Done |
+| 9 | Offline tests: limiter, cache, adapter, route, config, UI, Settings, e2e (fixture mode) | ✅ Done |
+| 9 | Fixtures from real responses + `tests/songsterr/map.test.ts` | ⬜ OWNER |
+| 10 | `docs/architecture.md`, TASKS.md T-130, `CLAUDE.md` Env line | ✅ Done |
+| 10 | Wording of TASKS.md D1, CLAUDE.md § Conventions, `docs/sources/songsterr.md`, `docs/sources/README.md` | ⬜ OWNER |
+
+Your order: 3c `buildSearchUrl` → 3d mapping + 9 fixtures/`map.test.ts` → 6 guards → 10 wording. Run
+`npm run typecheck` after each step.
 
 Design rules this guide follows:
 - **Opt-in.** Off by default; turned on in Settings › Library & sources. Stored in the server config.
@@ -17,7 +46,7 @@ Design rules this guide follows:
   results arrive after.
 - **Tested offline.** Recorded fixtures only; no test touches the network.
 
-Work in this order. Run `npm run typecheck` after each step.
+Original plan (all steps):
 
 | Step | What | Files |
 |---|---|---|
@@ -34,7 +63,7 @@ Work in this order. Run `npm run typecheck` after each step.
 
 ---
 
-## 1. Types and contracts
+## 1. Types and contracts  ✅ Done in this PR
 
 ### `shared/sources.ts`
 
@@ -72,7 +101,8 @@ Add one optional method to `SourceAdapter` (after `matchLocal?`, around line 223
   searchRemote?(query: string, ctx: AdapterContext, signal: AbortSignal): Promise<RemoteSearchHit[]>;
 ```
 
-And an error class at the end of the file:
+And two error classes at the end of the file (`RemoteSearchUnavailable` was added in T-130 for the
+"not set up yet" state):
 
 ```ts
 /** The remote site refused the request (403/429). The adapter turns remote search off for the session. */
@@ -82,6 +112,9 @@ export class RemoteSearchRefused extends Error {
     this.name = 'RemoteSearchRefused';
   }
 }
+
+/** The request isn't set up yet (`buildSearchUrl` returns null). No request is made; the route answers `off`. */
+export class RemoteSearchUnavailable extends Error { /* name = 'RemoteSearchUnavailable' */ }
 ```
 
 ### `shared/api.ts`
@@ -100,7 +133,7 @@ export class RemoteSearchRefused extends Error {
    /** `GET /api/search/remote?q=&source=`. */
    export interface RemoteSearchResponse {
      source: SourceId;
-     /** `'off'`: not enabled in settings. `'refused'`: the site said no (403/429), off until restart. */
+     /** `'off'`: not enabled in settings, or not set up yet (then `message` says so). `'refused'`: 403/429, off until restart. */
      status: 'ok' | 'off' | 'refused' | 'error';
      message?: string;
      hits: RemoteSearchHit[];
@@ -114,7 +147,7 @@ export class RemoteSearchRefused extends Error {
 
 ---
 
-## 2. Server config flag: `server/config-store.ts`
+## 2. Server config flag: `server/config-store.ts`  ✅ Done in this PR
 
 1. `defaultConfig` (line 17): add `remoteSearch: []`.
 2. `parseConfigUpdate`: add a case next to `enabledSources`:
@@ -132,11 +165,14 @@ Update any test that compares a whole default config object (`grep -rn "importSu
 
 ---
 
-## 3. Adapter: `server/sources/songsterr/` (new folder)
+## 3. Adapter: `server/sources/songsterr/` (new folder)  ✅ Done except 3c `buildSearchUrl` and 3d mapping (⬜ Owner)
 
 Five files. Keep `server/sources/linkout/songsterr.ts` as it is: the new adapter reuses its link-out.
 
-### 3a. `limiter.ts` (complete)
+### 3a. `limiter.ts` (complete)  ✅ Done in this PR
+
+As built, a waiting call also removes its abort listener when it resolves, so an earlier call's
+abort can't cancel a later waiter. Tests: `tests/songsterr/limiter.test.ts`.
 
 ```ts
 /** At most one request per `intervalMs`; a newer call supersedes a waiting one. */
@@ -161,7 +197,9 @@ export function createLimiter(intervalMs = 1000, now: () => number = Date.now) {
 }
 ```
 
-### 3b. `cache.ts` (complete)
+### 3b. `cache.ts` (complete)  ✅ Done in this PR
+
+Tests: `tests/songsterr/cache.test.ts`.
 
 ```ts
 import type { RemoteSearchHit } from '@shared/sources';
@@ -192,41 +230,49 @@ export function createSearchCache(max = 200, ttlMs = 24 * 3600_000, now: () => n
 You can persist it to `<dataDir>/songsterr-cache.json` later with `server/json-file.ts`
 (`readJsonFile` / `writeJsonFile`); in memory is fine to start.
 
-### 3c. `client.ts` (you fill in the request)
+### 3c. `client.ts`  ✅ Generic part done · ⬜ Owner: `buildSearchUrl()`
 
 This is the only file that talks to the remote site, and the only one the guards will allow (step 6).
+As built, `buildSearchUrl` returns `null` until you implement it; `fetchSearch` then throws
+`RemoteSearchUnavailable` **without any request** and the route answers
+`{status: 'off', message: 'Songsterr search isn’t set up yet.'}`.
 
 ```ts
-import { RemoteSearchRefused } from '@shared/sources';
-
-/** Honest identification; no personal info. */
 export const USER_AGENT = 'Riffway/0.1 (personal local practice app)';
 export const TIMEOUT_MS = 4000;
+export const NOT_SET_UP_MESSAGE = 'Songsterr search isn’t set up yet.';
 
-/** OWNER: build the search request URL for `query`. */
-export function buildSearchUrl(query: string): string {
-  throw new Error('OWNER: implement buildSearchUrl');
+/** OWNER: build the search request URL for `query`. Returns null while not implemented. */
+export function buildSearchUrl(query: string): string | null {
+  void query;
+  return null; // OWNER: return the request URL
 }
 
-/** Injected in tests; defaults to global fetch. */
-export type FetchLike = (url: string, init: RequestInit) => Promise<Response>;
-
-/** GET the search URL; returns parsed JSON. Throws RemoteSearchRefused on 403/429, Error otherwise. */
-export async function fetchSearch(query: string, signal: AbortSignal, fetchImpl: FetchLike = fetch): Promise<unknown> {
-  const res = await fetchImpl(buildSearchUrl(query), {
+export async function fetchSearch(query: string, signal: AbortSignal, opts: FetchSearchOptions = {}): Promise<unknown> {
+  const url = (opts.buildUrl ?? buildSearchUrl)(query);
+  if (url === null) throw new RemoteSearchUnavailable(NOT_SET_UP_MESSAGE);
+  const fetchImpl: FetchLike = opts.fetchImpl ?? ((u, init) => fetch(u, init));
+  const res = await fetchImpl(url, {
     headers: { 'user-agent': USER_AGENT, accept: 'application/json' },
     signal: AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)]),
   });
-  if (res.status === 403 || res.status === 429) {
-    const text = (await res.text().catch(() => '')).slice(0, 300);
-    throw new RemoteSearchRefused(res.status, text || `HTTP ${res.status}`);
-  }
+  if (res.status === 403 || res.status === 429) { /* … */ throw new RemoteSearchRefused(res.status, text || `HTTP ${res.status}`); }
   if (!res.ok) throw new Error(`Search failed: HTTP ${res.status}`);
   return res.json();
 }
 ```
 
-### 3d. `map.ts` (pure; you fill in the response shape)
+`query` arrives trimmed, 3–200 characters. Your part: replace `return null` with the URL. The
+tests inject their own URL builder, so they don't change when you do.
+
+### 3d. `map.ts` (pure)  ✅ Skeleton done · ⬜ Owner: the response shape
+
+As built, `map.ts` type-checks and maps everything to `[]`. The format-specific reads are split into
+small `OWNER:` functions: `RawSong` (fields), `songUrl`, `rawTuning`, `isSixStringGuitar`, plus
+`readItem(raw)` (id, title, artist, tracks) and `trackName(track)`. `mapSearchResponse` keeps the
+signature below, skips odd items (including ones that throw) and fills tuning fields through the
+generic `tuningFields(tracks)` (first 6-string tuning → `describeTuning`; tested in
+`tests/songsterr/map-generic.test.ts`). The original sketch:
 
 ```ts
 import type { RemoteSearchHit } from '@shared/sources';
@@ -279,7 +325,14 @@ export function mapSearchResponse(json: unknown): RemoteSearchHit[] {
 `describeTuning` (`src/core/model/tuning.ts:31`) expects high → low order and gives you the same
 `tuningId` slugs the Library's tuning filter uses, so remote rows filter like local ones.
 
-### 3e. `index.ts` (complete)
+### 3e. `index.ts`  ✅ Done in this PR
+
+As built, the factory takes injectable deps so it is testable without your mapper:
+`createSongsterrAdapter({ fetchImpl?, buildUrl?, mapResponse?, fixturesDir?, now?, intervalMs? })`.
+Fixture mode: with `RIFFWAY_SONGSTERR_FIXTURES=<dir>` (or `fixturesDir`), hits come from
+`<dir>/<fixtureSlug(query)>.json` as **already-mapped** `RemoteSearchHit[]` (synthetic; the e2e suite
+uses `e2e/fixtures/songsterr-mapped/`), with no limiter, cache or request. `status()` also says when
+remote search isn't set up. Tests: `tests/songsterr/adapter.test.ts`. The original sketch:
 
 ```ts
 import { RemoteSearchRefused, type RemoteSearchHit, type SourceAdapter } from '@shared/sources';
@@ -335,7 +388,7 @@ export function createSongsterrAdapter(deps: { fetchImpl?: FetchLike } = {}): So
 }
 ```
 
-### 3f. `server/sources/registry.ts`
+### 3f. `server/sources/registry.ts`  ✅ Done in this PR
 
 Change the import on line 10 and update the header comment on line 3:
 
@@ -349,7 +402,12 @@ forbidden. Change it to say remote search lives only in `server/sources/songster
 
 ---
 
-## 4. Route: `server/routes/search-remote.ts` (new, complete)
+## 4. Route: `server/routes/search-remote.ts` (new, complete)  ✅ Done in this PR
+
+As built, it also catches `RemoteSearchUnavailable` → `empty('off', err.message)`, and cancels on
+`reply.raw` `close` before the response finished (on recent Node versions `req.raw` can emit `close`
+once the request body has been read, which would cancel every search). Registered as `{ name: 'search-remote', owner:
+'T-130' }`. Tests: `tests/songsterr/route.test.ts`. The original sketch:
 
 ```ts
 import type { RemoteSearchResponse } from '@shared/api';
@@ -394,7 +452,7 @@ import { register as searchRemote } from './search-remote';
 
 ---
 
-## 5. API client: `src/api/client.ts`
+## 5. API client: `src/api/client.ts`  ✅ Done in this PR
 
 Next to `search:` (line 153), add:
 
@@ -409,7 +467,10 @@ and pass it to `fetch(…, { signal })`. Import `RemoteSearchResponse` and `Sour
 
 ---
 
-## 6. Guards (narrow them; don't delete them)
+## 6. Guards (narrow them; don't delete them)  ⬜ Owner
+
+Not done in T-130 on purpose: nothing in the tree names the remote endpoint yet, so the guards pass
+unchanged. Narrow them in the same commit as `buildSearchUrl`.
 
 ### `eslint.config.js`
 
@@ -446,100 +507,29 @@ same literal in `server/sources/linkout/x.ts` still does. Follow the existing
 
 ---
 
-## 7. Library UI
+## 7. Library UI  ✅ Done in this PR
 
-### `src/ui/screens/library/remote-results.ts` (new, complete)
+- `src/ui/screens/library/remote-results.ts`: the "On Songsterr" card (an `h3` region inside "Find
+  more tabs", above the ClassTab card). Rows show title, artist and tuning label; a hit with
+  `localMatchIds` gets **Play (in your library)** (`aria-label` "Play <title> (in your library)"),
+  others **Open on Songsterr ↗** ("Open <title> on Songsterr (opens a new tab)", via `openLinkOut`,
+  `noopener,noreferrer`). Hidden for `null` and for `off` without a message; `off` with a message
+  ("isn't set up yet"), `refused` and `error` show a note instead of rows.
+- `src/ui/screens/library/index.ts`: `scheduleRemote()` runs after every local search and once the
+  config loads. Remote search runs only when `config.remoteSearch` and `enabledSources` include
+  `songsterr` and the query has ≥ 3 characters; it has its own `REMOTE_DEBOUNCE_MS = 500`, a newer
+  query aborts the pending/in-flight one (`AbortSignal` through `ctx.api.searchRemote`), the same query
+  (filter or sort changes) doesn't re-request, and unmount aborts. **Play** opens the matching row
+  when it is in the current results, else builds the same input from `GET /api/songs/:id`
+  (`openableFromMeta`) and goes through `pickArrangement` to `#/song/:id`.
+- `library.css`: `.lib-remote*` uses the `.lib-linkout` card tokens (border, radius, surface, muted
+  `--text-sm` notes).
+- Tests: `tests/library-ui/remote-results.test.ts`, `tests/library-ui/screen-remote.test.ts`.
 
-```ts
-import type { RemoteSearchResponse } from '@shared/api';
-import { h } from '../../components';
-import { openLinkOut } from './link-outs';
+## 8. Settings toggle: `src/ui/screens/settings/library.ts`  ✅ Done in this PR
 
-export interface RemoteResults {
-  el: HTMLElement;
-  loading(): void;
-  render(res: RemoteSearchResponse | null, onPlay: (id: string) => void): void;
-}
-
-/** "On Songsterr" group under the link-outs. Hidden when remote search is off. */
-export function remoteResults(win: Window = window): RemoteResults {
-  const list = h('ul', { class: 'lib-remote__list' });
-  const note = h('p', { class: 'lib-remote__note rw-muted' });
-  const el = h('section', { class: 'lib-remote', 'aria-label': 'Songsterr results', hidden: true },
-    h('h2', { class: 'lib-remote__title' }, 'On Songsterr'), note, list);
-  return {
-    el,
-    loading() { el.hidden = false; el.setAttribute('aria-busy', 'true'); note.textContent = 'Searching Songsterr…'; },
-    render(res, onPlay) {
-      el.removeAttribute('aria-busy');
-      if (!res || res.status === 'off') { el.hidden = true; return; }
-      el.hidden = false;
-      if (res.status !== 'ok') {
-        note.textContent = res.status === 'refused'
-          ? 'Songsterr declined the search, so it’s off until Riffway restarts. “Search on Songsterr” still works.'
-          : res.message ?? 'Couldn’t reach Songsterr.';
-        list.replaceChildren();
-        return;
-      }
-      note.textContent = res.hits.length ? 'Opens on Songsterr. Download the Guitar Pro file, then drop it here.' : 'No matches on Songsterr.';
-      list.replaceChildren(...res.hits.map((hit) => {
-        const local = hit.localMatchIds?.[0];
-        return h('li', { class: 'lib-remote__row' },
-          h('div', { class: 'lib-remote__meta' },
-            h('strong', null, hit.title),
-            hit.artist ? h('span', { class: 'rw-muted' }, ` — ${hit.artist}`) : null,
-            hit.tuningLabel ? h('span', { class: 'lib-remote__tuning' }, hit.tuningLabel) : null),
-          local
-            ? h('button', { type: 'button', class: 'rw-btn rw-btn--primary rw-btn--sm', on: { click: () => onPlay(local) } }, 'Play (in your library)')
-            : h('button', { type: 'button', class: 'rw-btn rw-btn--secondary rw-btn--sm',
-                'aria-label': `Open ${hit.title} on Songsterr (new tab)`, on: { click: () => openLinkOut(hit.url, win) } }, 'Open on Songsterr ↗'));
-      }));
-    },
-  };
-}
-```
-
-### `src/ui/screens/library/index.ts`
-
-1. Import `remoteResults` and create it next to `linkOutSection` (line 183):
-   `const remote = remoteResults(win);` then append `remote.el` after `linkOuts.el` (around line 197).
-2. Add `let remoteSeq = 0; let remoteAbort: AbortController | null = null;` near `searchSeq`.
-3. At the end of `runSearch()` (line 274), **after** `render()`, start the remote search without
-   awaiting it in the local path:
-   ```ts
-   void runRemote(query.q.trim());
-   ```
-4. Add the function:
-   ```ts
-   async function runRemote(q: string): Promise<void> {
-     remoteAbort?.abort();
-     const my = ++remoteSeq;
-     if (q.length < 3 || !config?.remoteSearch.includes('songsterr')) { remote.render(null, play); return; }
-     remoteAbort = new AbortController();
-     remote.loading();
-     try {
-       const res = await ctx.api.searchRemote(q, 'songsterr', remoteAbort.signal);
-       if (my === remoteSeq && !destroyed) remote.render(res, play);
-     } catch {
-       if (my === remoteSeq && !destroyed) remote.render({ source: 'songsterr', status: 'error', hits: [] }, play);
-     }
-   }
-   ```
-   `play(id)` should open the song the way a result row does. Reuse what the result list's click
-   handler calls (it goes through `pickArrangement` to `#/song/:id`).
-5. In the screen's cleanup (`destroy`), call `remoteAbort?.abort()`.
-6. The library search debounce is 150 ms (line 30). If that sends too many remote requests while
-   you type, give `runRemote` its own 400–600 ms debounce. The server limiter and cache protect the
-   site either way.
-
-### `src/ui/screens/library/library.css`
-
-Style `.lib-remote*` like `.lib-linkouts*` (same card, spacing and muted text tokens), so the group
-reads as part of "Find more tabs".
-
----
-
-## 8. Settings toggle: `src/ui/screens/settings/library.ts`
+As built, the toggle sits under Songsterr's own switch (`.set-source__sub`), toasts on change and
+reverts on error. Test: `tests/settings/screen.test.ts`.
 
 In `renderSources()` (line 217), for `s.id === 'songsterr'` append a second toggle under the
 source's own switch:
@@ -559,7 +549,15 @@ and a `setRemote` like `setSource` (line 233) that calls
 
 ---
 
-## 9. Tests (offline)
+## 9. Tests (offline)  ✅ Done except real-response fixtures and `map.test.ts` (⬜ Owner)
+
+Done in T-130, all offline with injected fakes and synthetic data (invented titles, `*.invalid`
+hosts, a pass-through fake mapper): `tests/songsterr/{limiter,cache,adapter,route,map-generic}.test.ts`
+(adapter/route cover 200 + cache, 403/429 refused without further requests, 500/timeout, < 3 chars,
+`localMatchIds`, unavailable → `off` + message, fixture mode, config validation), the UI tests above,
+and `e2e/songsterr-search.spec.ts` (fixture mode; enable in Settings, search, Open through the
+`window.open` stub, Play a library match; resets the config afterwards; the network guard is
+unchanged). Yours: the fixtures and `map.test.ts` below.
 
 **Fixtures.** Save 3–5 real responses from your own browser into `tests/fixtures/songsterr/`:
 `basic.json`, `drop-d.json`, `no-guitar.json` (a song with only bass or drums), `empty.json`. Trim
@@ -568,6 +566,8 @@ each to a few items.
 **`tests/songsterr/map.test.ts`.** For each fixture: hit count, title and artist, guitar tracks
 only, `tuning` high → low (Drop D = `[64, 59, 55, 50, 45, 38]`), `tuningId` `'drop-d'`, and odd
 items skipped rather than throwing.
+
+The rest of this section is the original plan, kept for reference.
 
 **`tests/songsterr/limiter.test.ts`.** Fake `now` plus `vi.useFakeTimers()`: the second call waits
 until 1 s after the first; a newer call aborts a waiting one with `AbortError`.
@@ -592,8 +592,8 @@ helpers do), then `app.inject({ url: '/api/search/remote?q=enter+sandman' })`:
 
 **e2e.** Leave the feature off in `e2e/` (the network guard blocks every non-loopback request from
 the browser, and the server must not call out during tests either). To cover the UI, add an env var
-`RIFFWAY_SONGSTERR_FIXTURES=<dir>` that makes `client.ts` read `<dir>/<query>.json` instead of
-fetching. Set it in `playwright.config.ts` and add one spec: enable in Settings, search, see the
+`RIFFWAY_SONGSTERR_FIXTURES=<dir>` that makes the adapter read `<dir>/<query slug>.json` (as built:
+already-mapped hits, so it doesn't depend on `map.ts`) instead of fetching. Set it in `playwright.config.ts` and add one spec: enable in Settings, search, see the
 "On Songsterr" group with a working **Open on Songsterr** button (check the URL through the
 existing `window.open` stub).
 
@@ -601,7 +601,11 @@ Run before committing: `npm run typecheck`, `npm run lint`, `npm test`, `npm run
 
 ---
 
-## 10. Docs and decision record
+## 10. Docs and decision record  ✅ architecture.md, TASKS.md T-130, CLAUDE.md Env line · ⬜ Owner: wording below
+
+Done in T-130: `docs/architecture.md` API row, TASKS.md T-130 (sub-items) and contract change row,
+`RIFFWAY_SONGSTERR_FIXTURES` on CLAUDE.md's Env line. Yours: D1, CLAUDE.md § Conventions,
+`docs/sources/songsterr.md`, `docs/sources/README.md`.
 
 - **`TASKS.md`:** change D1 to: "Songsterr: link-out by default; owner-implemented opt-in
   remote search (metadata only, rate-limited, cached, turns off on refusal). See

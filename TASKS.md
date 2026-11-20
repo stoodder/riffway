@@ -47,7 +47,7 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 ## Contract change requests
 | Date | From task | Contract | Change | Status |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-11-20 | T-130 | `shared/sources.ts`, `shared/api.ts`, `server/sources/registry.ts`, `server/routes/index.ts`, `src/api/client.ts` | Opt-in remote search: `RemoteSearchHit`, `SourceAdapter.searchRemote?`, `RemoteSearchRefused`/`RemoteSearchUnavailable`, `RemoteSearchResponse`, `API_ROUTES.searchRemote`, `ServerConfig.remoteSearch`, `ApiClient.searchRemote`; registry imports `server/sources/songsterr/`; route row `search-remote` | applied (owner request, `docs/guides/songsterr-search.md`) |
 
 ## Waves
 | Wave | Tasks (parallel within a wave) | Gate after |
@@ -556,6 +556,26 @@ Source of truth for status and resume. Scope comes from `docs/spec.md`; design f
 - **Owns:** `docs/README.md`, `TASKS.md`, `CLAUDE.md`
 - **Acceptance:** README state updated, CLAUDE.md commands match `package.json`, open questions listed
   for the owner (D1 acceptance, DEC-24), branch merged to `main` and pushed.
+
+## Owner-requested features
+
+### T-130 · Opt-in Songsterr remote search (owner-led)
+- **Status:** in-progress (Riffway side done; Songsterr-specific parts are the owner's) · **Deps:** T-099 · **Agent:** impl + owner
+- **Guide:** `docs/guides/songsterr-search.md` (status table at the top). D1 stays as written until the owner rewords it.
+- **Owns:** `shared/{sources,api}.ts` (additions), `server/config-store.ts`, `server/sources/songsterr/`, `server/sources/registry.ts`, `server/routes/{search-remote,index}.ts`, `src/api/client.ts`, `src/ui/screens/library/{remote-results,index,arrangement-picker}.ts`, `library.css`, `src/ui/screens/settings/{library.ts,settings.css}`, `tests/songsterr/`, `tests/library-ui/`, `tests/settings/`, `e2e/songsterr-search.spec.ts`, `e2e/fixtures/songsterr-mapped/`, `playwright.config.ts`
+- **Sub-items:**
+  - [x] Types and contracts (guide § 1), plus `RemoteSearchUnavailable` for "not set up yet"
+  - [x] Config flag `remoteSearch` (default `[]`, validated) (§ 2)
+  - [x] Limiter, cache, generic `fetchSearch` (UA, 4 s timeout, 403/429 → refused), adapter with injectable fetch/URL builder/mapper, fixture mode `RIFFWAY_SONGSTERR_FIXTURES` (§ 3a–3c, 3e, 3f)
+  - [x] Route `GET /api/search/remote` (unavailable → `off` + "Songsterr search isn't set up yet.") and API client with `AbortSignal` (§ 4, 5)
+  - [x] Library "On Songsterr" group (500 ms debounce, aborts on newer query/unmount, Play vs Open) and Settings toggle (§ 7, 8)
+  - [x] Offline tests: limiter, cache, adapter, route, config, map generic parts, UI, Settings, e2e in fixture mode (§ 9)
+  - [ ] **Owner:** `buildSearchUrl()` in `server/sources/songsterr/client.ts` (returns `null` until then)
+  - [ ] **Owner:** response mapping in `server/sources/songsterr/map.ts` (`RawSong`, `songUrl`, `rawTuning`, `isSixStringGuitar`, `readItem`, `trackName`)
+  - [ ] **Owner:** narrow the guards (§ 6): `eslint.config.js`, `tests/server/network-guard.test.ts`, `tests/foundation/lint-guards.test.ts`
+  - [ ] **Owner:** fixtures from real responses in `tests/fixtures/songsterr/` + `tests/songsterr/map.test.ts`
+  - [ ] **Owner:** wording of D1, CLAUDE.md § Conventions, `docs/sources/songsterr.md`, `docs/sources/README.md` (§ 10)
+- **Acceptance:** off by default; nothing contacts any remote host in tests or e2e; typecheck, lint, `npm test`, `npm run test:e2e` green.
 
 ## Review fix tasks
 R1: T-101, T-102 (+ T-103, T-104 follow-ups). R2: T-111, T-112. R3: T-121, T-122. See docs/reviews/.
